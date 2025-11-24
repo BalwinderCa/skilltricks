@@ -1,0 +1,38 @@
+/vendor/
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Laravel 4 specific
+bootstrap/compiled.php
+app/storage/
+
+# Laravel 5 & Lumen specific
+public/storage
+public/hot
+
+public/uploads/pdfChats
+public/uploads
+
+.idea
+
+# Laravel 5 & Lumen specific with changed public path
+public_html/storage
+public_html/hot
+
+storage/*.key
+.env
+Homestead.yaml
+Homestead.json
+/.vagrant
+.phpunit.result.cache
+
+# modules
+multivendor-rename-to-vendor.zip
+
+# uploads
+# uploads.zip
+
+copy.php
+change-list.text
+.DS_Store

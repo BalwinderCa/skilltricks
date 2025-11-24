@@ -1,0 +1,1329 @@
+@extends('backend.layouts.master')
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+
+
+
+@section('title')
+
+    {{ localize('Chat') }} {{ getSetting('title_separator') }} {{ getSetting('system_title') }}
+
+@endsection
+
+<style>
+  /* .custom-loder{  mix-blend-mode: luminosity;} */
+    /* .template-actions {
+        top: 70% !important;
+    }
+    .btn svg {
+        width: 30px !important;
+        height: 30px !important;
+    }
+    button.btn.btn-sm.text-success.me-2.copy-btn {
+        margin-top: -10px;
+        position: absolute;
+        left: -25px;
+    } */
+     /* Parent - Container */
+    .chat-container {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* Parent - Sidebar */
+    .sidebar {
+      width: 260px;
+      /* background-color: #f7f7f7; */
+      background-color: --bs-card-bg: var(--bs-body-bg);
+      border-right: 1px solid var(--bs-border-color-translucent);
+      --bs-card-border-width: var(--bs-border-width);
+      /* Child elements will inherit these properties */
+    }
+      /* Child - Sidebar Header */
+      .sidebar .sidebar-header {
+        padding: 15px;
+        border-bottom: 1px solid #e0e0e0;
+        display: flex;
+        justify-content: space-between;
+      }
+        /* Grandchild - Sidebar Header Buttons */
+        .sidebar .sidebar-header .btn-icon {
+          color: #666;
+          background-color: transparent;
+          border: none;
+          border-radius: 4px;
+          padding: 8px;
+        }
+          /* Great-grandchild - Icon hover state */
+          .sidebar .sidebar-header .btn-icon:hover {
+            background-color: #e0e0e0;
+          }
+
+      /* Child - Sidebar Content */
+      .sidebar .sidebar-content {
+        overflow-y: auto;
+        height: calc(100vh - 60px);margin-right: 10px;
+      }
+        /* Grandchild - Sidebar Sections */
+        .sidebar .sidebar-content .sidebar-section {
+          padding: 5px 0px;
+          /* border-bottom: 1px solid #e0e0e0; */
+        }
+          /* Great-grandchild - Section Title */
+          .sidebar .sidebar-content .sidebar-section .section-title {
+            font-size: 12px;
+            color: #000;
+            margin-bottom: 10px;
+            font-weight: 500;
+          }
+          /* Great-grandchild - Sidebar Items */
+          .sidebar .sidebar-content .sidebar-section .sidebar-item {
+            padding: 8px 8px;
+            border-radius: 4px;
+            margin-bottom: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+          }
+            /* Great-great-grandchild - Sidebar Item Hover */
+            .sidebar .sidebar-content .sidebar-section .sidebar-item:hover {
+              background-color: #e0e0e0;
+            }
+            .sidebar .sidebar-content .sidebar-section .section-title a{display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;}
+            /* Great-great-grandchild - Sidebar Item Icon */
+            .sidebar .sidebar-content .sidebar-section .sidebar-item i {
+              margin-right: 10px;
+              color: #666;
+            }
+
+
+           .chat-messages .btn svg{width: 24px;
+  height: 24px;
+  font-size: 9px;}
+
+    /* Parent - Main Content */
+    .main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;background:#fff;
+    }
+      /* Child - Chat Header */
+      .main-content .chat-header {
+        padding: 15px;
+        border-bottom: 1px solid #e0e0e0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+        /* Grandchild - Header Title */
+        .main-content .chat-header .header-title {
+          font-weight: 600;
+          display: flex;
+          align-items: center;
+        }
+        /* Grandchild - Header Actions */
+        .main-content .chat-header .header-actions {
+          display: flex;
+          align-items: center;
+        }
+          /* Great-grandchild - Action Button */
+          .main-content .chat-header .header-actions .btn-action {
+            padding: 6px 12px;
+            border-radius: 4px;
+            border: none;
+            background-color: transparent;
+            display: flex;
+            align-items: center;
+            color: #666;
+            font-size: 14px;
+          }
+            /* Great-great-grandchild - Button Hover */
+            .main-content .chat-header .header-actions .btn-action:hover {
+              background-color: #f0f0f0;
+            }
+            /* Great-great-grandchild - Button Icon */
+            .main-content .chat-header .header-actions .btn-action i {
+              margin-right: 5px;
+            }
+  
+            .chat-container .sidebar-content .sidebar-section .sidebar-item a{display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;color: #484848;
+  font-size: 13px;width: 80%;}
+
+      /* Child - Chat Messages */
+      .main-content .chat-messages {
+        flex: 1;
+        padding: 0 20px;
+        overflow-y: auto;
+      }
+        /* Grandchild - User Message */
+        .main-content .chat-messages .user-message {
+          background-color: #f0f0f0;
+          padding: 12px 16px;
+          border-radius: 8px;
+          margin-bottom: 20px;
+          max-width: 80%;
+          margin-left: auto;margin-top:20px;
+        }
+        /* Grandchild - Bot Message */
+        .main-content .chat-messages .bot-message {
+          margin-bottom: 20px;
+        }
+          /* Great-grandchild - Message Paragraph */
+          .main-content .chat-messages .bot-message p {
+            margin-bottom: 15px;
+            line-height: 1.5;
+          }
+          /* Great-grandchild - Message Heading */
+          .main-content .chat-messages .bot-message h5 {
+            font-weight: 600;
+            margin-top: 20px;
+            margin-bottom: 10px;
+          }
+          /* Great-grandchild - Message List */
+          .main-content .chat-messages .bot-message ul {
+            padding-left: 20px;
+            margin-bottom: 20px;
+          }
+            /* Great-great-grandchild - List Item */
+            .main-content .chat-messages .bot-message ul li {
+              margin-bottom: 8px;
+            }
+          /* Great-grandchild - Code Block */
+          .main-content .chat-messages .bot-message .code-block {
+            background-color: #f7f7f7;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+          }
+            /* Great-great-grandchild - Code Header */
+            .main-content .chat-messages .bot-message .code-block .code-header {
+              display: flex;
+              justify-content: space-between;
+              color: #666;
+              font-size: 12px;
+              margin-bottom: 10px;
+            }
+            /* Great-great-grandchild - Code Content */
+            .main-content .chat-messages .bot-message .code-block pre {
+              margin-bottom: 0;
+              color: #0066cc;
+            }
+
+      /* Child - Chat Input */
+      .main-content .chat-input {
+        padding: 15px;
+        border-top: 1px solid #e0e0e0;
+      }
+        /* Grandchild - Input Container */
+        .main-content .chat-input .input-container {
+          display: flex;
+          border: 1px solid #e0e0e0;
+          border-radius: 8px;
+          padding: 8px 12px;
+          background-color: #f7f7f7;
+        }
+          /* Great-grandchild - Text Input */
+          .main-content .chat-input .input-container input {
+            flex: 1;
+            border: none;
+            background-color: transparent;
+            outline: none;
+            padding: 8px;
+          }
+          /* Great-grandchild - Input Buttons */
+          .main-content .chat-input .input-container .input-btn {
+            background-color: transparent;
+            border: none;
+            color: #666;
+            padding: 8px;
+            border-radius: 4px;
+          }
+            /* Great-great-grandchild - Button Hover */
+            .main-content .chat-input .input-container .input-btn:hover {
+              background-color: #e0e0e0;
+            }
+        /* Grandchild - Input Footer */
+        .main-content .chat-input .input-footer {
+          text-align: center;
+          font-size: 12px;
+          color: #666;
+          margin-top: 8px;
+        }
+
+    /* Avatar element */
+    .avatar {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background-color: #0066cc;
+      display: inline-block;
+      margin-right: 10px;
+    }
+
+    [data-bs-theme="dark"] .main-content {background-color:#161C24;}
+    [data-bs-theme="dark"] .main-content .chat-input .input-container{background-color: #161C24;border: 1px solid #454545;}
+    [data-bs-theme="dark"] .main-content .chat-input{border-top: 1px solid #454545}
+    [data-bs-theme="dark"] .sidebar .sidebar-content .sidebar-section .section-title,
+    [data-bs-theme="dark"] .chat-container .sidebar-content .sidebar-section .sidebar-item a,
+    [data-bs-theme="dark"] .sidebar .sidebar-content .sidebar-section .sidebar-item{color: #fff;}
+    [data-bs-theme="dark"] .sidebar .sidebar-content .sidebar-section .sidebar-item:hover,
+    [data-bs-theme="dark"] .main-content .chat-messages .user-message{background-color: #242424;}
+
+    /* Strategy Map Radio Buttons */
+    .strategy-map-section {
+        margin: 20px 0;
+        padding: 15px;
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        border-left: 4px solid #0066cc;
+    }
+
+    .strategy-options {
+        margin-top: 15px;
+    }
+
+    .strategy-option {
+        padding: 12px;
+        margin-bottom: 10px;
+        background-color: #fff;
+        border: 2px solid #e0e0e0;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .strategy-option:hover {
+        border-color: #0066cc;
+        background-color: #f0f7ff;
+    }
+
+    .strategy-option input[type="radio"]:checked + .strategy-label,
+    .strategy-option:has(input[type="radio"]:checked) {
+        border-color: #0066cc;
+        background-color: #e6f2ff;
+        font-weight: 600;
+    }
+
+    .strategy-label {
+        cursor: pointer;
+        display: flex;
+        align-items: flex-start;
+        flex: 1;
+        line-height: 1.5;
+    }
+
+    .strategy-radio {
+        cursor: pointer;
+        width: 18px;
+        height: 18px;
+        margin-top: 3px;
+        flex-shrink: 0;
+    }
+
+    .response-section {
+        margin-bottom: 20px;
+    }
+
+    [data-bs-theme="dark"] .strategy-map-section {
+        background-color: #1a1a1a;
+        border-left-color: #4a9eff;
+    }
+
+    [data-bs-theme="dark"] .strategy-option {
+        background-color: #242424;
+        border-color: #454545;
+    }
+
+    [data-bs-theme="dark"] .strategy-option:hover {
+        border-color: #4a9eff;
+        background-color: #1a2332;
+    }
+
+    [data-bs-theme="dark"] .strategy-option:has(input[type="radio"]:checked) {
+        border-color: #4a9eff;
+        background-color: #1a2332;
+    }
+
+    /* Strategy loaded indicator */
+    .strategy-loaded {
+        opacity: 1;
+    }
+
+    .strategy-option:not(.strategy-loaded) {
+        opacity: 0.8;
+    }
+
+    /* Spinning animation for loading */
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+
+    .spin {
+        animation: spin 1s linear infinite;
+        display: inline-block;
+    }
+</style>
+
+
+@section('contents')
+
+    <section class="tt-section pt-4">
+
+        <div class="container">
+
+            <!-- <div class="row mb-4">
+
+                <div class="col-12">
+
+                    <div class="tt-page-header">
+
+                        <div class="d-lg-flex align-items-center justify-content-lg-between">
+
+                            <div class="tt-page-title mb-3 mb-lg-0">
+
+                                <h1 class="h4 mb-lg-1">{{ localize('Chat') }}</h1>
+
+                                <ol class="breadcrumb breadcrumb-angle text-muted">
+
+                                    <li class="breadcrumb-item"><a
+
+                                            href="{{ route('writebot.dashboard') }}">{{ localize('Dashboard') }}</a>
+
+                                    </li>
+
+                                    <li class="breadcrumb-item">{{ localize('Chat') }}</li>
+
+                                </ol>
+
+                            </div>
+
+                            <div class="tt-action">
+
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div> -->
+
+
+            <div class="chat-container">
+                <!-- Sidebar -->
+                <div class="sidebar">
+                <!-- Sidebar Header -->
+                <div class="sidebar-header d-none">
+                    <button class="btn-icon"><i class="bi bi-list"></i></button>
+                    <button class="btn-icon"><i class="bi bi-search"></i></button>
+                    <button class="btn-icon"><i class="bi bi-chat-square-text"></i></button>
+                </div>
+                
+                <!-- Sidebar Content -->
+                <div class="sidebar-content">
+                    <div class="sidebar-section">
+                {{--<!-- <a href="{{url('dashboard/newusers-new-chat/'.$id)}}" style="color:black;"> -->--}}
+                <a href="{{url('dashboard/newchat')}}" style="color:black;">
+                    <div class="sidebar-item">
+                        <i class="bi bi-chat-square-text"></i>
+                        <span>New Chat</span>
+                    </div>
+                </a>
+                        <!-- <div class="sidebar-item">
+                            <i class="bi bi-chat-square-text"></i>
+                            <span>Explore GPTs</span>
+                        </div>
+                        <div class="sidebar-item">
+                            <i class="bi bi-chat-square-text"></i>
+                            <span>Library</span>
+                            <span style="margin-left: auto; font-size: 12px; color: #666;">1</span>
+                        </div> -->
+                    </div>
+
+                    @php
+                        $sortedGroups = $searchuserchatdatanew->sortByDesc(function ($chats) {
+                            return $chats->max('created_at');
+                        });
+                    @endphp
+
+                    @foreach ($sortedGroups as $group => $chats)
+                        <div class="sidebar-section">
+                            <div class="section-title">{{ $group }}</div>
+
+                            @foreach ($chats->sortByDesc('created_at')->unique('search_user_chat_id') as $chat)
+                                <div class="sidebar-item d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                    <a href="{{ url('dashboard/users-new-chat/' . $chat->search_user_chat_id) }}">
+                                        {{ \Illuminate\Support\Str::words(strip_tags($chat->search), 8, '...') }}
+                                    </a>
+
+                                   <form class="mb-0" action="{{ url('dashboard/users-chat-search-delete', $chat->search_user_chat_id) }}" method="get" onsubmit="return confirm('Are you sure you want to delete this chat?')">
+                                    @csrf
+                                    <button type="submit" class="btn btn-sm p-0" data-bs-toggle="tooltip" data-bs-title="Delete">
+                                      <i class="feather feather-trash bi bi-trash text-danger m-0"></i>
+                                        <!-- <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"
+                                            stroke-linecap="round" stroke-linejoin="round" class="feather feather-trash">
+                                            <polyline points="3 6 5 6 21 6"></polyline>
+                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                        </svg> -->
+                                    </button>
+                                </form>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endforeach
+
+
+                </div>
+                </div>
+                
+                <!-- Main Content -->
+                <div class="main-content">
+                <!-- Chat Header -->
+                <div class="chat-header">
+                    <div class="header-title">
+                    <span>ChatGPT</span>
+                    </div>
+                    <div class="header-actions">
+                    @if(isset($documentCount) && $documentCount > 0)
+                        <span class="badge bg-info text-white me-2" data-bs-toggle="tooltip" data-bs-placement="top" 
+                            title="{{ localize('Company documents are being used as context for AI responses') }}">
+                            <i data-feather="file-text" class="icon-14 me-1"></i>
+                            {{ $documentCount }} {{ localize('Document') }}{{ $documentCount > 1 ? 's' : '' }}
+                        </span>
+                    @endif
+                    </div>
+                </div>
+                
+                <!-- Chat Messages -->
+            <!-- Chat Messages -->
+                <form id="ask-form">
+                    <input type="hidden" name="user_id" id="user_id" value="{{ $user->id }}">
+                    <input type="hidden" name="id" id="chat_id" value="{{ $id }}">
+                    
+                    <div class="chat-messages" id="chat-messages">
+                        @foreach ($searchuserchatdata as $chat)
+                           <div class="tt-template-carddads">
+                            <div class="user-message">{{ $chat->search ?? '' }}</div>
+                            <div class="bot-message  response-text">{!! \Illuminate\Support\Str::markdown($chat->response) !!} </div>
+                            <!-- Copy Button -->
+                                <button type="button" class="btn btn-sm text-success me-2 copy-btn" data-bs-toggle="tooltip" data-bs-title="Copy Answer">
+                                    <!-- <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"
+                                        stroke-linecap="round" stroke-linejoin="round" class="feather feather-copy">
+                                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                    </svg> -->
+                                    <i class="bi bi-copy"></i>
+                                </button>
+                           </div>
+                        @endforeach
+                    </div>
+
+                    <!-- Chat Input -->
+                    <div class="chat-input">
+                        <h3 class="text-center textcheck" style="margin-top: 110px;"><b>Tell Us Your Final Goal To Conclude</b></h3>
+                        <div class="input-container mt-4">
+                            <input type="text" id="question" placeholder="Ask anything">
+                            <button type="submit" class="input-btn">
+                                <i class="bi bi-send"></i>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+                </div>
+            </div>
+
+
+            <div class="row mb-3 g-3">
+
+                <div class="col-xl-12">
+
+                    
+                </div>
+
+            </div>
+
+
+
+        </div>
+
+    </section>
+
+@endsection
+
+
+
+
+
+@section('scripts')
+
+<script>
+    // Pre-render loader image URL to avoid pending requests
+    const loaderImageUrl = "{{ asset('backend/assets/img/loader-img.gif') }}";
+    
+    // Preload the loader image to ensure it's ready
+    const preloadImage = new Image();
+    preloadImage.src = loaderImageUrl;
+    
+    const inputField = document.getElementById('question');
+    const heading = document.querySelector('.textcheck');
+
+    inputField.addEventListener('input', function () {
+        if (this.value.trim() !== "") {
+            heading.style.display = 'none';
+        } else {
+            heading.style.display = 'block';
+        }
+    });
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+    // document.getElementById('ask-form').addEventListener('submit', async function (e) {
+    //     e.preventDefault();
+
+    //     const questionInput = document.getElementById('question');
+    //     const userIdInput = document.getElementById('user_id');
+    //     const chatIdInput = document.getElementById('chat_id');
+    //     const chatContainer = document.getElementById('chat-messages');
+
+    //     const question = questionInput.value.trim();
+    //     const user_id = userIdInput.value;
+    //     const chat_id = chatIdInput.value;
+
+    //     if (!question) {
+    //         alert("Please enter a question.");
+    //         return;
+    //     }
+
+    //     // Append user question
+    //     const userCard = document.createElement('div');
+    //     userCard.className = 'tt-template-carddads';
+    //     userCard.innerHTML = `<div class="user-message">${question}</div>`;
+    //     chatContainer.appendChild(userCard);
+
+    //     // Append loader placeholder inside same card
+    //     const loadingDiv = document.createElement('div');
+    //     loadingDiv.className = 'bot-message';
+    //     loadingDiv.innerHTML = `
+    //         <div class="text-center text-info">
+    //             <div class="spinner-border-img text-info" role="status">
+    //                 <span class="visually-hidden">Loading...</span>
+    //             </div>
+    //             <div>
+    //               <img class="custom-loder" width="150" height="150" src="/public/backend/assets/img/loader-img.gif" alt="">
+    //             </div>
+    //             <div class="mt-2">please wait...</div>
+    //         </div>`;
+    //     userCard.appendChild(loadingDiv);
+
+    //     try {
+    //         const res = await fetch('/dashboard/users-new-chat-ask', {
+    //             method: 'POST',
+    //             headers: {
+    //                 'Content-Type': 'application/json',
+    //                 'X-CSRF-TOKEN': '{{ csrf_token() }}'
+    //             },
+    //             body: JSON.stringify({ question, user_id, chat_id })
+    //         });
+
+    //         const data = await res.json();
+    //         const answer = data.answer || 'No answer returned.';
+    //         const formattedAnswer = marked.parse(answer);
+
+
+    //         // Replace loading with actual bot response and add copy button
+    //         loadingDiv.innerHTML = `
+    //             <div class="response-text">${formattedAnswer}</div>
+    //             <button type="button" class="btn btn-sm text-success mt-1 copy-btn" data-bs-toggle="tooltip" title="Copy Answer">
+    //                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"
+    //                     stroke-linecap="round" stroke-linejoin="round" class="feather feather-copy">
+    //                     <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+    //                     <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+    //                 </svg>
+    //             </button>`;
+    //     } catch (error) {
+    //         console.error(error);
+    //         loadingDiv.innerHTML = `<div class="alert alert-danger">Something went wrong while fetching the answer.</div>`;
+    //     }
+
+    //     questionInput.value = ''; // Clear input
+    // });
+
+    // // ✅ Copy answer (works for static + dynamic)
+    // document.addEventListener('click', function (e) {
+    //     if (e.target.closest('.copy-btn')) {
+    //         const card = e.target.closest('.tt-template-carddads');
+    //         const text = card.querySelector('.response-text')?.innerText || '';
+    //         navigator.clipboard.writeText(text)
+    //             .then(() => alert('Answer copied!'))
+    //             .catch(err => alert('Copy failed: ' + err));
+    //     }
+    // });
+</script>
+
+
+
+ <script>
+document.getElementById('ask-form').addEventListener('submit', async function (e) {
+    e.preventDefault();
+
+    const questionInput = document.getElementById('question');
+    const userIdInput = document.getElementById('user_id');
+    const chatIdInput = document.getElementById('chat_id');
+    const chatContainer = document.getElementById('chat-messages');
+
+    const question = questionInput.value.trim();
+    const user_id = userIdInput.value;
+    const chat_id = chatIdInput.value;
+
+    // if (!question) {
+    //     alert("Please enter a question.");
+    //     return;
+    // }
+
+    const userCard = document.createElement('div');
+    userCard.className = 'tt-template-carddads';
+    userCard.innerHTML = `<div class="user-message">${question}</div>`;
+    chatContainer.appendChild(userCard);
+
+    const loadingDiv = document.createElement('div');
+    loadingDiv.className = 'bot-message';
+    loadingDiv.innerHTML = `
+        <div class="text-center text-info" style="padding: 20px;">
+            <img class="custom-loder" width="150" height="150" src="${loaderImageUrl}" alt="Loading..." style="display: block; margin: 0 auto 10px auto; max-width: 150px; height: auto;">
+            <div class="mt-2">please wait...</div>
+        </div>`;
+    userCard.appendChild(loadingDiv);
+
+    // try {
+        const res = await fetch('/dashboard/users-new-chat-ask', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({ question, user_id, chat_id })
+        });
+
+        if (!res.ok) {
+            const errorText = await res.text();
+            loadingDiv.innerHTML = `<div class="alert alert-danger">Error: ${res.status} ${res.statusText}. ${errorText.substring(0, 200)}</div>`;
+            return;
+        }
+
+        const data = await res.json();
+        const fullAnswer = data.answer || 'No answer returned.';
+        const previousContext = data.previousContext || {};
+        const chectdata = data.chectdata || {};
+
+        // Check if this is the first message (status1 is 0) or status2 is 0
+        const isFirstMessage = (previousContext && (previousContext.status1 === 0 || previousContext.status1 === '0')) || 
+                               (chectdata && (chectdata.status1 === 0 || chectdata.status1 === '0'));
+        const isSecondMessage = (previousContext && (previousContext.status2 === 0 || previousContext.status2 === '0')) || 
+                                (chectdata && (chectdata.status2 === 0 || chectdata.status2 === '0'));
+
+        if (isFirstMessage) {
+            // Parse the full response into sections
+            const sections = fullAnswer.split(/(?=🧩|📁|📊|📈|🗺️|🔮|👥|📌|✅)/);
+            if (!sections.length) {
+                loadingDiv.innerHTML = `<div class="alert alert-warning">No sections found in the response.</div>`;
+                return;
+            }
+
+            // Find Strategy Map section and extract strategy points
+            const strategyMapIndex = sections.findIndex(s => s.includes('🗺️'));
+            let strategyPoints = [];
+            let strategyMapSection = '';
+            
+            // Store sections globally for eager loading
+            window.chatSections = sections;
+            window.chatQuestion = question;
+            window.chatUserId = user_id;
+            window.chatChatId = chat_id;
+            
+            // Check if there's a selected strategy from database (page reload)
+            @if(isset($selectedStrategyFromDB) && $selectedStrategyFromDB)
+                window.selectedStrategy = @json($selectedStrategyFromDB);
+                console.log('Loaded selected strategy from DB:', window.selectedStrategy);
+            @endif
+            
+            // Initialize selectedStrategy globally if not set
+            if (!window.selectedStrategy) {
+                window.selectedStrategy = null;
+            }
+            let selectedStrategy = window.selectedStrategy;
+
+            if (strategyMapIndex !== -1) {
+                strategyMapSection = sections[strategyMapIndex];
+
+                // Extract strategy points
+                const strategyLines = strategyMapSection.split('\n');
+                let foundHeader = false;
+                const strategyItems = [];
+                
+                for (let i = 0; i < strategyLines.length; i++) {
+                    const line = strategyLines[i].trim();
+                    
+                    if (!line) continue;
+                    
+                    if (line.includes('🗺️') || line.includes('Strategy Map')) {
+                        foundHeader = true;
+                        continue;
+                    }
+                    
+                    if (foundHeader && line && 
+                        (line.startsWith('-') || 
+                         line.startsWith('•') || 
+                         line.startsWith('*') ||
+                         /^\d+\./.test(line) ||
+                         /^[A-Z][a-z]+:/.test(line))) {
+                        strategyItems.push(line);
+                    }
+                }
+
+                strategyPoints = strategyItems.map(line => {
+                    let cleaned = line.replace(/^[-•*]\s*/, '').replace(/^\d+\.\s*/, '');
+                    cleaned = cleaned.trim();
+                    
+                    // Remove markdown bold formatting (**text**) from the strategy text
+                    // This ensures cache keys don't have ** in them
+                    cleaned = cleaned.replace(/\*\*([^*]+?):\*\*/g, '$1:');
+                    cleaned = cleaned.replace(/\*\*([^*]+?)\*\*/g, '$1');
+                    cleaned = cleaned.replace(/\*\*/g, '');
+                    
+                    // Remove any leading numbers or "Strategy 1:", "Strategy 2:" patterns
+                    cleaned = cleaned.replace(/^(Strategy\s+)?\d+[\.:]\s*/i, '');
+                    cleaned = cleaned.replace(/^\d+[\.:]\s*/, '');
+                    
+                    return cleaned;
+                }).filter(point => point.length > 0);
+                
+                // Enforce maximum of 4 strategies (take first 4 if more are found)
+                if (strategyPoints.length > 4) {
+                    console.log(`Found ${strategyPoints.length} strategies, limiting to 4`);
+                    strategyPoints = strategyPoints.slice(0, 4);
+                }
+                
+                // Ensure minimum of 3 strategies (if less than 3, keep what we have)
+                if (strategyPoints.length < 3) {
+                    console.log(`Warning: Only found ${strategyPoints.length} strategies (minimum is 3)`);
+                }
+            }
+
+            // Store strategy data globally for eager loading
+            window.strategyPoints = strategyPoints;
+            window.strategyMapSection = strategyMapSection;
+            window.strategyMapIndex = strategyMapIndex;
+
+            // Store cache globally so eager loading can access it
+            if (!window.strategyResponsesCache) {
+                window.strategyResponsesCache = {};
+            }
+            const strategyResponsesCache = window.strategyResponsesCache;
+            
+            let currentStep = 0;
+            let isLoadingStrategies = false;
+            let strategiesLoaded = false;
+
+            // Function to eager load all strategy responses
+            async function eagerLoadAllStrategies() {
+                if (window.isLoadingStrategies || window.strategiesLoaded) return;
+                
+                window.isLoadingStrategies = true;
+                const sectionsBefore = window.chatSections.slice(0, window.strategyMapIndex).join('');
+                
+                // Show loading indicator on strategy options (only if we're on that page)
+                if (typeof currentStep !== 'undefined' && currentStep === window.strategyMapIndex) {
+                    const strategyOptions = loadingDiv.querySelector('.strategy-options');
+                    if (strategyOptions) {
+                        strategyOptions.innerHTML += `
+                            <div class="text-center text-info mt-3" style="padding: 10px; font-size: 12px;">
+                                <i class="bi bi-arrow-repeat spin"></i> Loading all strategy responses...
+                            </div>
+                        `;
+                    }
+                }
+
+                // Fetch all strategies in parallel with progressive loading
+                const strategyPromises = window.strategyPoints.map(async (point) => {
+                    try {
+                        const updateRes = await fetch('/dashboard/users-new-chat-update-strategy', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                            },
+                            body: JSON.stringify({
+                                chat_id: window.chatChatId,
+                                user_id: window.chatUserId,
+                                selected_strategy: point,
+                                original_question: window.chatQuestion,
+                                sections_before: sectionsBefore,
+                                strategy_map: window.strategyMapSection,
+                                is_user_selection: false // This is eager loading, not user selection
+                            })
+                        });
+
+                        if (updateRes.ok) {
+                            const updateData = await updateRes.json();
+                            const result = {
+                                strategy: point,
+                                response: updateData.updated_sections || ''
+                            };
+                            
+                            // Store immediately as it loads (progressive loading)
+                            window.strategyResponsesCache[point] = result.response;
+                            
+                            // Update UI to show this strategy is ready (only if we're on that page)
+                            if (typeof currentStep !== 'undefined' && currentStep === window.strategyMapIndex) {
+                                if (typeof renderStep === 'function') {
+                                    renderStep();
+                                }
+                            }
+                            
+                            return result;
+                        }
+                    } catch (error) {
+                        console.error(`Error loading strategy "${point}":`, error);
+                    }
+                    return null;
+                });
+
+                // Wait for all strategies to load (but they update UI progressively)
+                const results = await Promise.all(strategyPromises);
+                
+                // Final check - store any remaining results
+                results.forEach(result => {
+                    if (result && !window.strategyResponsesCache[result.strategy]) {
+                        window.strategyResponsesCache[result.strategy] = result.response;
+                    }
+                });
+
+                window.strategiesLoaded = true;
+                window.isLoadingStrategies = false;
+
+                // Remove loading indicator and refresh UI to show "Ready" badges (only if we're on that page)
+                if (typeof currentStep !== 'undefined' && currentStep === window.strategyMapIndex) {
+                    const loadingIndicator = loadingDiv.querySelector('.strategy-options .text-center');
+                    if (loadingIndicator) {
+                        loadingIndicator.remove();
+                    }
+                    // Re-render to show "Ready" badges
+                    if (typeof renderStep === 'function') {
+                        renderStep();
+                    }
+                }
+            }
+            
+            // Start eager loading immediately after parsing strategies (don't wait for user to navigate)
+            if (strategyPoints.length > 0 && strategyMapIndex !== -1) {
+                // Start eager loading in the background right away - this happens as soon as first response arrives
+                console.log('Starting eager load of strategies immediately...');
+                eagerLoadAllStrategies();
+            }
+
+            function renderStep() {
+                const step = sections[currentStep];
+                let stepHtml = '';
+                
+                console.log('Rendering step:', currentStep, 'of', sections.length);
+                console.log('Strategy Map Index:', strategyMapIndex);
+                console.log('Selected Strategy:', window.selectedStrategy);
+                console.log('Cache keys:', window.strategyResponsesCache ? Object.keys(window.strategyResponsesCache) : 'No cache');
+                
+                // Check if this is the Strategy Map section
+                if (currentStep === strategyMapIndex && strategyPoints.length > 0) {
+                    // Render Strategy Map with radio buttons
+                    const strategyLines = strategyMapSection.split('\n');
+                    const headerLine = strategyLines.find(line => line.includes('🗺️') || line.includes('Strategy Map'));
+                    
+                    stepHtml = `<div class="response-text">`;
+                    if (headerLine) {
+                        // Parse header but clean it up
+                        let cleanHeader = headerLine.replace(/\*\*/g, '').trim();
+                        stepHtml += marked.parse(cleanHeader);
+                    }
+                    
+                    stepHtml += `<div class="strategy-options mt-3">`;
+                    
+                    strategyPoints.forEach((point, index) => {
+                        const strategyId = `strategy-${Date.now()}-${index}`;
+                        
+                        // Point is already cleaned (no **) from extraction, but we need to add bold formatting for display
+                        // Strategy format is usually: "Strategy Name: Description"
+                        // We want to make "Strategy Name:" bold
+                        let displayPoint = point;
+                        
+                        // Find the colon and make the part before it bold
+                        const colonIndex = displayPoint.indexOf(':');
+                        if (colonIndex > 0) {
+                            const strategyName = displayPoint.substring(0, colonIndex + 1);
+                            const description = displayPoint.substring(colonIndex + 1);
+                            displayPoint = `<strong>${strategyName}</strong>${description}`;
+                        } else {
+                            // If no colon, just make the first few words bold (first 30 chars or until space)
+                            const words = displayPoint.split(' ');
+                            if (words.length > 0) {
+                                const firstPart = words.slice(0, Math.min(3, words.length)).join(' ');
+                                const rest = words.slice(Math.min(3, words.length)).join(' ');
+                                displayPoint = `<strong>${firstPart}</strong> ${rest}`;
+                            }
+                        }
+                        
+                        // For the value attribute, use plain text (point is already clean)
+                        const escapedPoint = point.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+                        
+                        // Check cache using clean point (no **)
+                        const isLoaded = window.strategyResponsesCache && window.strategyResponsesCache.hasOwnProperty(point);
+                        const isChecked = selectedStrategy === point || (selectedStrategy && selectedStrategy.includes(point.substring(0, 30)));
+                        
+                        stepHtml += `
+                            <div class="strategy-option mb-2 ${isLoaded ? 'strategy-loaded' : ''}">
+                                <input type="radio" 
+                                       id="${strategyId}" 
+                                       name="selected-strategy-${Date.now()}" 
+                                       value="${escapedPoint}" 
+                                       data-original-strategy="${escapedPoint}"
+                                       class="strategy-radio me-2"
+                                       ${isChecked ? 'checked' : ''}>
+                                <label for="${strategyId}" class="strategy-label">
+                                    ${displayPoint}
+                                </label>
+                            </div>
+                        `;
+                    });
+                    
+                    stepHtml += `</div></div>`;
+
+                    // Eager loading should already be running from when response was first received
+                    // Just show current status
+                } else {
+                    // For other sections, check if we need to use updated content
+                    const currentSelectedStrategy = window.selectedStrategy || selectedStrategy;
+                    console.log('Checking section after strategy:', {
+                        currentStep,
+                        strategyMapIndex,
+                        isAfterStrategy: currentStep > strategyMapIndex,
+                        hasSelectedStrategy: !!currentSelectedStrategy,
+                        hasCache: !!(window.strategyResponsesCache && window.strategyResponsesCache[currentSelectedStrategy])
+                    });
+                    
+                    if (currentStep > strategyMapIndex && currentSelectedStrategy && window.strategyResponsesCache && window.strategyResponsesCache[currentSelectedStrategy]) {
+                        const updatedIndex = currentStep - strategyMapIndex - 1;
+                        console.log('Using cached strategy response. Updated index:', updatedIndex);
+                        const cachedResponse = window.strategyResponsesCache[currentSelectedStrategy];
+                        console.log('Cached response preview:', cachedResponse.substring(0, 200));
+                        
+                        // Parse the cached response by emoji markers
+                        // The response should have: 🔮, 👥, 📌, ✅ sections in that order
+                        // Map: updatedIndex 0 = 🔮, 1 = 👥, 2 = 📌, 3 = ✅
+                        const emojiOrder = ['🔮', '👥', '📌', '✅'];
+                        const updatedParts = [];
+                        
+                        // Find each section by its emoji in order
+                        emojiOrder.forEach((emoji, emojiIdx) => {
+                            const emojiIndex = cachedResponse.indexOf(emoji);
+                            if (emojiIndex !== -1) {
+                                // Find the next emoji or end of string
+                                let nextEmojiIndex = cachedResponse.length;
+                                
+                                // Look for the next emoji in the order (after current one)
+                                for (let i = emojiIdx + 1; i < emojiOrder.length; i++) {
+                                    const nextEmoji = emojiOrder[i];
+                                    const nextIndex = cachedResponse.indexOf(nextEmoji, emojiIndex + 1);
+                                    if (nextIndex !== -1 && nextIndex < nextEmojiIndex) {
+                                        nextEmojiIndex = nextIndex;
+                                        break; // Found the next emoji, stop looking
+                                    }
+                                }
+                                
+                                const sectionContent = cachedResponse.substring(emojiIndex, nextEmojiIndex).trim();
+                                if (sectionContent && sectionContent.length > 10) {
+                                    updatedParts.push(sectionContent);
+                                    console.log(`Found ${emoji} section (index ${emojiIdx}), length: ${sectionContent.length}, preview: ${sectionContent.substring(0, 100)}...`);
+                                } else {
+                                    console.log(`Warning: ${emoji} section is too short or empty`);
+                                }
+                            } else {
+                                console.log(`Warning: ${emoji} emoji not found in cached response`);
+                            }
+                        });
+                        
+                        console.log('Parsed parts count:', updatedParts.length);
+                        console.log('Expected order: 🔮(0), 👥(1), 📌(2), ✅(3)');
+                        console.log('Parts lengths:', updatedParts.map((p, i) => `${i}: ${p.length} chars`));
+                        
+                        // Map sections: index 0 = 🔮, index 1 = 👥, index 2 = 📌, index 3 = ✅
+                        // sections array: [🧩, 📁, 📊, 📈, 🗺️, 🔮, 👥, 📌, ✅]
+                        // After strategy (index 4), next sections are: 5=🔮, 6=👥, 7=📌, 8=✅
+                        // updatedIndex = currentStep - strategyMapIndex - 1
+                        // If currentStep = 5 (🔮), updatedIndex = 5 - 4 - 1 = 0 (first part)
+                        
+                        if (updatedIndex >= 0 && updatedIndex < updatedParts.length) {
+                            const partToShow = updatedParts[updatedIndex];
+                            if (partToShow && partToShow.trim() && partToShow.length > 10) {
+                                console.log('Displaying updated part:', updatedIndex, 'Length:', partToShow.length);
+                                stepHtml = `<div class="response-text">${marked.parse(partToShow)}</div>`;
+                            } else {
+                                console.log('Part is too short or empty, showing original');
+                                stepHtml = `<div class="response-text">${marked.parse(step)}</div>`;
+                            }
+                        } else {
+                            console.log('Index out of range. Index:', updatedIndex, 'Parts available:', updatedParts.length);
+                            // Fallback to original if parsing fails
+                            stepHtml = `<div class="response-text">${marked.parse(step)}</div>`;
+                        }
+                    } else {
+                        if (!currentSelectedStrategy) {
+                            console.log('No strategy selected');
+                        } else if (!window.strategyResponsesCache) {
+                            console.log('No cache object');
+                        } else if (!window.strategyResponsesCache[currentSelectedStrategy]) {
+                            console.log('Strategy not in cache:', currentSelectedStrategy);
+                            console.log('Available strategies:', Object.keys(window.strategyResponsesCache));
+                        }
+                        // Show original content if no strategy selected or not loaded yet
+                        stepHtml = `<div class="response-text">${marked.parse(step)}</div>`;
+                    }
+                }
+
+                loadingDiv.innerHTML = stepHtml + `
+                    <div class="mt-2">
+                        ${currentStep > 0 ? '<button class="btn btn-secondary btn-sm prev-step-btn">Previous</button>' : ''}
+                        <button class="btn btn-primary btn-sm next-step-btn">
+                            ${currentStep === sections.length - 1 ? 'Finish' : 'Next'}
+                        </button>
+                    </div>
+                `;
+
+                // Add event listener for strategy selection if this is the Strategy Map step
+                if (currentStep === strategyMapIndex && strategyPoints.length > 0) {
+                    const radioButtons = loadingDiv.querySelectorAll('.strategy-radio');
+                    radioButtons.forEach(radio => {
+                        radio.addEventListener('change', function() {
+                            if (this.checked) {
+                                // Get the original strategy text from data attribute (this is the cache key)
+                                const exactStrategy = this.getAttribute('data-original-strategy') || this.value;
+                                
+                                // Store globally so it persists across navigation
+                                window.selectedStrategy = exactStrategy;
+                                selectedStrategy = exactStrategy;
+                                
+                                console.log('Strategy selected:', exactStrategy);
+                                console.log('Available cache keys:', Object.keys(window.strategyResponsesCache || {}));
+                                console.log('Cache available for exact strategy:', window.strategyResponsesCache && window.strategyResponsesCache[exactStrategy] ? 'Yes' : 'No');
+                                
+                                if (window.strategyResponsesCache && window.strategyResponsesCache[exactStrategy]) {
+                                    console.log('Cached response preview for selected strategy:', window.strategyResponsesCache[exactStrategy].substring(0, 200));
+                                }
+                                
+                                // Immediately update subsequent sections using cached response
+                                if (window.strategyResponsesCache && window.strategyResponsesCache[exactStrategy]) {
+                                    console.log('Using cached response for exact strategy');
+                                    
+                                    // Save selected strategy to database (so it persists on page reload)
+                                    fetch('/dashboard/users-new-chat-update-strategy', {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                                        },
+                                        body: JSON.stringify({
+                                            chat_id: window.chatChatId,
+                                            user_id: window.chatUserId,
+                                            selected_strategy: exactStrategy,
+                                            original_question: window.chatQuestion,
+                                            sections_before: window.chatSections.slice(0, window.strategyMapIndex).join(''),
+                                            strategy_map: window.strategyMapSection,
+                                            is_user_selection: true // This is actual user selection - save to DB
+                                        })
+                                    }).catch(err => console.error('Error saving strategy selection:', err));
+                                    
+                                    // If we're viewing a section after strategy map, update it immediately
+                                    if (currentStep > strategyMapIndex) {
+                                        renderStep();
+                                    }
+                                } else {
+                                    console.log('Exact strategy not in cache yet, waiting...');
+                                    console.log('Trying to find similar strategy in cache...');
+                                    
+                                    // Try to find a matching strategy in cache (fuzzy match)
+                                    const cacheKeys = Object.keys(window.strategyResponsesCache || {});
+                                    const matchingKey = cacheKeys.find(key => {
+                                        const keyStart = key.substring(0, Math.min(50, key.length));
+                                        const exactStart = exactStrategy.substring(0, Math.min(50, exactStrategy.length));
+                                        return keyStart === exactStart || key.includes(exactStart) || exactStrategy.includes(keyStart);
+                                    });
+                                    
+                                    if (matchingKey) {
+                                        console.log('Found matching strategy in cache:', matchingKey);
+                                        window.selectedStrategy = matchingKey;
+                                        selectedStrategy = matchingKey;
+                                        if (currentStep > strategyMapIndex) {
+                                            renderStep();
+                                        }
+                                    } else {
+                                        // Fallback: if not cached yet, wait for it or show loading
+                                        const checkCache = setInterval(() => {
+                                            if (window.strategyResponsesCache && window.strategyResponsesCache[exactStrategy]) {
+                                                console.log('Strategy now available in cache');
+                                                if (currentStep > strategyMapIndex) {
+                                                    renderStep();
+                                                }
+                                                clearInterval(checkCache);
+                                            }
+                                        }, 100);
+                                        
+                                        // Stop checking after 10 seconds
+                                        setTimeout(() => clearInterval(checkCache), 10000);
+                                    }
+                                }
+                                
+                                // Re-render current step to show selected state
+                                renderStep();
+                            }
+                        });
+                    });
+                }
+            }
+
+            renderStep();
+
+            loadingDiv.addEventListener('click', function (e) {
+                if (e.target.classList.contains('next-step-btn')) {
+                    if (currentStep === sections.length - 1) {
+                        window.location.reload();
+                    } else {
+                        currentStep++;
+                        renderStep();
+                    }
+                } else if (e.target.classList.contains('prev-step-btn')) {
+                    if (currentStep > 0) {
+                        currentStep--;
+                        renderStep();
+                    }
+                }
+            });
+
+        } else if (isSecondMessage) {
+            // For second message, show step-by-step navigation
+            const steps = fullAnswer.split(/(?=🧩|📁|📊|📈|🗺️|🔮|👥|📌|✅)/);
+            if (!steps.length) {
+                loadingDiv.innerHTML = `<div class="alert alert-warning">No steps found in the response.</div>`;
+                return;
+            }
+
+            let currentStep = 0;
+
+            function renderStep() {
+                const step = steps[currentStep];
+                loadingDiv.innerHTML = `
+                    <div class="response-text">${marked.parse(step)}</div>
+                    <div class="mt-2">
+                        ${currentStep > 0 ? '<button class="btn btn-secondary btn-sm prev-step-btn">Previous</button>' : ''}
+                        <button class="btn btn-primary btn-sm next-step-btn">
+                            ${currentStep === steps.length - 1 ? 'Finish' : 'Next'}
+                        </button>
+                    </div>
+                `;
+            }
+
+            renderStep();
+
+            loadingDiv.addEventListener('click', function (e) {
+                if (e.target.classList.contains('next-step-btn')) {
+                    if (currentStep === steps.length - 1) {
+                        window.location.reload();
+                    } else {
+                        currentStep++;
+                        renderStep();
+                    }
+                } else if (e.target.classList.contains('prev-step-btn')) {
+                    if (currentStep > 0) {
+                        currentStep--;
+                        renderStep();
+                    }
+                }
+            });
+
+        } else {
+            const formattedAnswer = marked.parse(fullAnswer);
+            loadingDiv.innerHTML = `
+                <div class="response-text">${formattedAnswer}</div>
+                <button type="button" class="btn btn-sm text-success mt-1 copy-btn" data-bs-toggle="tooltip" title="Copy Answer">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round" class="feather feather-copy">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                </button>`;
+        }
+
+    // } catch (error) {
+    //     console.error(error);
+    //     loadingDiv.innerHTML = `<div class="alert alert-danger">Something went wrong while fetching the answer.</div>`;
+    // }
+
+    questionInput.value = '';
+});
+
+// ✅ Copy Button
+document.addEventListener('click', function (e) {
+    if (e.target.closest('.copy-btn')) {
+        const card = e.target.closest('.tt-template-carddads');
+        const text = card.querySelector('.response-text')?.innerText || '';
+        navigator.clipboard.writeText(text)
+            .then(() => alert('Answer copied!'))
+            .catch(err => alert('Copy failed: ' + err));
+    }
+});
+</script>
+
+
+
+
+
+
+<!-- Copy Script -->
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.copy-btn').forEach(button => {
+            button.addEventListener('click', function () {
+                const card = this.closest('.tt-template-carddads');
+                const answer = card.querySelector('.response-text')?.innerText || '';
+
+                if (!answer.trim()) {
+                    alert('Nothing to copy!');
+                    return;
+                }
+
+                navigator.clipboard.writeText(answer).then(() => {
+                    alert('Answer copied to clipboard!');
+                }).catch(() => {
+                    alert('Failed to copy!');
+                });
+            });
+        });
+    });
+</script>
+
+
+
+@endsection
+

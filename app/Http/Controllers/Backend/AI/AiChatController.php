@@ -1,0 +1,1618 @@
+<?php
+
+
+
+namespace App\Http\Controllers\Backend\AI;
+
+
+
+use App\Models\AiChat;
+
+use App\Mail\EmailManager;
+
+use App\Models\AiChatPrompt;
+
+use Illuminate\Http\Request;
+
+use App\Models\AiChatMessage;
+
+use App\Models\Document;
+
+use Orhanerday\OpenAi\OpenAi;
+
+use App\Models\AiChatCategory;
+
+use App\Models\AiChatPromptGroup;
+
+use App\Services\WriteBotService;
+
+use App\Models\SubscriptionPackage;
+
+use App\Http\Controllers\Controller;
+
+use App\Http\Services\SerperService;
+
+use Illuminate\Support\Facades\Mail;
+
+use Illuminate\Support\Facades\Session;
+
+use App\Notifications\EmailChatMessages;
+
+use App\Services\Integration\IntegrationService;
+
+use DB;
+
+use Carbon\Carbon;
+
+use Illuminate\Support\Facades\Http;
+
+use PhpOffice\PhpWord\IOFactory;
+
+
+
+class AiChatController extends Controller
+
+{
+
+    public function __construct()
+
+    {
+
+        if (getSetting('enable_ai_chat') == '0') {
+
+            flash(localize('AI chat is not available'))->info();
+
+            redirect()->route('writebot.dashboard')->send();
+
+        }
+
+    }
+
+
+
+    # chat index
+
+    public function index(Request $request, WriteBotService $writeBotService)
+
+    {
+
+
+
+        $searchKey = null;
+
+        $user = user();
+
+        if (isCustomer()) {
+
+            $package = optional(activePackageHistory())->subscriptionPackage ?? new SubscriptionPackage;
+
+            if ($package->allow_ai_chat == 0) {
+
+                abort(403);
+
+            }
+
+        } else {
+
+            if (!auth()->user()->can('ai_chat')) {
+
+                abort(403);
+
+            }
+
+        }
+
+
+
+        $chatExpertIds = [];
+
+        $conditions = [['type', 'chat']];
+
+        if (!isCustomer()) {
+
+            $chatExpertIds = $writeBotService->getAiChatCategories(null, null, $conditions);
+
+            $chatExperts   = $writeBotService->getAiChatCategories(true, 1, $conditions);
+
+        } else {
+
+            $chatExpertIds = $writeBotService->getAiChatCategories(null, 1, $conditions);
+
+            $chatExperts   = $writeBotService->getAiChatCategories(true, 1, $conditions);
+
+        }
+
+
+
+
+
+        $chatListQuery = AiChat::orderBy('updated_at', 'DESC')->with('messages', 'category')->where('user_id', $user->id)->whereIn('ai_chat_category_id', $chatExpertIds);
+
+
+
+        if (!empty($request->search)) {
+
+            $chatListQuery = $chatListQuery->where('title', 'like', '%' . $request->search . '%');
+
+            $searchKey = $request->search;
+
+        }
+
+
+
+        if (!empty($request->expert)) {
+
+            $chatList     = $chatListQuery->where('ai_chat_category_id', $request->expert)->get();
+
+        } else {
+
+            $chatList     = $chatListQuery->where('ai_chat_category_id', 1)->get();
+
+        }
+
+
+
+
+
+
+
+        $promptGroups       = AiChatPromptGroup::oldest();
+
+        $promptGroups       = $promptGroups->get();
+
+        $prompts            = AiChatPrompt::latest()->get();
+
+
+
+        $conversation = $chatListQuery->first();
+
+        // Get user's documents count and parsed texts for context
+        $documents = Document::where('user_id', $user->id)
+            ->whereNotNull('parsed_text')
+            ->where('parse_status', 'completed')
+            ->latest()
+            ->get();
+        
+        $documentCount = $documents->count();
+        $documentContext = $documents->pluck('parsed_text')->filter()->implode("\n\n--- Document Separator ---\n\n");
+
+        return view('backend.pages.aiChat.index', compact('chatExperts', 'chatList', 'conversation', 'searchKey', 'promptGroups', 'prompts', 'documentCount', 'documentContext'));
+
+    }
+
+
+
+    # new conversation
+
+    public function store(Request $request)
+
+    {
+
+        $user = user();
+
+        if (isCustomer()) {
+
+            $package = optional(activePackageHistory())->subscriptionPackage ?? new SubscriptionPackage;
+
+            if ($package->allow_ai_chat == 0) {
+
+                $data = [
+
+                    'status'  => 400,
+
+                    'success' => false,
+
+                    'message' => localize('AI Chat is not available in this package, please upgrade you plan'),
+
+                ];
+
+                return $data;
+
+            }
+
+        }
+
+        $expert = AiChatCategory::query()->find($request->ai_chat_category_id);
+
+
+
+        /* When Expert is empty response a error json */
+
+        if(empty($expert)){
+
+            return  [
+
+                'status'                => 400,
+
+                'ai_chat_category_id'   => $request->ai_chat_category_id,
+
+                'success'               => false,
+
+                'message'               => localize('Expert not found'),
+
+            ];
+
+        }
+
+
+
+        $conversation                      = new AiChat;
+
+        $conversation->user_id             = $user->id;
+
+        $conversation->ai_chat_category_id = $request->ai_chat_category_id;
+
+        $conversation->title               = $expert->name . localize(' Chat');
+
+        $conversation->save();
+
+
+
+        $message = new AiChatMessage;
+
+        $message->ai_chat_id = $conversation->id;
+
+        $message->user_id    = $user->id;
+
+        if ($expert->role == 'default') {
+
+            $result =  localize("Hello! I am $expert->name, and I'm here to answer your all questions.");
+
+        } else {
+
+            $result =  localize("Hello! I am $expert->name, and I'm $expert->role. $expert->assists_with.");
+
+        }
+
+        $message->response   = $result;
+
+        $message->result   = $result;
+
+        $message->save();
+
+
+
+        $chatList = AiChat::latest();
+
+        $chatList = $chatList->where('ai_chat_category_id', $expert->id)->where('user_id', $user->id)->get();
+
+
+
+        $promptGroups       = AiChatPromptGroup::oldest();
+
+        $promptGroups       = $promptGroups->get();
+
+        $prompts            = AiChatPrompt::latest()->get();
+
+        // Get user's documents count for display
+        $documents = Document::where('user_id', $user->id)
+            ->whereNotNull('parsed_text')
+            ->where('parse_status', 'completed')
+            ->latest()
+            ->get();
+        
+        $documentCount = $documents->count();
+
+        $data = [
+
+            'status'                 => 200,
+
+            'chatList'               => view('backend.pages.aiChat.inc.chat-list', compact('chatList'))->render(),
+
+            'messagesContainer'      => view('backend.pages.aiChat.inc.messages-container', compact('conversation', 'promptGroups', 'prompts', 'documentCount'))->render(),
+
+        ];
+
+        return $data;
+
+    }
+
+
+
+    # update conversation
+
+    public function update(Request $request)
+
+    {
+
+        $conversation = AiChat::whereId((int) $request->chatId)->first();
+
+        $conversation->title = $request->value;
+
+        $conversation->save();
+
+    }
+
+
+
+    # delete conversation
+
+    public function delete($id)
+
+    {
+
+        $conversation = AiChat::findOrFail((int)$id);
+
+        AiChatMessage::where('ai_chat_id', $conversation->id)->delete();
+
+        $conversation->delete();
+
+        flash(localize('Chat has been deleted successfully'))->success();
+
+        return back();
+
+    }
+
+
+
+    # new message
+
+    public function newMessage(Request $request)
+
+    {
+
+
+
+        $chat = AiChat::where('id', (int) $request->chat_id)->first(); // TODO Required Existance checking
+
+        $category = AiChatCategory::where('id', $request->category_id)->first();
+
+
+
+        $user = auth()->user();
+
+
+
+        // check word limit; need to have min 10 words balance
+
+        if (isCustomer() && availableDataCheck('words') <= 10) {
+
+            $data = [
+
+                'status'                => 400,
+
+                'ai_chat_category_id'   => $request->category_id,
+
+                'success'               => false,
+
+                'message'               => localize('Your word balance is low, please upgrade you plan'),
+
+            ];
+
+
+
+            return $data;
+
+        }
+
+
+
+
+
+        $prompt = $request->prompt; // TODO Required
+
+        $total_used_tokens = 0;
+
+
+
+        $message                = new AiChatMessage;
+
+        $message->ai_chat_id    = $chat->id;
+
+        $message->user_id       = $user->id;
+
+        $message->prompt        = $prompt;
+
+        $message->result        = $prompt;
+
+        $message->save();
+
+
+
+        $message->aiChat->touch(); // updated at
+
+
+
+        $chat_id = $chat->id;
+
+        $message_id = $message->id;
+
+
+
+        $request->session()->put('chat_id', $chat_id);
+
+        $request->session()->put('message_id', $message_id);
+
+        $request->session()->put('category_id', $request->category_id);
+
+        $request->session()->put('real_time_data', $request->real_time_data == 1 ? 1 :null);
+
+
+
+        $data = [
+
+            'status'              => 200,
+
+            'ai_chat_category_id' => $request->category_id,
+
+            'success'             => false,
+
+            'message'             => '',
+
+        ];
+
+        return $data;
+
+    }
+
+
+
+    # ai response
+
+    public function process()
+
+    {
+
+        $request            = request();
+
+        $integrationService = new IntegrationService();
+
+
+
+        $request->merge([
+
+            'stream'        => true,
+
+            'content_type'  => 'ai_chat'
+
+        ]);
+
+        
+
+        return $integrationService->contentGenerator(aiChatEngine(), $request);
+
+    }
+
+    
+
+    # updateUserWords - take token as word
+
+    public function updateUserWords($tokens, $user)
+
+    {
+
+        if ($user->user_type == "customer") {
+
+            updateDataBalance('words', $tokens, $user);
+
+        }
+
+    }
+
+    # updateBalanceStopGeneration
+
+    public function updateBalanceStopGeneration(Request $request)
+
+    {
+
+        $random_number = session()->get('random_number');
+
+        $user = user();
+
+        if ($random_number && isCustomer()) {
+
+            $aiChatMessage = AiChatMessage::where('random_number', $random_number)->where('user_id', $user->id)->first();
+
+            if ($aiChatMessage) {
+
+                $words = $aiChatMessage->words;
+
+                $this->updateUserWords($words, $user);
+
+                session()->forget('random_number');
+
+                return response()->json(['success' => true]);
+
+            }
+
+        }
+
+
+
+        return response()->json(['success' => false]);
+
+    }
+
+    # get messages
+
+    public function getMessages(Request $request)
+
+    {
+
+        $conversation = AiChat::whereId((int) $request->chatId)->first();
+
+        if (is_null($conversation)) {
+
+            $data = [
+
+                'status' => 400
+
+            ];
+
+            return $data;
+
+        }
+
+
+
+
+
+        $promptGroups       = AiChatPromptGroup::oldest();
+
+        $promptGroups       = $promptGroups->get();
+
+        $prompts            = AiChatPrompt::latest()->get();
+
+        // Get user's documents count for display
+        $user = auth()->user();
+        $documents = Document::where('user_id', $user->id)
+            ->whereNotNull('parsed_text')
+            ->where('parse_status', 'completed')
+            ->latest()
+            ->get();
+        
+        $documentCount = $documents->count();
+
+        $data = [
+
+            'status'            => 200,
+
+            'messagesContainer' => view('backend.pages.aiChat.inc.messages-container', compact('conversation', 'promptGroups', 'prompts', 'documentCount'))->render(),
+
+        ];
+
+        return $data;
+
+    }
+
+
+
+    # get conversations
+
+    public function getConversations(Request $request)
+
+    {
+
+        $conversationsQuery = AiChat::where('ai_chat_category_id', (int) $request->ai_chat_category_id)->where('user_id', auth()->user()->id)->latest('updated_at');
+
+
+
+        $chatList = $conversationsQuery->get();
+
+        $conversation = $conversationsQuery->first();
+
+
+
+
+
+        $promptGroups       = AiChatPromptGroup::oldest();
+
+        $promptGroups       = $promptGroups->get();
+
+        $prompts            = AiChatPrompt::latest()->get();
+
+        $ai_chat_category_id = $request->ai_chat_category_id;
+
+        $data = [
+
+            'status'                 => 200,
+
+            'ai_chat_category_id'   => $ai_chat_category_id,
+
+            'chatRight'      => view('backend.pages.aiChat.inc.chat-right', compact('conversation', 'chatList', 'conversation', 'promptGroups', 'prompts'))->render(),
+
+        ];
+
+        return $data;
+
+    }
+
+
+
+    # SEND IN EMAIL
+
+    public function sendInEmail(Request $request)
+
+    {
+
+        if ($request->email == null) {
+
+            flash(localize('Please type an email'))->error();
+
+            return back();
+
+        }
+
+
+
+        $conversation = AiChat::findOrFail((int) $request->conversation_id);
+
+        if (is_null($conversation)) {
+
+            flash(localize('Chat not found'))->error();
+
+            return back();
+
+        }
+
+
+
+        try {
+
+            $array['view'] = 'emails.chat';
+
+            $array['from'] = env('MAIL_FROM_ADDRESS');
+
+            $array['subject'] = $conversation->title;
+
+            $array['conversation'] = $conversation;
+
+            $array['messages'] = $conversation->messages;
+
+
+
+            Mail::to($request->email)->queue(new EmailManager($array));
+
+            flash(localize('Chat successfully sent to email'))->success();
+
+        } catch (\Throwable $th) {
+
+            flash($th->getMessage())->error();
+
+        }
+
+        return back();
+
+    }
+
+    // download, copy chat history
+
+    public function downloadChatHistory(Request $request)
+
+    {
+
+
+
+        try {
+
+            $basePath = public_path('/');
+
+            $type = $request->type;
+
+            $conversation = AiChat::whereId((int) $request->chatId)->with('messages')->first();
+
+            $messages = null;
+
+            $name   = $conversation->category ? $conversation->category->name : 'ai_chat';
+
+
+
+            if ($conversation) {
+
+                $messages  = $conversation->messages;
+
+            }
+
+
+
+            if (!$messages) {
+
+                flash(localize('No Message Fund'));
+
+                return redirect()->back();
+
+            }
+
+            $data = ['messages' => $messages, 'conversation' => $conversation, 'type' => $type];
+
+            if ($type == 'html') {
+
+                $name =  str_replace(' ', '_', $name) . '.html';
+
+                $file_path = $basePath . $name;
+
+                if (file_exists($file_path)) {
+
+                    unlink($file_path);
+
+                }
+
+
+
+                $view = view('backend.pages.aiChat.download.AI_ChatBot', $data)->render();
+
+                file_put_contents($file_path, $view);
+
+                return response()->download($file_path);
+
+            }
+
+            if ($type == 'word') {
+
+                $name =  str_replace(' ', '_', $name) . '.doc';
+
+                $file_path = $basePath . $name;
+
+                if (file_exists($file_path)) {
+
+                    unlink($file_path);
+
+                }
+
+
+
+                $view = view('backend.pages.aiChat.download.AI_ChatBot', $data)->render();
+
+                file_put_contents($file_path, $view);
+
+                return response()->download($file_path);
+
+            }
+
+            if ($type == 'pdf') {
+
+                return  view('backend.pages.aiChat.download.AI_ChatBot', $data);
+
+            }
+
+
+
+            if ($type == 'copyChat') {
+
+                return  view('backend.pages.aiChat.download.copyChat', $data);
+
+            }
+
+        } catch (\Throwable $th) {
+
+            throw $th;
+
+        }
+
+    }
+
+
+
+
+      public function newchat(Request $request)
+    {
+        $user = auth()->user();
+
+        $chatrolecategories = DB::table('chat_role_categories')->where('status',1)->get();
+        $chatcategories = DB::table('chat_categories')->where('status',1)->where('role_name',$user->chat_role_categories)->get();
+
+        return view('backend.pages.aiChat.newchat', compact('user','chatrolecategories','chatcategories'));
+    }
+
+
+      public function userchathistory(Request $request)
+    {
+        $user = auth()->user();
+        $userhistorydata = DB::table('user_chat_answers')->where('user_id', $user->id)->get();
+        return view('backend.pages.aiChat.user-chat-history', compact('user','userhistorydata'));
+    }
+
+
+    public function newusers_new_chat(Request $request)
+{
+    $userId = auth()->user();
+
+    // $newChatchatdata = DB::table('search_user_chat')->where('id',$id)->where('user_id',$userId->id)->first();
+
+    $newChat = DB::table('search_user_chat')->insertGetId([
+        'user_id' => $userId->id,
+        'status1' => 0,
+        // 'answers' => $newChatchatdata->answers ?? '',
+        // 'chat_role_categories' => $newChatchatdata->chat_role_categories ?? '',
+        // 'categories' => $newChatchatdata->categories ?? '',
+        // 'subcategories' => $newChatchatdata->subcategories ?? '',
+        // 'questionmenuid' => $newChatchatdata->questionmenuid ?? '',
+    ]); 
+
+    flash(localize('New Chat.'));
+    return redirect('dashboard/users-new-chat/'.$newChat);
+}
+
+
+      public function users_new_chat(Request $request,$id)
+    {
+        $searchKey = null;
+
+        $user = auth()->user();
+
+        $promptGroups       = AiChatPromptGroup::oldest();
+
+        $promptGroups       = $promptGroups->get();
+
+        $prompts            = AiChatPrompt::latest();
+
+
+
+        if ($request->search != null) {
+
+            $prompts = $prompts->where('title', 'like', '%' . $request->search . '%')->orWhere('prompt', 'like', '%' . $request->search . '%');
+
+            $searchKey = $request->search;
+
+        }
+
+
+
+        $prompts = $prompts->get();
+
+        $user = auth()->user();
+
+        /*$searchuserchatdata = DB::table('search_user_chat')->where('user_id',$user->id)->get();*/
+        $searchuserchatdata = DB::table('search_user_chat_data')->where('search_user_chat_id',$id)->where('user_id',$user->id)->get();
+
+       
+
+        $today = Carbon::now()->startOfDay();
+        $yesterday = Carbon::yesterday()->startOfDay();
+        $sevenDaysAgo = Carbon::now()->subDays(7)->startOfDay();
+        $thirtyDaysAgo = Carbon::now()->subDays(30)->startOfDay();
+
+        $searchuserchatdatanew = DB::table('search_user_chat_data')
+            ->where('user_id', $user->id)
+            ->get()
+            ->groupBy(function ($item) use ($today, $sevenDaysAgo,$yesterday, $thirtyDaysAgo) {
+                $created = Carbon::parse($item->created_at);
+
+                if ($created->greaterThanOrEqualTo($today)) {
+                    return 'Today';
+                } elseif ($created->greaterThanOrEqualTo($yesterday) && $created->lessThan($today)) {
+                    return 'Yesterday';
+                } elseif ($created->greaterThanOrEqualTo($sevenDaysAgo)) {
+                    return 'Previous 7 Days';
+                } elseif ($created->greaterThanOrEqualTo($thirtyDaysAgo)) {
+                    return 'Previous 30 Days';
+                } else {
+                    return 'Older';
+                }
+            });
+
+        // Get user's documents count for display
+        $documents = Document::where('user_id', $user->id)
+            ->whereNotNull('parsed_text')
+            ->where('parse_status', 'completed')
+            ->latest()
+            ->get();
+        
+        $documentCount = $documents->count();
+
+        // Get selected strategy from database if exists (for page reload)
+        $chatRecord = DB::table('search_user_chat')
+            ->where('id', $id)
+            ->where('user_id', $user->id)
+            ->first();
+        
+        $selectedStrategyFromDB = null;
+        if ($chatRecord) {
+            // Try to get selected_strategy column if it exists
+            try {
+                $columns = DB::select("SHOW COLUMNS FROM search_user_chat LIKE 'selected_strategy'");
+                if (count($columns) > 0 && isset($chatRecord->selected_strategy)) {
+                    $selectedStrategyFromDB = $chatRecord->selected_strategy;
+                }
+            } catch (\Exception $e) {
+                // Column doesn't exist, that's okay - we'll try to add it when saving
+            }
+        }
+
+        return view('backend.pages.aiChat.users-new-chat', compact('user','promptGroups', 'prompts','searchKey','searchuserchatdata','id','searchuserchatdatanew', 'documentCount', 'selectedStrategyFromDB'));
+    }
+
+
+
+
+
+    //   public function users_new_chat_ask(Request $request)
+    // {
+    //     $user = auth()->user();
+    //     $question = $request->input('question');
+    //     $userid = $request->input('user_id');
+    //     $chatid = $request->input('chat_id');
+
+    //     $checkdata = DB::table('user_chat_answers')->where('user_id',$userid)->latest()->first();
+          
+    //     $response = Http::withToken('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')
+    //             ->post('https://api.openai.com/v1/chat/completions', [
+    //                 'model' => 'gpt-3.5-turbo',
+    //                 'messages' => [
+    //                     ['role' => 'user', 'content' => $question],
+    //                 ],
+    //             ]);
+
+    //         $answer = $response->json('choices.0.message.content');
+
+    //         // Save to DB
+
+    //         $newChat = DB::table('search_user_chat')->where('id',$chatid)->update([
+    //             'user_id' => $user->id,
+    //             'answers' => $checkdata->answers,
+    //             'chat_role_categories' => $checkdata->chat_role_categories,
+    //             'categories' => $checkdata->categories,
+    //             'subcategories' => $checkdata->subcategories,
+    //             'questionmenuid' => $checkdata->questionmenuid,
+    //             'search' => $question,
+    //             'response' => $answer,
+    //         ]);
+
+    //         DB::table('search_user_chat_data')->insert([
+    //             'search_user_chat_id' => $chatid,
+    //             'user_id' => $user->id,
+    //             'answers' => $checkdata->answers,
+    //             'chat_role_categories' => $checkdata->chat_role_categories,
+    //             'categories' => $checkdata->categories,
+    //             'subcategories' => $checkdata->subcategories,
+    //             'questionmenuid' => $checkdata->questionmenuid,
+    //             'search' => $question,
+    //             'response' => $answer,
+    //         ]);
+
+    //         return response()->json([
+    //             'question' => $question,
+    //             'answer' => $answer,
+    //             'id' => $newChat
+    //         ]);
+    // }
+
+
+
+
+// public function users_new_chat_ask(Request $request)
+// {
+//     $user = auth()->user();
+//     $question = $request->input('question');
+//     $chatId = $request->input('chat_id');
+
+//     // Validate input
+//     if (!$question || !$chatId) {
+//         return response()->json(['error' => 'Question and Chat ID are required.'], 400);
+//     }
+
+//     // Fetch last context
+//     $previous = DB::table('user_chat_answers')->where('user_id', $user->id)->latest()->first();
+
+//     // GoalSync instruction (manually embedded)
+//     $goalsyncInstructions = <<<TEXT
+//             OBJECTIVE:
+//             Respond to every user-inputted goal using the exact 7-step GoalSync structure. Never skip a step...
+
+//             🧩 Step 1: Chat Acknowledgement  
+//             📁 Step 2: Document Insights  
+//             📊 Step 3: Goal Assessment Summary  
+//             📈 Step 4: Scoring (Impact, Feasibility, Alignment)  
+//             🗺️ Step 5: Strategy Map (Decision Paths)  
+//             🔮 Step 6: Scenario Simulations  
+//             👥 Step 7: Rephrased Goals by Role  
+//             📌 Complementary Goals (if applicable)  
+//             ✅ Final Outcome Summary
+
+//             Rules:
+//             - Do not skip any step
+//             - Use fallback logic if data is missing
+//             - Keep tone strategic, professional, and conversational
+//             TEXT;
+
+//                 // Construct prompt
+//                 $prompt = <<<EOT
+//             You are a strategic assistant trained in the GoalSync method.
+
+//             Below is the instruction set you MUST follow:
+//             $goalsyncInstructions
+
+//             Now respond to the user's goal using the GoalSync format below.
+
+//             User's Goal:
+//             "$question"
+//             EOT;
+
+//         $response = Http::withToken('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')->post('https://api.openai.com/v1/chat/completions', [
+//             'model' => 'gpt-3.5-turbo',
+//             'messages' => [
+//                 ['role' => 'user', 'content' => $prompt],
+//             ],
+//         ]);
+
+//         if (!$response->successful()) {
+//             return response()->json([
+//                 'error' => 'OpenAI API failed.',
+//                 'details' => $response->body()
+//             ], 500);
+//         }
+
+//         $answer = $response->json('choices.0.message.content');
+//     // dd($answer);
+//        /* $responseData = preg_replace('/\/\/.*$/', '', $answer);
+         
+//         $responseData = mb_convert_encoding($answer, 'UTF-8', 'UTF-8');*/
+
+//         DB::table('search_user_chat')->where('id', $chatId)->update([
+//             'user_id' => $user->id,
+//             'answers' => $previous->answers ?? null,
+//             'chat_role_categories' => $previous->chat_role_categories ?? null,
+//             'categories' => $previous->categories ?? null,
+//             'subcategories' => $previous->subcategories ?? null,
+//             'questionmenuid' => $previous->questionmenuid ?? null,
+//             'search' => $question,
+//             'response' => $answer,
+//         ]);
+  
+//         DB::table('search_user_chat_data')->insert([
+//             'search_user_chat_id' => $chatId,
+//             'user_id' => $user->id,
+//             'answers' => $previous->answers ?? null,
+//             'chat_role_categories' => $previous->chat_role_categories ?? null,
+//             'categories' => $previous->categories ?? null,
+//             'subcategories' => $previous->subcategories ?? null,
+//             'questionmenuid' => $previous->questionmenuid ?? null,
+//             'search' => $question,
+//             'response' => $answer,
+//         ]);
+
+
+//     // Return final structured response
+//     return response()->json([
+//         'question' => $question,
+//         'answer' => $answer,
+//     ]);
+// }
+
+
+
+// public function users_new_chat_ask(Request $request)
+// {
+//     $user = auth()->user();
+//     $question = $request->input('question');
+//     $chatId = $request->input('chat_id');
+
+//     if (!$question || !$chatId) {
+//         return response()->json(['error' => 'Question and Chat ID are required.'], 400);
+//     }
+
+//     $previous = DB::table('user_chat_answers')->where('user_id', $user->id)->latest()->first();
+
+//     // Load the GoalSync instructions from the .docx
+//     $instructionPath = public_path('backend/GOALSYNC - GPT INSTRUCTION SET For Standardized Output Generation.docx');
+//     $goalsyncInstructions = $instructionPath;
+
+//     // Final Prompt
+//     $prompt = <<<EOT
+// $goalsyncInstructions
+
+// NEVER SKIP A STEP. Use fallback assumptions if real data is unavailable.  
+// Mirror executive tone: Clear, strategic, concise. Use symbols for section headers.
+
+// User's Goal:  
+// "$question"
+// EOT;
+
+//     $response = Http::withToken(env('OPENAI_API_KEY'))->post('https://api.openai.com/v1/chat/completions', [
+//         'model' => 'gpt-3.5-turbo',
+//         'messages' => [
+//             ['role' => 'user', 'content' => $prompt],
+//         ],
+//     ]);
+
+//     if (!$response->successful()) {
+//         return response()->json([
+//             'error' => 'OpenAI API failed.',
+//             'details' => $response->body()
+//         ], 500);
+//     }
+
+//     $answer = $response->json('choices.0.message.content');
+
+//     // Save response to DB
+//     DB::table('search_user_chat')->where('id', $chatId)->update([
+//         'user_id' => $user->id,
+//         'answers' => $previous->answers ?? null,
+//         'chat_role_categories' => $previous->chat_role_categories ?? null,
+//         'categories' => $previous->categories ?? null,
+//         'subcategories' => $previous->subcategories ?? null,
+//         'questionmenuid' => $previous->questionmenuid ?? null,
+//         'search' => $question,
+//         'response' => $answer,
+//     ]);
+
+//     DB::table('search_user_chat_data')->insert([
+//         'search_user_chat_id' => $chatId,
+//         'user_id' => $user->id,
+//         'answers' => $previous->answers ?? null,
+//         'chat_role_categories' => $previous->chat_role_categories ?? null,
+//         'categories' => $previous->categories ?? null,
+//         'subcategories' => $previous->subcategories ?? null,
+//         'questionmenuid' => $previous->questionmenuid ?? null,
+//         'search' => $question,
+//         'response' => $answer,
+//     ]);
+
+//     return response()->json([
+//         'question' => $question,
+//         'answer' => $answer,
+//     ]);
+// }
+
+
+
+
+
+// kishan
+
+
+
+
+public function users_new_chat_ask(Request $request)
+{
+    $user = auth()->user();
+    $question = $request->input('question');
+    $chatId = $request->input('chat_id');
+
+    // Validate inputs
+    if (!$question || !$chatId) {
+        return response()->json(['error' => 'Question and Chat ID are required.'], 400);
+    }
+
+    // Retrieve last chat context (if any)
+    $previousContext = DB::table('user_chat_answers')
+        ->where('user_id', $user->id)
+        ->latest()
+        ->first();
+    $chectdata = DB::table('search_user_chat')->where('id', $chatId)->first();
+
+    // Check if chat exists
+    if (!$chectdata) {
+        return response()->json(['error' => 'Chat session not found.'], 404);
+    }
+
+    // Get user's documents for company context
+    $documents = Document::where('user_id', $user->id)
+        ->whereNotNull('parsed_text')
+        ->where('parse_status', 'completed')
+        ->latest()
+        ->get();
+    
+    $documentContext = '';
+    if ($documents->count() > 0) {
+        $documentContext = "\n\n--- COMPANY DOCUMENTS CONTEXT ---\n";
+        $documentContext .= "The following information is from uploaded company documents. Use this context to provide accurate and relevant responses about the company:\n\n";
+        $documentContext .= $documents->pluck('parsed_text')->filter()->implode("\n\n--- Document Separator ---\n\n");
+        $documentContext .= "\n--- END COMPANY DOCUMENTS CONTEXT ---\n";
+    }
+
+    $systemMessage = 'You are a strategy assistant. Respond only using structured ChatGPT-style text with emojis and clean formatting based on the GoalSync method.';
+    if (!empty($documentContext)) {
+        $systemMessage .= $documentContext;
+    }
+
+ if(($previousContext && ($previousContext->status1 == '0' || $previousContext->status1 == 0)) || ($chectdata->status1 == '0' || $chectdata->status1 == 0)){
+    // Build prompt to return GOALSYNC output in natural ChatGPT-style format
+    $prompt = <<<EOT
+    You are an executive strategy assistant trained in the GoalSync 7-step framework.
+
+    Respond to this goal using full natural text formatting (like ChatGPT), following this structure with emojis and section headers:
+
+    🧩 Chat Acknowledgement  
+    📁 Document Insights  
+    📊 Goal Assessment Summary  
+    📈 Scoring  
+    🗺️ Strategy Map (Decision Paths)  
+    🔮 Scenario Simulations  
+    👥 Rephrased Goals by Role  
+    📌 Complementary Goals  
+    ✅ Final Outcome Summary  
+
+    User Goal: "$question"
+
+    Format:
+    - Write in paragraphs, not JSON
+    - Use bold for key decisions
+    - Use bullet points and tables where helpful
+    - DO NOT include JSON, markdown, or meta instructions
+    - Return only the content in clean GoalSync format
+    
+    CRITICAL REQUIREMENT FOR STRATEGY MAP:
+    - In the 🗺️ Strategy Map (Decision Paths) section, you MUST provide EXACTLY 3 or 4 strategies ONLY
+    - Minimum: 3 strategies
+    - Maximum: 4 strategies
+    - DO NOT provide 5, 6, 7, 8, 9, 10, or any number greater than 4
+    - DO NOT provide fewer than 3 strategies
+    - Each strategy should be on a separate line starting with a bullet point (-) or dash
+    - Format: "- Strategy Name: Description" or "• Strategy Name: Description"
+    - Stop after 4 strategies maximum. Do not continue listing more.
+
+    EOT;
+ 
+        // Send to OpenAI API
+        $openAiResponse = Http::withToken(env('OPENAI_API_KEY'))->post('https://api.openai.com/v1/chat/completions', [
+            'model' => 'gpt-4-turbo',
+            'temperature' => 0.7,
+            'max_tokens' => 3000,
+            'messages' => [
+                [
+                    'role' => 'system',
+                    'content' => $systemMessage
+                ],
+                [
+                    'role' => 'user',
+                    'content' => $prompt
+                ],
+            ],
+        ]);
+
+       DB::table('user_chat_answers')->where('user_id', $user->id)->update(['status1' => 1]);
+       DB::table('search_user_chat')->where('id', $chatId)->update(['status1' => 1]);
+
+    }else{
+
+         $openAiResponse = Http::withToken(env('OPENAI_API_KEY'))->post('https://api.openai.com/v1/chat/completions', [
+            'model' => 'gpt-4-turbo',
+            'temperature' => 0.7,
+            'max_tokens' => 3000,
+            'messages' => [
+                [
+                    'role' => 'system',
+                    'content' => $systemMessage
+                ],
+                [
+                    'role' => 'user',
+                    'content' => $question
+                ],
+            ],
+        ]);
+
+        DB::table('user_chat_answers')->where('user_id', $user->id)->update(['status2' => 1]);
+        DB::table('search_user_chat')->where('id', $chatId)->update(['status2' => 1]);
+
+    }
+
+        // Handle API errors
+        if (!$openAiResponse->successful()) {
+            return response()->json([
+                'error' => 'OpenAI API request failed.',
+                'details' => $openAiResponse->body()
+            ], 500);
+        }
+
+        $responseContent = $openAiResponse->json('choices.0.message.content');
+
+        // Save results to both main chat table and history
+        $commonData = [
+            'user_id' => $user->id,
+            'answers' => $previousContext->answers ?? null,
+            'chat_role_categories' => $previousContext->chat_role_categories ?? null,
+            'categories' => $previousContext->categories ?? null,
+            'subcategories' => $previousContext->subcategories ?? null,
+            'questionmenuid' => $previousContext->questionmenuid ?? null,
+            'search' => $question,
+            'response' => $responseContent,
+        ];
+
+        DB::table('search_user_chat')->where('id', $chatId)->update($commonData);
+
+        DB::table('search_user_chat_data')->insert(array_merge($commonData, [
+            'search_user_chat_id' => $chatId,
+        ]));
+
+        // Return final formatted response
+        return response()->json([
+            'question' => $question,
+            'answer' => $responseContent,
+            'previousContext' => $previousContext ? (object)[
+                'status1' => $previousContext->status1 ?? null,
+                'status2' => $previousContext->status2 ?? null,
+            ] : null,
+            'chectdata' => $chectdata ? (object)[
+                'status1' => $chectdata->status1 ?? null,
+                'status2' => $chectdata->status2 ?? null,
+            ] : null,
+        ]);
+   }
+
+
+
+
+
+
+
+
+
+   public function users_new_chat_update_strategy(Request $request)
+   {
+       $user = auth()->user();
+       $selectedStrategy = $request->input('selected_strategy');
+       $chatId = $request->input('chat_id');
+       $originalQuestion = $request->input('original_question');
+       $sectionsBefore = $request->input('sections_before');
+       $strategyMap = $request->input('strategy_map');
+       $isUserSelection = $request->input('is_user_selection', false); // Flag to indicate if user actually selected this
+
+       // Validate inputs
+       if (!$selectedStrategy || !$chatId || !$originalQuestion) {
+           return response()->json(['error' => 'Selected strategy, Chat ID, and original question are required.'], 400);
+       }
+
+       // Get user's documents for company context
+       $documents = Document::where('user_id', $user->id)
+           ->whereNotNull('parsed_text')
+           ->where('parse_status', 'completed')
+           ->latest()
+           ->get();
+       
+       $documentContext = '';
+       if ($documents->count() > 0) {
+           $documentContext = "\n\n--- COMPANY DOCUMENTS CONTEXT ---\n";
+           $documentContext .= "The following information is from uploaded company documents. Use this context to provide accurate and relevant responses about the company:\n\n";
+           $documentContext .= $documents->pluck('parsed_text')->filter()->implode("\n\n--- Document Separator ---\n\n");
+           $documentContext .= "\n--- END COMPANY DOCUMENTS CONTEXT ---\n";
+       }
+
+       $systemMessage = 'You are a strategy assistant. Respond only using structured ChatGPT-style text with emojis and clean formatting based on the GoalSync method.';
+       if (!empty($documentContext)) {
+           $systemMessage .= $documentContext;
+       }
+
+       // Build prompt to regenerate sections after Strategy Map based on selected strategy
+       $prompt = <<<EOT
+Strategy: "$selectedStrategy"
+Goal: "$originalQuestion"
+
+Generate these 4 sections concisely:
+
+🔮 Scenario Simulations
+Best case: 1-2 sentences. Worst case: 1-2 sentences.
+
+👥 Rephrased Goals by Role
+CEO: 1 sentence. CTO: 1 sentence. CFO: 1 sentence.
+
+📌 Complementary Goals
+2 goals, 1 sentence each.
+
+✅ Final Outcome Summary
+2 sentences on impact.
+
+EOT;
+
+       // Send to OpenAI API
+       $openAiResponse = Http::withToken(env('OPENAI_API_KEY'))->post('https://api.openai.com/v1/chat/completions', [
+           'model' => 'gpt-4-turbo',
+           'temperature' => 0.7,
+           'max_tokens' => 3000,
+           'messages' => [
+               [
+                   'role' => 'system',
+                   'content' => $systemMessage
+               ],
+               [
+                   'role' => 'user',
+                   'content' => $prompt
+               ],
+           ],
+       ]);
+
+       // Handle API errors
+       if (!$openAiResponse->successful()) {
+           return response()->json([
+               'error' => 'OpenAI API request failed.',
+               'details' => $openAiResponse->body()
+           ], 500);
+       }
+
+       $updatedSections = $openAiResponse->json('choices.0.message.content');
+
+       // Only update database if this is a user selection (not just eager loading)
+       if ($isUserSelection) {
+           // Update the chat record with the new response (combining old sections with new)
+           $chatData = DB::table('search_user_chat')->where('id', $chatId)->where('user_id', $user->id)->first();
+           
+           if ($chatData) {
+               // Combine sections before strategy + strategy map + updated sections
+               $fullUpdatedResponse = $sectionsBefore . "\n\n" . $strategyMap . "\n\n" . $updatedSections;
+               
+               // Update main chat table with selected strategy's response
+               // Try to store selected_strategy, but if column doesn't exist, just update response
+               try {
+                   DB::table('search_user_chat')->where('id', $chatId)->update([
+                       'response' => $fullUpdatedResponse,
+                   ]);
+                   
+                   // Try to add selected_strategy if column exists
+                   $columns = DB::select("SHOW COLUMNS FROM search_user_chat LIKE 'selected_strategy'");
+                   if (count($columns) > 0) {
+                       DB::table('search_user_chat')->where('id', $chatId)->update([
+                           'selected_strategy' => $selectedStrategy,
+                       ]);
+                   }
+               } catch (\Exception $e) {
+                   // If selected_strategy column doesn't exist, just update response
+                   DB::table('search_user_chat')->where('id', $chatId)->update([
+                       'response' => $fullUpdatedResponse,
+                   ]);
+               }
+
+               // Also update the latest entry in search_user_chat_data
+               $latestChatData = DB::table('search_user_chat_data')
+                   ->where('search_user_chat_id', $chatId)
+                   ->where('user_id', $user->id)
+                   ->orderBy('created_at', 'desc')
+                   ->first();
+               
+               if ($latestChatData) {
+                   try {
+                       DB::table('search_user_chat_data')
+                           ->where('id', $latestChatData->id)
+                           ->update([
+                               'response' => $fullUpdatedResponse,
+                           ]);
+                       
+                       // Try to add selected_strategy if column exists
+                       $columns = DB::select("SHOW COLUMNS FROM search_user_chat_data LIKE 'selected_strategy'");
+                       if (count($columns) > 0) {
+                           DB::table('search_user_chat_data')
+                               ->where('id', $latestChatData->id)
+                               ->update([
+                                   'selected_strategy' => $selectedStrategy,
+                               ]);
+                       }
+                   } catch (\Exception $e) {
+                       // If column doesn't exist, just update response
+                       DB::table('search_user_chat_data')
+                           ->where('id', $latestChatData->id)
+                           ->update([
+                               'response' => $fullUpdatedResponse,
+                           ]);
+                   }
+               }
+           }
+       }
+       // If eager loading, we don't update DB - just return the response for caching
+
+       // Return updated sections
+       return response()->json([
+           'updated_sections' => $updatedSections,
+           'selected_strategy' => $selectedStrategy,
+       ]);
+   }
+
+      public function userschat_search_delete(Request $request,$id)
+    {
+        DB::table('search_user_chat')->where('id', $id)->delete();
+        DB::table('search_user_chat_data')->where('search_user_chat_id', $id)->delete();
+        flash(localize('Chat deleted successfully!'));
+        return back();
+    }
+
+    
+
+
+      public function user_view_chathistory(Request $request,$id)
+    {
+        $user = auth()->user();
+        $userhistoryview = DB::table('user_chat_answers')->where('id', $id)->where('user_id', $user->id)->first();
+        return view('backend.pages.aiChat.user-view-chat-history', compact('user','userhistoryview'));
+    }
+
+
+      public function chatsearch_question(Request $request)
+    {
+        $user = auth()->user();
+        $requestall = $request->all();
+
+    if(!empty($request->subcategories)){
+        $questionmenu = DB::table('subcategory_menu')->where('role',$request->chat_role_categories)->where('categories',$request->categories)->where('subcategories',$request->subcategories)->first();
+    }else{
+      $questionmenu = DB::table('subcategory_menu')->where('role',$request->chat_role_categories)->where('categories',$request->categories)->first();
+    }
+
+      if(!empty($questionmenu)){
+        $questionmenulist = DB::table('subcategory_menu_question')->where('subcategorymenu_id',$questionmenu->id)->where('status',1)->get();
+        $useranswerdata = DB::table('user_chat_answers')
+            ->where('user_id', $user->id)
+            ->where('chat_role_categories', $request->chat_role_categories)
+            ->where('categories', $request->categories)
+            ->where('subcategories', $request->subcategories)
+            ->first();
+        return view('backend.pages.aiChat.newchat-question', compact('useranswerdata','user','questionmenu','questionmenulist','requestall'));
+      }else{
+        flash(localize('No Question Found'));
+        return back();
+      }
+
+    }
+
+
+public function chat_question_store(Request $request)
+{
+    $userId = $request->input('id');
+    $questionIds = $request->input('question');
+    $answers = $request->input('answers');
+
+    $chatRoleCategory = $request->input('chat_role_categories');
+    $category = $request->input('categories');
+    $subcategory = $request->input('subcategories');
+    $questionMenuId = $request->input('questionmenuid');
+
+    $finalAnswers = [];
+
+    foreach ($questionIds as $questionId) {
+        $answerText = $answers[$questionId] ?? null;
+
+        if ($answerText !== null) {
+            $finalAnswers[] = [
+                'question_id' => $questionId,
+                'answer' => $answerText,
+            ];
+        }
+    }
+
+    // Encode as JSON
+    $encodedAnswers = json_encode($finalAnswers);
+
+    // Check if record exists
+    $existing = DB::table('user_chat_answers')
+        ->where('user_id', $userId)
+        ->where('chat_role_categories', $chatRoleCategory)
+        ->where('categories', $category)
+        ->where('subcategories', $subcategory)
+        ->first();
+
+    if ($existing) {
+        DB::table('user_chat_answers')
+            ->where('id', $existing->id)
+            ->update([
+                'status1' => 0,
+                'answers' => $encodedAnswers,
+                'questionmenuid' => $questionMenuId,
+            ]);
+
+        $newChat = DB::table('search_user_chat')->insertGetId([
+            'user_id' => $userId,
+            'answers' => $encodedAnswers,
+            'chat_role_categories' => $chatRoleCategory,
+            'categories' => $category,
+            'subcategories' => $subcategory,
+            'questionmenuid' => $questionMenuId,
+        ]); 
+
+    } else {
+        DB::table('user_chat_answers')->insert([
+            'user_id' => $userId,
+            'answers' => $encodedAnswers,
+            'chat_role_categories' => $chatRoleCategory,
+            'categories' => $category,
+            'subcategories' => $subcategory,
+            'questionmenuid' => $questionMenuId,
+            'status1' => 0,
+        ]);
+
+        $newChat = DB::table('search_user_chat')->insertGetId([
+            'user_id' => $userId,
+            'answers' => $encodedAnswers,
+            'chat_role_categories' => $chatRoleCategory,
+            'categories' => $category,
+            'subcategories' => $subcategory,
+            'questionmenuid' => $questionMenuId,
+        ]);
+    }
+
+    flash(localize('Answers processed successfully.'));
+    return redirect('dashboard/users-new-chat/'.$newChat);
+}
+
+
+
+
+
+}
+

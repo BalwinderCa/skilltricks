@@ -1,0 +1,117 @@
+@media (min-width: 320px) and (max-width: 1279.98px) {
+    .pb-650 {
+        padding-bottom: 0rem;
+    }
+}
+.h-25rem {
+    height: 25rem;
+}
+.tt-visit-store {
+    display: flex;
+    align-items: center;
+}
+.tt-visit-store svg {
+    width: 18px !important;
+    height: 18px !important;
+    line-height: 18px !important;
+}
+.min-h-300 {
+    min-height: 300px;
+}
+.min-h-400 {
+    min-height: 400px;
+}
+.w-15 {
+    width: 15px !important;
+}
+.min-w-150 {
+    min-width: 150px;
+}
+
+.vh-80 {
+    height: 80vh;
+}
+.product-radio-btn li {
+    display: inline-block;
+    margin-right: 8px;
+    margin-bottom: 6px;
+}
+.product-radio-btn li input {
+    display: none;
+}
+.product-radio-btn li label {
+    border: 1px dashed #ebebeb;
+    padding: 1px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+.product-radio-btn li input:checked + label {
+    border-color: #4eb529;
+    color: #4eb529;
+}
+.cat-icon i {
+    font-size: 20px;
+    font-weight: bold;
+}
+.fs-20 {
+    font-size: 20px !important;
+}
+.tt-template-card .tt-template-icon i {
+    line-height: 42px;
+    font-size: 18px;
+}
+#codetext {
+    white-space: pre-wrap;
+    font-size: 14px;
+}
+.h-35px {
+    height: 35px;
+}
+
+.downloadChat {
+    height: 0;
+    width: 0;
+    visibility: hidden;
+    overflow: hidden;
+}
+.template-actions {
+    position: absolute;
+    right: 0;
+    top: 90%;
+}
+
+.tt-template-edit {
+    position: relative !important;
+}
+.msg-wrapper {
+    position: relative;
+}
+
+.msg-wrapper:hover .txt-copy-btn {
+    display: inline-block !important;
+}
+
+.txt-copy-btn {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+}
+
+/* ai blog wizard */
+.tt-fieldset-data{
+    display: none;
+}
+
+.tt-fieldset-data.is-active{
+    display: block;
+}
+.h-80{
+    height: 80%;
+}
+.btn-stop-content {
+    border-color: #d3d3d3 !important;
+}
+.grecaptcha-badge {
+    z-index: 99999; 
+ }
+

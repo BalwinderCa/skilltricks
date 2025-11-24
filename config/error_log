@@ -1,0 +1,32 @@
+[10-Apr-2025 09:05:54 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function env() in /home/login2designin/public_html/skilldevelopment/config/app.php:16
+Stack trace:
+#0 {main}
+  thrown in /home/login2designin/public_html/skilldevelopment/config/app.php on line 16
+[14-Apr-2025 17:44:44 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function env() in /home/login2designin/public_html/skilldevelopment/config/app.php:16
+Stack trace:
+#0 {main}
+  thrown in /home/login2designin/public_html/skilldevelopment/config/app.php on line 16
+[28-Jul-2025 03:49:56 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function env() in /home/goalsyncskilltri/public_html/config/database.php:35
+Stack trace:
+#0 {main}
+  thrown in /home/goalsyncskilltri/public_html/config/database.php on line 35
+[28-Jul-2025 03:50:08 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function env() in /home/goalsyncskilltri/public_html/config/mail.php:16
+Stack trace:
+#0 {main}
+  thrown in /home/goalsyncskilltri/public_html/config/mail.php on line 16
+[28-Jul-2025 03:50:20 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function env() in /home/goalsyncskilltri/public_html/config/paypal.php:8
+Stack trace:
+#0 {main}
+  thrown in /home/goalsyncskilltri/public_html/config/paypal.php on line 8
+[28-Jul-2025 03:50:32 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function env() in /home/goalsyncskilltri/public_html/config/services.php:18
+Stack trace:
+#0 {main}
+  thrown in /home/goalsyncskilltri/public_html/config/services.php on line 18
+[12-Aug-2025 23:42:21 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function env() in /home/goalsyncskilltri/public_html/config/services.php:18
+Stack trace:
+#0 {main}
+  thrown in /home/goalsyncskilltri/public_html/config/services.php on line 18
+[12-Aug-2025 23:43:27 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function env() in /home/goalsyncskilltri/public_html/config/database.php:35
+Stack trace:
+#0 {main}
+  thrown in /home/goalsyncskilltri/public_html/config/database.php on line 35
