@@ -45,6 +45,9 @@ use DB;
 use Carbon\Carbon;
 
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
 
 use PhpOffice\PhpWord\IOFactory;
 
@@ -1234,51 +1237,227 @@ public function users_new_chat_ask(Request $request)
 
     EOT;
  
-        // Send to OpenAI API
-        $openAiResponse = Http::withToken(env('OPENAI_API_KEY'))->post('https://api.openai.com/v1/chat/completions', [
-            'model' => 'gpt-4-turbo',
-            'temperature' => 0.7,
-            'max_tokens' => 3000,
-            'messages' => [
-                [
-                    'role' => 'system',
-                    'content' => $systemMessage
-                ],
-                [
-                    'role' => 'user',
-                    'content' => $prompt
-                ],
-            ],
-        ]);
+        // Send to OpenAI API with comprehensive error handling
+        try {
+            Log::info('OpenAI API Request - First Chat', [
+                'user_id' => $user->id,
+                'chat_id' => $chatId,
+                'prompt_length' => strlen($prompt),
+                'system_message_length' => strlen($systemMessage),
+                'documents_count' => $documents->count(),
+                'has_api_key' => !empty(env('OPENAI_API_KEY')),
+            ]);
 
-       DB::table('user_chat_answers')->where('user_id', $user->id)->update(['status1' => 1]);
-       DB::table('search_user_chat')->where('id', $chatId)->update(['status1' => 1]);
+            $openAiResponse = Http::withToken(env('OPENAI_API_KEY'))
+                ->timeout(90) // Increase timeout to 90 seconds
+                ->connectTimeout(10) // Connection timeout
+                ->retry(2, 1000) // Retry 2 times with 1 second delay
+                ->post('https://api.openai.com/v1/chat/completions', [
+                    'model' => 'gpt-4-turbo',
+                    'temperature' => 0.7,
+                    'max_tokens' => 3000,
+                    'messages' => [
+                        [
+                            'role' => 'system',
+                            'content' => $systemMessage
+                        ],
+                        [
+                            'role' => 'user',
+                            'content' => $prompt
+                        ],
+                    ],
+                ]);
+
+            Log::info('OpenAI API Response - First Chat', [
+                'user_id' => $user->id,
+                'chat_id' => $chatId,
+                'status' => $openAiResponse->status(),
+                'successful' => $openAiResponse->successful(),
+                'response_length' => strlen($openAiResponse->body()),
+            ]);
+
+            DB::table('user_chat_answers')->where('user_id', $user->id)->update(['status1' => 1]);
+            DB::table('search_user_chat')->where('id', $chatId)->update(['status1' => 1]);
+
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            Log::error('OpenAI API Connection Exception - First Chat', [
+                'user_id' => $user->id,
+                'chat_id' => $chatId,
+                'error_message' => $e->getMessage(),
+                'error_code' => $e->getCode(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'error' => 'OpenAI API connection timeout. The request took too long to complete.',
+                'details' => [
+                    'message' => $e->getMessage(),
+                    'type' => 'ConnectionException',
+                    'suggestion' => 'Please try again. If the issue persists, the OpenAI API may be experiencing high load.',
+                ]
+            ], 504);
+
+        } catch (\Illuminate\Http\Client\RequestException $e) {
+            Log::error('OpenAI API Request Exception - First Chat', [
+                'user_id' => $user->id,
+                'chat_id' => $chatId,
+                'error_message' => $e->getMessage(),
+                'error_code' => $e->getCode(),
+                'response_body' => $e->response ? $e->response->body() : null,
+                'response_status' => $e->response ? $e->response->status() : null,
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
+            return response()->json([
+                'error' => 'OpenAI API request failed.',
+                'details' => [
+                    'message' => $e->getMessage(),
+                    'type' => 'RequestException',
+                    'response' => $e->response ? $e->response->body() : null,
+                ]
+            ], 500);
+
+        } catch (\Exception $e) {
+            Log::error('OpenAI API General Exception - First Chat', [
+                'user_id' => $user->id,
+                'chat_id' => $chatId,
+                'error_message' => $e->getMessage(),
+                'error_code' => $e->getCode(),
+                'error_class' => get_class($e),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'error' => 'An unexpected error occurred while processing your request.',
+                'details' => [
+                    'message' => $e->getMessage(),
+                    'type' => get_class($e),
+                ]
+            ], 500);
+        }
 
     }else{
 
-         $openAiResponse = Http::withToken(env('OPENAI_API_KEY'))->post('https://api.openai.com/v1/chat/completions', [
-            'model' => 'gpt-4-turbo',
-            'temperature' => 0.7,
-            'max_tokens' => 3000,
-            'messages' => [
-                [
-                    'role' => 'system',
-                    'content' => $systemMessage
-                ],
-                [
-                    'role' => 'user',
-                    'content' => $question
-                ],
-            ],
-        ]);
+        // Send to OpenAI API with comprehensive error handling
+        try {
+            Log::info('OpenAI API Request - Follow-up Chat', [
+                'user_id' => $user->id,
+                'chat_id' => $chatId,
+                'question_length' => strlen($question),
+                'system_message_length' => strlen($systemMessage),
+                'documents_count' => $documents->count(),
+                'has_api_key' => !empty(env('OPENAI_API_KEY')),
+            ]);
 
-        DB::table('user_chat_answers')->where('user_id', $user->id)->update(['status2' => 1]);
-        DB::table('search_user_chat')->where('id', $chatId)->update(['status2' => 1]);
+            $openAiResponse = Http::withToken(env('OPENAI_API_KEY'))
+                ->timeout(90) // Increase timeout to 90 seconds
+                ->connectTimeout(10) // Connection timeout
+                ->retry(2, 1000) // Retry 2 times with 1 second delay
+                ->post('https://api.openai.com/v1/chat/completions', [
+                    'model' => 'gpt-4-turbo',
+                    'temperature' => 0.7,
+                    'max_tokens' => 3000,
+                    'messages' => [
+                        [
+                            'role' => 'system',
+                            'content' => $systemMessage
+                        ],
+                        [
+                            'role' => 'user',
+                            'content' => $question
+                        ],
+                    ],
+                ]);
+
+            Log::info('OpenAI API Response - Follow-up Chat', [
+                'user_id' => $user->id,
+                'chat_id' => $chatId,
+                'status' => $openAiResponse->status(),
+                'successful' => $openAiResponse->successful(),
+                'response_length' => strlen($openAiResponse->body()),
+            ]);
+
+            DB::table('user_chat_answers')->where('user_id', $user->id)->update(['status2' => 1]);
+            DB::table('search_user_chat')->where('id', $chatId)->update(['status2' => 1]);
+
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            Log::error('OpenAI API Connection Exception - Follow-up Chat', [
+                'user_id' => $user->id,
+                'chat_id' => $chatId,
+                'error_message' => $e->getMessage(),
+                'error_code' => $e->getCode(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'error' => 'OpenAI API connection timeout. The request took too long to complete.',
+                'details' => [
+                    'message' => $e->getMessage(),
+                    'type' => 'ConnectionException',
+                    'suggestion' => 'Please try again. If the issue persists, the OpenAI API may be experiencing high load.',
+                ]
+            ], 504);
+
+        } catch (\Illuminate\Http\Client\RequestException $e) {
+            Log::error('OpenAI API Request Exception - Follow-up Chat', [
+                'user_id' => $user->id,
+                'chat_id' => $chatId,
+                'error_message' => $e->getMessage(),
+                'error_code' => $e->getCode(),
+                'response_body' => $e->response ? $e->response->body() : null,
+                'response_status' => $e->response ? $e->response->status() : null,
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
+            return response()->json([
+                'error' => 'OpenAI API request failed.',
+                'details' => [
+                    'message' => $e->getMessage(),
+                    'type' => 'RequestException',
+                    'response' => $e->response ? $e->response->body() : null,
+                ]
+            ], 500);
+
+        } catch (\Exception $e) {
+            Log::error('OpenAI API General Exception - Follow-up Chat', [
+                'user_id' => $user->id,
+                'chat_id' => $chatId,
+                'error_message' => $e->getMessage(),
+                'error_code' => $e->getCode(),
+                'error_class' => get_class($e),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'error' => 'An unexpected error occurred while processing your request.',
+                'details' => [
+                    'message' => $e->getMessage(),
+                    'type' => get_class($e),
+                ]
+            ], 500);
+        }
 
     }
 
-        // Handle API errors
+        // Handle API errors (non-exception cases)
         if (!$openAiResponse->successful()) {
+            Log::error('OpenAI API Unsuccessful Response', [
+                'user_id' => $user->id,
+                'chat_id' => $chatId,
+                'status' => $openAiResponse->status(),
+                'response_body' => $openAiResponse->body(),
+            ]);
+
             return response()->json([
                 'error' => 'OpenAI API request failed.',
                 'details' => $openAiResponse->body()
@@ -1384,25 +1563,116 @@ CEO: 1 sentence. CTO: 1 sentence. CFO: 1 sentence.
 
 EOT;
 
-       // Send to OpenAI API
-       $openAiResponse = Http::withToken(env('OPENAI_API_KEY'))->post('https://api.openai.com/v1/chat/completions', [
-           'model' => 'gpt-4-turbo',
-           'temperature' => 0.7,
-           'max_tokens' => 3000,
-           'messages' => [
-               [
-                   'role' => 'system',
-                   'content' => $systemMessage
-               ],
-               [
-                   'role' => 'user',
-                   'content' => $prompt
-               ],
-           ],
-       ]);
+       // Send to OpenAI API with comprehensive error handling
+       try {
+           Log::info('OpenAI API Request - Update Strategy', [
+               'user_id' => $user->id,
+               'chat_id' => $chatId,
+               'prompt_length' => strlen($prompt),
+               'system_message_length' => strlen($systemMessage),
+               'selected_strategy' => $selectedStrategy,
+               'has_api_key' => !empty(env('OPENAI_API_KEY')),
+           ]);
 
-       // Handle API errors
+           $openAiResponse = Http::withToken(env('OPENAI_API_KEY'))
+               ->timeout(90) // Increase timeout to 90 seconds
+               ->connectTimeout(10) // Connection timeout
+               ->retry(2, 1000) // Retry 2 times with 1 second delay
+               ->post('https://api.openai.com/v1/chat/completions', [
+                   'model' => 'gpt-4-turbo',
+                   'temperature' => 0.7,
+                   'max_tokens' => 3000,
+                   'messages' => [
+                       [
+                           'role' => 'system',
+                           'content' => $systemMessage
+                       ],
+                       [
+                           'role' => 'user',
+                           'content' => $prompt
+                       ],
+                   ],
+               ]);
+
+           Log::info('OpenAI API Response - Update Strategy', [
+               'user_id' => $user->id,
+               'chat_id' => $chatId,
+               'status' => $openAiResponse->status(),
+               'successful' => $openAiResponse->successful(),
+               'response_length' => strlen($openAiResponse->body()),
+           ]);
+
+       } catch (ConnectionException $e) {
+           Log::error('OpenAI API Connection Exception - Update Strategy', [
+               'user_id' => $user->id,
+               'chat_id' => $chatId,
+               'error_message' => $e->getMessage(),
+               'error_code' => $e->getCode(),
+               'file' => $e->getFile(),
+               'line' => $e->getLine(),
+               'trace' => $e->getTraceAsString(),
+           ]);
+
+           return response()->json([
+               'error' => 'OpenAI API connection timeout. The request took too long to complete.',
+               'details' => [
+                   'message' => $e->getMessage(),
+                   'type' => 'ConnectionException',
+                   'suggestion' => 'Please try again. If the issue persists, the OpenAI API may be experiencing high load.',
+               ]
+           ], 504);
+
+       } catch (RequestException $e) {
+           Log::error('OpenAI API Request Exception - Update Strategy', [
+               'user_id' => $user->id,
+               'chat_id' => $chatId,
+               'error_message' => $e->getMessage(),
+               'error_code' => $e->getCode(),
+               'response_body' => $e->response ? $e->response->body() : null,
+               'response_status' => $e->response ? $e->response->status() : null,
+               'file' => $e->getFile(),
+               'line' => $e->getLine(),
+           ]);
+
+           return response()->json([
+               'error' => 'OpenAI API request failed.',
+               'details' => [
+                   'message' => $e->getMessage(),
+                   'type' => 'RequestException',
+                   'response' => $e->response ? $e->response->body() : null,
+               ]
+           ], 500);
+
+       } catch (\Exception $e) {
+           Log::error('OpenAI API General Exception - Update Strategy', [
+               'user_id' => $user->id,
+               'chat_id' => $chatId,
+               'error_message' => $e->getMessage(),
+               'error_code' => $e->getCode(),
+               'error_class' => get_class($e),
+               'file' => $e->getFile(),
+               'line' => $e->getLine(),
+               'trace' => $e->getTraceAsString(),
+           ]);
+
+           return response()->json([
+               'error' => 'An unexpected error occurred while processing your request.',
+               'details' => [
+                   'message' => $e->getMessage(),
+                   'type' => get_class($e),
+               ]
+           ], 500);
+       }
+
+       // Handle API errors (non-exception cases)
        if (!$openAiResponse->successful()) {
+           Log::error('OpenAI API Unsuccessful Response - Update Strategy', [
+               'user_id' => $user->id,
+               'chat_id' => $chatId,
+               'status' => $openAiResponse->status(),
+               'response_body' => $openAiResponse->body(),
+           ]);
+
            return response()->json([
                'error' => 'OpenAI API request failed.',
                'details' => $openAiResponse->body()
