@@ -1,0 +1,10 @@
+ {
+  "version": "4.3.0",
+  "release_date": "2/21/2024",
+  "min": "4.2.0",
+  "migrations": [
+
+  ],
+  "url": "https://themetags.com/contact/",
+  "notes": "This is a bug fixing update and new feature."
+}

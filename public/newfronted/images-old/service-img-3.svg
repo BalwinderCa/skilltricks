@@ -1,0 +1,48 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" fill="none">
+                                <style>
+                                    /* Arrow Growing Animation (Looping) */
+                                    @keyframes growArrow {
+                                        0% { transform: scaleY(0); opacity: 0; }
+                                        50% { transform: scaleY(1); opacity: 1; }
+                                        100% { transform: scaleY(0); opacity: 0; }
+                                    }
+                                    
+                                    /* People Bouncing In (Looping) */
+                                    @keyframes bounceIn {
+                                        0%, 100% { transform: translateY(20px); opacity: 0; }
+                                        50% { transform: translateY(0); opacity: 1; }
+                                    }
+                            
+                                    /* Fade-in Text (Looping) */
+                                    @keyframes fadeIn {
+                                        0%, 100% { opacity: 0; }
+                                        50% { opacity: 1; }
+                                    }
+                            
+                                    .arrow { animation: growArrow 3s ease-in-out infinite; transform-origin: center bottom; }
+                                    .people { animation: bounceIn 3s ease-in-out infinite; }
+                                    .text { animation: fadeIn 3s ease-in-out infinite; }
+                                </style>
+                            
+                                <!-- Background Circle -->
+                                <circle cx="100" cy="100" r="80" stroke="#36839b" stroke-width="10" fill="none"/>
+                            
+                                <!-- Central Growth Symbol (Upward Arrow for Development) -->
+                                <g class="arrow">
+                                    <path d="M90 130 L100 110 L110 130" stroke="#36839b" stroke-width="6" fill="none"/>
+                                    <rect x="95" y="130" width="10" height="30" fill="#36839b"/>
+                                </g>
+                            
+                                <!-- Three People Figures (Representing Organization & Culture) -->
+                                <circle class="people" cx="60" cy="120" r="10" fill="#36839b" style="animation-delay: 0.2s;"/>
+                                <circle class="people" cx="100" cy="80" r="12" fill="#36839b" style="animation-delay: 0.4s;"/>
+                                <circle class="people" cx="140" cy="120" r="10" fill="#36839b" style="animation-delay: 0.6s;"/>
+                            
+                                <!-- Connecting Lines (Teamwork & Transformation) -->
+                                <path d="M60 120 Q80 90, 100 80" stroke="#36839b" stroke-width="5"/>
+                                <path d="M140 120 Q120 90, 100 80" stroke="#36839b" stroke-width="5"/>
+                                
+                                <!-- Text Following Curve -->
+                                <path id="curve" d="M40 160 Q100 200, 160 160" fill="transparent"/>
+                                
+                            </svg>
