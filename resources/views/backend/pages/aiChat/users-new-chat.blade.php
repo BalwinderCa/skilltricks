@@ -954,6 +954,9 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
             if (!window.strategyResponsesCache) {
                 window.strategyResponsesCache = {};
             }
+            if (!window.scenarioResponsesCache) {
+                window.scenarioResponsesCache = {};
+            }
             const strategyResponsesCache = window.strategyResponsesCache;
             
             let currentStep = 0;
@@ -1055,6 +1058,85 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                 // Start eager loading in the background right away - this happens as soon as first response arrives
                 console.log('Starting eager load of strategies immediately...');
                 eagerLoadAllStrategies();
+            }
+
+            function getUpdatedSectionParts(responseText, emojiOrder = ['🔮', '👥', '📌', '✅']) {
+                if (!responseText) {
+                    return [];
+                }
+
+                const parts = [];
+                emojiOrder.forEach((emoji, emojiIdx) => {
+                    const emojiIndex = responseText.indexOf(emoji);
+                    if (emojiIndex !== -1) {
+                        let nextEmojiIndex = responseText.length;
+
+                        for (let i = emojiIdx + 1; i < emojiOrder.length; i++) {
+                            const nextEmoji = emojiOrder[i];
+                            const nextIndex = responseText.indexOf(nextEmoji, emojiIndex + 1);
+                            if (nextIndex !== -1) {
+                                nextEmojiIndex = Math.min(nextEmojiIndex, nextIndex);
+                                break;
+                            }
+                        }
+
+                        const sectionContent = responseText.substring(emojiIndex, nextEmojiIndex).trim();
+                        if (sectionContent && sectionContent.length > 10) {
+                            parts.push(sectionContent);
+                        }
+                    }
+                });
+
+                return parts;
+            }
+
+            async function fetchScenarioResponse(scenarioText, isUserSelection = false) {
+                if (!scenarioText) return;
+
+                if (!window.scenarioResponsesCache) {
+                    window.scenarioResponsesCache = {};
+                }
+
+                if (window.scenarioResponsesCache[scenarioText]) {
+                    if (currentStep > scenarioIndex && typeof renderStep === 'function') {
+                        renderStep();
+                    }
+                    return;
+                }
+
+                const sectionsBeforeScenario = window.chatSections && window.scenarioIndex > -1
+                    ? window.chatSections.slice(0, window.scenarioIndex).join('')
+                    : '';
+
+                try {
+                    const scenarioRes = await fetch('/dashboard/users-new-chat-update-scenario', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                        },
+                        body: JSON.stringify({
+                            chat_id: window.chatChatId,
+                            user_id: window.chatUserId,
+                            selected_scenario: scenarioText,
+                            selected_strategy: window.selectedStrategy || null,
+                            original_question: window.chatQuestion,
+                            sections_before: sectionsBeforeScenario,
+                            scenario_section: window.scenarioSection,
+                            is_user_selection: isUserSelection
+                        })
+                    });
+
+                    if (scenarioRes.ok) {
+                        const updateData = await scenarioRes.json();
+                        window.scenarioResponsesCache[scenarioText] = updateData.updated_sections || '';
+                        if (currentStep > scenarioIndex && typeof renderStep === 'function') {
+                            renderStep();
+                        }
+                    }
+                } catch (error) {
+                    console.error(`Error loading scenario "${scenarioText}":`, error);
+                }
             }
 
             function renderStep() {
@@ -1192,80 +1274,50 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                     stepHtml += `</div>`;
 
                     stepHtml += `</div>`;
+
+                    if (activeScenario && !window.scenarioResponsesCache[activeScenario]) {
+                        fetchScenarioResponse(activeScenario, false);
+                    }
                 } else {
                     // For other sections, check if we need to use updated content
+                    const currentSelectedScenario = window.selectedScenario;
+                    const scenarioCache = (scenarioIndex !== -1 && window.scenarioResponsesCache && currentSelectedScenario)
+                        ? window.scenarioResponsesCache[currentSelectedScenario]
+                        : null;
                     const currentSelectedStrategy = window.selectedStrategy || selectedStrategy;
-                    console.log('Checking section after strategy:', {
-                        currentStep,
-                        strategyMapIndex,
-                        isAfterStrategy: currentStep > strategyMapIndex,
-                        hasSelectedStrategy: !!currentSelectedStrategy,
-                        hasCache: !!(window.strategyResponsesCache && window.strategyResponsesCache[currentSelectedStrategy])
-                    });
-                    
-                    if (currentStep > strategyMapIndex && currentSelectedStrategy && window.strategyResponsesCache && window.strategyResponsesCache[currentSelectedStrategy]) {
-                        const updatedIndex = currentStep - strategyMapIndex - 1;
-                        console.log('Using cached strategy response. Updated index:', updatedIndex);
-                        const cachedResponse = window.strategyResponsesCache[currentSelectedStrategy];
-                        console.log('Cached response preview:', cachedResponse.substring(0, 200));
-                        
-                        // Parse the cached response by emoji markers
-                        // The response should have: 🔮, 👥, 📌, ✅ sections in that order
-                        // Map: updatedIndex 0 = 🔮, 1 = 👥, 2 = 📌, 3 = ✅
-                        const emojiOrder = ['🔮', '👥', '📌', '✅'];
-                        const updatedParts = [];
-                        
-                        // Find each section by its emoji in order
-                        emojiOrder.forEach((emoji, emojiIdx) => {
-                            const emojiIndex = cachedResponse.indexOf(emoji);
-                            if (emojiIndex !== -1) {
-                                // Find the next emoji or end of string
-                                let nextEmojiIndex = cachedResponse.length;
-                                
-                                // Look for the next emoji in the order (after current one)
-                                for (let i = emojiIdx + 1; i < emojiOrder.length; i++) {
-                                    const nextEmoji = emojiOrder[i];
-                                    const nextIndex = cachedResponse.indexOf(nextEmoji, emojiIndex + 1);
-                                    if (nextIndex !== -1 && nextIndex < nextEmojiIndex) {
-                                        nextEmojiIndex = nextIndex;
-                                        break; // Found the next emoji, stop looking
-                                    }
-                                }
-                                
-                                const sectionContent = cachedResponse.substring(emojiIndex, nextEmojiIndex).trim();
-                                if (sectionContent && sectionContent.length > 10) {
-                                    updatedParts.push(sectionContent);
-                                    console.log(`Found ${emoji} section (index ${emojiIdx}), length: ${sectionContent.length}, preview: ${sectionContent.substring(0, 100)}...`);
-                                } else {
-                                    console.log(`Warning: ${emoji} section is too short or empty`);
-                                }
-                            } else {
-                                console.log(`Warning: ${emoji} emoji not found in cached response`);
-                            }
-                        });
-                        
-                        console.log('Parsed parts count:', updatedParts.length);
-                        console.log('Expected order: 🔮(0), 👥(1), 📌(2), ✅(3)');
-                        console.log('Parts lengths:', updatedParts.map((p, i) => `${i}: ${p.length} chars`));
-                        
-                        // Map sections: index 0 = 🔮, index 1 = 👥, index 2 = 📌, index 3 = ✅
-                        // sections array: [🧩, 📁, 📊, 📈, 🗺️, 🔮, 👥, 📌, ✅]
-                        // After strategy (index 4), next sections are: 5=🔮, 6=👥, 7=📌, 8=✅
-                        // updatedIndex = currentStep - strategyMapIndex - 1
-                        // If currentStep = 5 (🔮), updatedIndex = 5 - 4 - 1 = 0 (first part)
-                        
+                    const strategyCache = (window.strategyResponsesCache && currentSelectedStrategy)
+                        ? window.strategyResponsesCache[currentSelectedStrategy]
+                        : null;
+
+                    if (scenarioIndex !== -1 && currentStep > scenarioIndex && scenarioCache) {
+                        const updatedIndex = currentStep - scenarioIndex - 1;
+                        console.log('Using cached scenario response. Updated index:', updatedIndex);
+                        const updatedParts = getUpdatedSectionParts(scenarioCache, ['👥', '📌', '✅']);
+
                         if (updatedIndex >= 0 && updatedIndex < updatedParts.length) {
                             const partToShow = updatedParts[updatedIndex];
                             if (partToShow && partToShow.trim() && partToShow.length > 10) {
-                                console.log('Displaying updated part:', updatedIndex, 'Length:', partToShow.length);
                                 stepHtml = `<div class="response-text">${marked.parse(partToShow)}</div>`;
                             } else {
-                                console.log('Part is too short or empty, showing original');
                                 stepHtml = `<div class="response-text">${marked.parse(step)}</div>`;
                             }
                         } else {
-                            console.log('Index out of range. Index:', updatedIndex, 'Parts available:', updatedParts.length);
-                            // Fallback to original if parsing fails
+                            stepHtml = `<div class="response-text">${marked.parse(step)}</div>`;
+                        }
+
+                    } else if (currentStep > strategyMapIndex && strategyCache) {
+                        const updatedIndex = currentStep - strategyMapIndex - 1;
+                        console.log('Using cached strategy response. Updated index:', updatedIndex);
+                        const updatedParts = getUpdatedSectionParts(strategyCache, ['🔮', '👥', '📌', '✅']);
+
+                        if (updatedIndex >= 0 && updatedIndex < updatedParts.length) {
+                            const partToShow = updatedParts[updatedIndex];
+                            if (partToShow && partToShow.trim() && partToShow.length > 10) {
+                                stepHtml = `<div class="response-text">${marked.parse(partToShow)}</div>`;
+                            } else {
+                                stepHtml = `<div class="response-text">${marked.parse(step)}</div>`;
+                            }
+                        } else {
                             stepHtml = `<div class="response-text">${marked.parse(step)}</div>`;
                         }
                     } else {
@@ -1386,6 +1438,7 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                             if (this.checked) {
                                 const scenarioValue = this.getAttribute('data-scenario') || this.value;
                                 window.selectedScenario = scenarioValue;
+                                fetchScenarioResponse(scenarioValue, true);
                                 renderStep();
                             }
                         });

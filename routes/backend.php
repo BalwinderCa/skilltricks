@@ -292,6 +292,7 @@ Route::group(
                 Route::get('/users-new-chat/{id}', [AiChatController::class, 'users_new_chat'])->name('users-new-chat.index');
                 Route::post('/users-new-chat-ask', [AiChatController::class, 'users_new_chat_ask'])->name('users-new-chat-ask.index');
                 Route::post('/users-new-chat-update-strategy', [AiChatController::class, 'users_new_chat_update_strategy'])->name('users-new-chat-update-strategy.index');
+                Route::post('/users-new-chat-update-scenario', [AiChatController::class, 'users_new_chat_update_scenario'])->name('users-new-chat-update-scenario.index');
                 Route::get('/userchathistory', [AiChatController::class, 'userchathistory'])->name('userchathistory.index');
                 Route::get('/user-view-chathistory/{id}', [AiChatController::class, 'user_view_chathistory'])->name('user-view-chathistory.index');
                 Route::get('/users-chat-search-delete/{id}', [AiChatController::class, 'userschat_search_delete'])->name('users-chat-search-delete.index');
