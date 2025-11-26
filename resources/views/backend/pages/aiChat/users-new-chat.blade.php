@@ -430,14 +430,6 @@
         line-height: 1.5;
     }
 
-    .scenario-detail {
-        margin-top: 15px;
-        padding: 15px;
-        border-radius: 8px;
-        border: 1px solid #e0e0e0;
-        background-color: #fff;
-    }
-
     [data-bs-theme="dark"] .scenario-section {
         background-color: #1a1a1a;
         border-left-color: #a07cf0;
@@ -452,11 +444,6 @@
     [data-bs-theme="dark"] .scenario-option.scenario-selected {
         border-color: #a07cf0;
         background-color: #1e1b2a;
-    }
-
-    [data-bs-theme="dark"] .scenario-detail {
-        background-color: #242424;
-        border-color: #454545;
     }
 </style>
 
@@ -1203,24 +1190,6 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                     });
 
                     stepHtml += `</div>`;
-
-                    const detailScenario = (window.selectedScenario && scenarioOptions.includes(window.selectedScenario))
-                        ? window.selectedScenario
-                        : (scenarioOptions[0] || null);
-
-                    if (detailScenario) {
-                        stepHtml += `
-                            <div class="scenario-detail mt-3">
-                                ${marked.parse(detailScenario)}
-                            </div>
-                        `;
-                    } else {
-                        stepHtml += `
-                            <div class="scenario-detail mt-3 text-muted">
-                                Select a scenario to view details.
-                            </div>
-                        `;
-                    }
 
                     stepHtml += `</div>`;
                 } else {
