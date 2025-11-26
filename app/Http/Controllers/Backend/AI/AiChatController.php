@@ -1758,6 +1758,194 @@ EOT;
        ]);
    }
 
+    public function users_new_chat_update_scenario(Request $request)
+    {
+        $user = auth()->user();
+        $selectedScenario = $request->input('selected_scenario');
+        $selectedStrategy = $request->input('selected_strategy');
+        $chatId = $request->input('chat_id');
+        $originalQuestion = $request->input('original_question');
+        $sectionsBefore = $request->input('sections_before');
+        $scenarioSection = $request->input('scenario_section');
+        $isUserSelection = $request->boolean('is_user_selection', false);
+
+        if (!$selectedScenario || !$chatId || !$originalQuestion) {
+            return response()->json(['error' => 'Selected scenario, Chat ID, and original question are required.'], 400);
+        }
+
+        $documents = Document::where('user_id', $user->id)
+            ->whereNotNull('parsed_text')
+            ->where('parse_status', 'completed')
+            ->latest()
+            ->get();
+        
+        $documentContext = '';
+        if ($documents->count() > 0) {
+            $documentContext = "\n\n--- COMPANY DOCUMENTS CONTEXT ---\n";
+            $documentContext .= "The following information is from uploaded company documents. Use this context to provide accurate and relevant responses about the company:\n\n";
+            $documentContext .= $documents->pluck('parsed_text')->filter()->implode("\n\n--- Document Separator ---\n\n");
+            $documentContext .= "\n--- END COMPANY DOCUMENTS CONTEXT ---\n";
+        }
+
+        $systemMessage = 'You are a strategy assistant. Respond only using structured ChatGPT-style text with emojis and clean formatting based on the GoalSync method.';
+        if (!empty($documentContext)) {
+            $systemMessage .= $documentContext;
+        }
+
+        $prompt = <<<EOT
+Strategy Context: "{$selectedStrategy}"
+Focused Scenario: "{$selectedScenario}"
+Goal: "{$originalQuestion}"
+
+Earlier sections:
+{$sectionsBefore}
+
+Regenerate these sections tailored to the selected scenario (and strategy if provided):
+
+👥 Rephrased Goals by Role
+CEO: 1 sentence. CTO: 1 sentence. CFO: 1 sentence.
+
+📌 Complementary Goals
+2 goals, 1 sentence each.
+
+✅ Final Outcome Summary
+2 sentences describing the scenario's impact.
+
+Keep the same emojis and section headers exactly as shown above. Use the scenario details to adjust tone, risks, and opportunities.
+EOT;
+
+        try {
+            Log::info('OpenAI API Request - Update Scenario', [
+                'user_id' => $user->id,
+                'chat_id' => $chatId,
+                'scenario' => $selectedScenario,
+                'strategy' => $selectedStrategy,
+                'prompt_length' => strlen($prompt),
+                'has_api_key' => !empty(env('OPENAI_API_KEY')),
+            ]);
+
+            $openAiResponse = Http::withToken(env('OPENAI_API_KEY'))
+                ->timeout(90)
+                ->connectTimeout(10)
+                ->retry(2, 1000)
+                ->post('https://api.openai.com/v1/chat/completions', [
+                    'model' => 'gpt-4-turbo',
+                    'temperature' => 0.7,
+                    'max_tokens' => 2500,
+                    'messages' => [
+                        [
+                            'role' => 'system',
+                            'content' => $systemMessage
+                        ],
+                        [
+                            'role' => 'user',
+                            'content' => $prompt
+                        ],
+                    ],
+                ]);
+
+            Log::info('OpenAI API Response - Update Scenario', [
+                'user_id' => $user->id,
+                'chat_id' => $chatId,
+                'status' => $openAiResponse->status(),
+                'successful' => $openAiResponse->successful(),
+                'response_length' => strlen($openAiResponse->body()),
+            ]);
+
+        } catch (ConnectionException $e) {
+            Log::error('OpenAI API Connection Exception - Update Scenario', [
+                'user_id' => $user->id,
+                'chat_id' => $chatId,
+                'error_message' => $e->getMessage(),
+                'error_code' => $e->getCode(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'error' => 'OpenAI API connection timeout. The request took too long to complete.',
+                'details' => [
+                    'message' => $e->getMessage(),
+                    'type' => 'ConnectionException',
+                    'suggestion' => 'Please try again. If the issue persists, the OpenAI API may be experiencing high load.',
+                ]
+            ], 504);
+
+        } catch (RequestException $e) {
+            Log::error('OpenAI API Request Exception - Update Scenario', [
+                'user_id' => $user->id,
+                'chat_id' => $chatId,
+                'error_message' => $e->getMessage(),
+                'error_code' => $e->getCode(),
+                'response_body' => $e->response ? $e->response->body() : null,
+                'response_status' => $e->response ? $e->response->status() : null,
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
+            return response()->json([
+                'error' => 'OpenAI API request failed.',
+                'details' => [
+                    'message' => $e->getMessage(),
+                    'type' => 'RequestException',
+                    'response' => $e->response ? $e->response->body() : null,
+                ]
+            ], 500);
+
+        } catch (\Exception $e) {
+            Log::error('OpenAI API General Exception - Update Scenario', [
+                'user_id' => $user->id,
+                'chat_id' => $chatId,
+                'error_message' => $e->getMessage(),
+                'error_code' => $e->getCode(),
+                'error_class' => get_class($e),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'error' => 'An unexpected error occurred while processing your request.',
+                'details' => [
+                    'message' => $e->getMessage(),
+                    'type' => get_class($e),
+                ]
+            ], 500);
+        }
+
+        if (!$openAiResponse->successful()) {
+            Log::error('OpenAI API Unsuccessful Response - Update Scenario', [
+                'user_id' => $user->id,
+                'chat_id' => $chatId,
+                'status' => $openAiResponse->status(),
+                'response_body' => $openAiResponse->body(),
+            ]);
+
+            return response()->json([
+                'error' => 'OpenAI API request failed.',
+                'details' => $openAiResponse->body()
+            ], 500);
+        }
+
+        $updatedSections = $openAiResponse->json('choices.0.message.content');
+
+        if ($isUserSelection) {
+            try {
+                DB::table('search_user_chat')->where('id', $chatId)->update([
+                    'selected_scenario' => $selectedScenario,
+                ]);
+            } catch (\Exception $e) {
+                // ignore if column missing
+            }
+        }
+
+        return response()->json([
+            'updated_sections' => $updatedSections,
+            'selected_scenario' => $selectedScenario,
+        ]);
+    }
+
       public function userschat_search_delete(Request $request,$id)
     {
         DB::table('search_user_chat')->where('id', $id)->delete();
