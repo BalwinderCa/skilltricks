@@ -1555,8 +1555,12 @@ Generate these 4 sections concisely:
     Ensure at least one best-case, one worst-case, and the remaining scenarios are realistic alternatives.
     Never return fewer than 3 or more than 4 scenarios.
 
-👥 Rephrased Goals by Role
-CEO: 1 sentence. CTO: 1 sentence. CFO: 1 sentence.
+    👥 Rephrased Goals by Role  
+    - Study the uploaded org/company documents in context.  
+    - Choose the sections/roles that are most relevant to the user’s goal.  
+    - Output 5 to 10 roles only, numbered in order.  
+    - For each role, write the role name on one line, then a second line starting with “Goal:” followed by 1–2 sentences.  
+    - Only use role titles that actually appear in the company documents.  
 
 📌 Complementary Goals
 2 goals, 1 sentence each.
@@ -1803,7 +1807,11 @@ Earlier sections:
 Regenerate these sections tailored to the selected scenario (and strategy if provided):
 
 👥 Rephrased Goals by Role
-CEO: 1 sentence. CTO: 1 sentence. CFO: 1 sentence.
+- Study the uploaded org/company documents in context.
+- Select the sections/roles most relevant to this scenario (and strategy, if provided).
+- Output 5 to 10 roles only, numbered in order (1., 2., 3., ...).
+- For each role, write the role name on one line, then a second line starting with “Goal:” followed by 1–2 sentences.
+- Only use role titles that exist in the documents.
 
 📌 Complementary Goals
 2 goals, 1 sentence each.
