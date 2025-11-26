@@ -376,6 +376,88 @@
         animation: spin 1s linear infinite;
         display: inline-block;
     }
+
+    /* Scenario simulations */
+    .scenario-section {
+        margin: 20px 0;
+        padding: 15px;
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        border-left: 4px solid #6f42c1;
+    }
+
+    .scenario-options {
+        margin-top: 15px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .scenario-option {
+        padding: 12px;
+        border: 2px solid #e0e0e0;
+        border-radius: 6px;
+        background-color: #fff;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .scenario-option:hover {
+        border-color: #6f42c1;
+        background-color: #f6f0ff;
+    }
+
+    .scenario-option.scenario-selected {
+        border-color: #6f42c1;
+        background-color: #f1e8ff;
+        box-shadow: 0 2px 6px rgba(111, 66, 193, 0.2);
+    }
+
+    .scenario-radio {
+        cursor: pointer;
+        width: 18px;
+        height: 18px;
+        margin-top: 3px;
+        flex-shrink: 0;
+    }
+
+    .scenario-label {
+        cursor: pointer;
+        flex: 1;
+        line-height: 1.5;
+    }
+
+    .scenario-detail {
+        margin-top: 15px;
+        padding: 15px;
+        border-radius: 8px;
+        border: 1px solid #e0e0e0;
+        background-color: #fff;
+    }
+
+    [data-bs-theme="dark"] .scenario-section {
+        background-color: #1a1a1a;
+        border-left-color: #a07cf0;
+    }
+
+    [data-bs-theme="dark"] .scenario-option {
+        background-color: #242424;
+        border-color: #454545;
+    }
+
+    [data-bs-theme="dark"] .scenario-option:hover,
+    [data-bs-theme="dark"] .scenario-option.scenario-selected {
+        border-color: #a07cf0;
+        background-color: #1e1b2a;
+    }
+
+    [data-bs-theme="dark"] .scenario-detail {
+        background-color: #242424;
+        border-color: #454545;
+    }
 </style>
 
 
@@ -831,6 +913,56 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
             window.strategyMapSection = strategyMapSection;
             window.strategyMapIndex = strategyMapIndex;
 
+            // Scenario simulations parsing
+            const scenarioIndex = sections.findIndex(s => s.includes('🔮'));
+            let scenarioOptions = [];
+            let scenarioSection = '';
+
+            if (scenarioIndex !== -1) {
+                scenarioSection = sections[scenarioIndex];
+                const scenarioLines = scenarioSection.split('\n');
+                let foundScenarioHeader = false;
+                const scenarioItems = [];
+
+                scenarioLines.forEach(line => {
+                    const trimmed = line.trim();
+                    if (!trimmed) {
+                        return;
+                    }
+
+                    if (trimmed.includes('🔮') || trimmed.toLowerCase().includes('scenario')) {
+                        foundScenarioHeader = true;
+                        return;
+                    }
+
+                    if (foundScenarioHeader && (trimmed.startsWith('-') || trimmed.startsWith('•') || trimmed.startsWith('*'))) {
+                        scenarioItems.push(trimmed);
+                    }
+                });
+
+                scenarioOptions = scenarioItems.map(line => {
+                    let cleaned = line.replace(/^[-•*]\s*/, '').trim();
+                    cleaned = cleaned.replace(/\*\*([^*]+)\*\*/g, '**$1**'); // normalize bold markers
+                    return cleaned;
+                }).filter(item => item.length > 0);
+
+                if (scenarioOptions.length > 4) {
+                    console.log(`Found ${scenarioOptions.length} scenarios, limiting to 4`);
+                    scenarioOptions = scenarioOptions.slice(0, 4);
+                }
+
+                if (scenarioOptions.length < 3 && scenarioOptions.length > 0) {
+                    console.log(`Warning: Only ${scenarioOptions.length} scenarios detected (minimum expected is 3).`);
+                }
+            }
+
+            window.scenarioIndex = scenarioIndex;
+            window.scenarioSection = scenarioSection;
+            window.scenarioOptions = scenarioOptions;
+            if (!window.selectedScenario && scenarioOptions.length > 0) {
+                window.selectedScenario = scenarioOptions[0];
+            }
+
             // Store cache globally so eager loading can access it
             if (!window.strategyResponsesCache) {
                 window.strategyResponsesCache = {};
@@ -1013,6 +1145,84 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
 
                     // Eager loading should already be running from when response was first received
                     // Just show current status
+                } else if (currentStep === scenarioIndex && scenarioOptions.length > 0) {
+                    const scenarioLines = (window.scenarioSection || '').split('\n');
+                    const scenarioHeaderLine = scenarioLines.find(line => line.includes('🔮') || line.toLowerCase().includes('scenario'));
+                    const scenarioGroupName = `scenario-${Date.now()}`;
+                    const activeScenario = (window.selectedScenario && scenarioOptions.includes(window.selectedScenario))
+                        ? window.selectedScenario
+                        : (scenarioOptions[0] || null);
+
+                    if (!window.selectedScenario && activeScenario) {
+                        window.selectedScenario = activeScenario;
+                    }
+
+                    stepHtml = `<div class="response-text">`;
+                    if (scenarioHeaderLine) {
+                        let cleanHeader = scenarioHeaderLine.replace(/\*\*/g, '').trim();
+                        stepHtml += marked.parse(cleanHeader);
+                    }
+
+                    stepHtml += `<div class="scenario-options mt-3">`;
+
+                    scenarioOptions.forEach((scenarioText, index) => {
+                        const scenarioId = `${scenarioGroupName}-${index}`;
+                        const isSelected = window.selectedScenario
+                            ? window.selectedScenario === scenarioText
+                            : index === 0;
+
+                        let displayScenario = scenarioText;
+                        const colonIdx = displayScenario.indexOf(':');
+                        if (colonIdx > 0) {
+                            const scenarioName = displayScenario.substring(0, colonIdx + 1);
+                            const scenarioDescription = displayScenario.substring(colonIdx + 1);
+                            displayScenario = `<strong>${scenarioName}</strong>${scenarioDescription}`;
+                        } else {
+                            const words = displayScenario.split(' ');
+                            if (words.length > 0) {
+                                const firstChunk = words.slice(0, Math.min(3, words.length)).join(' ');
+                                const restChunk = words.slice(Math.min(3, words.length)).join(' ');
+                                displayScenario = `<strong>${firstChunk}</strong> ${restChunk}`;
+                            }
+                        }
+
+                        const escapedScenario = scenarioText.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+                        stepHtml += `
+                            <label class="scenario-option ${isSelected ? 'scenario-selected' : ''}" for="${scenarioId}">
+                                <input type="radio"
+                                       id="${scenarioId}"
+                                       name="scenario-choice-${scenarioGroupName}"
+                                       value="${escapedScenario}"
+                                       data-scenario="${escapedScenario}"
+                                       class="scenario-radio me-2"
+                                       ${isSelected ? 'checked' : ''}>
+                                <span class="scenario-label">${displayScenario}</span>
+                            </label>
+                        `;
+                    });
+
+                    stepHtml += `</div>`;
+
+                    const detailScenario = (window.selectedScenario && scenarioOptions.includes(window.selectedScenario))
+                        ? window.selectedScenario
+                        : (scenarioOptions[0] || null);
+
+                    if (detailScenario) {
+                        stepHtml += `
+                            <div class="scenario-detail mt-3">
+                                ${marked.parse(detailScenario)}
+                            </div>
+                        `;
+                    } else {
+                        stepHtml += `
+                            <div class="scenario-detail mt-3 text-muted">
+                                Select a scenario to view details.
+                            </div>
+                        `;
+                    }
+
+                    stepHtml += `</div>`;
                 } else {
                     // For other sections, check if we need to use updated content
                     const currentSelectedStrategy = window.selectedStrategy || selectedStrategy;
@@ -1196,6 +1406,17 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                                 }
                                 
                                 // Re-render current step to show selected state
+                                renderStep();
+                            }
+                        });
+                    });
+                } else if (currentStep === scenarioIndex && scenarioOptions.length > 0) {
+                    const scenarioRadios = loadingDiv.querySelectorAll('.scenario-radio');
+                    scenarioRadios.forEach(radio => {
+                        radio.addEventListener('change', function() {
+                            if (this.checked) {
+                                const scenarioValue = this.getAttribute('data-scenario') || this.value;
+                                window.selectedScenario = scenarioValue;
                                 renderStep();
                             }
                         });

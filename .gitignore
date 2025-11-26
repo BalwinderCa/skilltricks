@@ -36,3 +36,10 @@ multivendor-rename-to-vendor.zip
 copy.php
 change-list.text
 .DS_Store
+
+# Deployment artifacts
+id_rsa_skilltricks*
+PUBLIC_KEY.txt
+SSH_SETUP_INSTRUCTIONS.md
+upload_log.txt
+skilltricks_deploy.zip

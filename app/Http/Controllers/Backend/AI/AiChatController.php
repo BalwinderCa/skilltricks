@@ -1549,8 +1549,11 @@ Goal: "$originalQuestion"
 
 Generate these 4 sections concisely:
 
-🔮 Scenario Simulations
-Best case: 1-2 sentences. Worst case: 1-2 sentences.
+    🔮 Scenario Simulations
+    Provide between 3 and 4 scenarios only. Each scenario must be on its own line starting with "-".
+    Bold the scenario name (e.g., **Best Case:**) followed by 1-2 sentences.
+    Ensure at least one best-case, one worst-case, and the remaining scenarios are realistic alternatives.
+    Never return fewer than 3 or more than 4 scenarios.
 
 👥 Rephrased Goals by Role
 CEO: 1 sentence. CTO: 1 sentence. CFO: 1 sentence.
