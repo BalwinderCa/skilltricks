@@ -1433,7 +1433,15 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
 
                     if (scenarioRes.ok) {
                         const updateData = await scenarioRes.json();
-                        window.scenarioResponsesCache[scenarioText] = updateData.updated_sections || '';
+                        const response = updateData.updated_sections || '';
+                        if (!window.scenarioResponsesCache) {
+                            window.scenarioResponsesCache = {};
+                        }
+                        // Use strategy-specific cache key
+                        const strategyKey = window.selectedStrategy ? window.selectedStrategy.substring(0, 50) : 'no-strategy';
+                        const cacheKey = `${strategyKey}||${scenarioText}`;
+                        window.scenarioResponsesCache[cacheKey] = response;
+                        console.log('💾 Cached scenario response with key:', cacheKey);
                         if (currentStep > scenarioIndex && typeof renderStep === 'function') {
                             renderStep();
                         }
