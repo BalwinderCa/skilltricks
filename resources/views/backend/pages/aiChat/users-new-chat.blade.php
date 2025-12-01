@@ -1206,24 +1206,71 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
             window.apiCallInProgress = false;
             window.pendingApiCalls = 0;
             
+            // Function to check if next step's data is ready
+            function isNextStepDataReady(nextStepIndex) {
+                // If next step is after strategy map, check if selected strategy data is ready
+                if (strategyMapIndex !== -1 && nextStepIndex > strategyMapIndex) {
+                    const selectedStrategy = window.selectedStrategy;
+                    if (selectedStrategy) {
+                        // Check if strategy response is cached
+                        if (!window.strategyResponsesCache || !window.strategyResponsesCache[selectedStrategy]) {
+                            return false;
+                        }
+                    }
+                }
+                
+                // If next step is after scenario selection, check if selected scenario data is ready
+                if (scenarioIndex !== -1 && nextStepIndex > scenarioIndex) {
+                    const selectedScenario = window.selectedScenario;
+                    if (selectedScenario) {
+                        // Check if scenario response is cached
+                        if (!window.scenarioResponsesCache || !window.scenarioResponsesCache[selectedScenario]) {
+                            return false;
+                        }
+                    }
+                }
+                
+                return true;
+            }
+            
             // Function to update Next button state
             function updateNextButtonState() {
                 const nextBtn = loadingDiv.querySelector('.next-step-btn');
-                if (nextBtn) {
-                    if (window.apiCallInProgress || window.pendingApiCalls > 0) {
-                        nextBtn.disabled = true;
-                        nextBtn.classList.add('disabled');
-                        const originalText = nextBtn.textContent.trim();
-                        if (!originalText.includes('Loading')) {
-                            nextBtn.dataset.originalText = originalText;
-                            nextBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Loading...';
-                        }
-                    } else {
-                        nextBtn.disabled = false;
-                        nextBtn.classList.remove('disabled');
-                        const originalText = nextBtn.dataset.originalText || (currentStep === sections.length - 1 ? 'Finish' : 'Next');
-                        nextBtn.innerHTML = originalText;
+                if (!nextBtn) return;
+                
+                // Don't disable first Next button (step 0)
+                if (currentStep === 0) {
+                    nextBtn.disabled = false;
+                    nextBtn.classList.remove('disabled');
+                    return;
+                }
+                
+                const nextStepIndex = currentStep + 1;
+                
+                // Check if there's a next step
+                if (nextStepIndex >= sections.length) {
+                    // This is the last step, always enable
+                    nextBtn.disabled = false;
+                    nextBtn.classList.remove('disabled');
+                    return;
+                }
+                
+                // Check if next step's data is ready
+                const dataReady = isNextStepDataReady(nextStepIndex);
+                const hasPendingCalls = window.apiCallInProgress || window.pendingApiCalls > 0;
+                
+                if (!dataReady || hasPendingCalls) {
+                    nextBtn.disabled = true;
+                    nextBtn.classList.add('disabled');
+                    if (!nextBtn.dataset.originalText) {
+                        nextBtn.dataset.originalText = nextBtn.textContent.trim();
                     }
+                    nextBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Loading...';
+                } else {
+                    nextBtn.disabled = false;
+                    nextBtn.classList.remove('disabled');
+                    const originalText = nextBtn.dataset.originalText || (currentStep === sections.length - 1 ? 'Finish' : 'Next');
+                    nextBtn.innerHTML = originalText;
                 }
             }
 
@@ -1392,23 +1439,7 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                 console.log('All scenarios eager loaded');
             }
             
-            // Start eager loading immediately after parsing strategies (don't wait for user to navigate)
-            if (strategyPoints.length > 0 && strategyMapIndex !== -1) {
-                // Start eager loading in the background right away - this happens as soon as first response arrives
-                console.log('Starting eager load of strategies immediately...');
-                eagerLoadAllStrategies();
-            }
-            
-            // Start eager loading scenarios after strategies are loaded or after a delay
-            if (window.scenarioOptions && window.scenarioOptions.length > 0 && window.scenarioIndex !== -1) {
-                // Wait a bit for strategies to start, then load scenarios
-                setTimeout(() => {
-                    if (!window.scenariosLoaded) {
-                        console.log('Starting eager load of scenarios...');
-                        eagerLoadAllScenarios();
-                    }
-                }, 2000); // Start loading scenarios 2 seconds after strategies start
-            }
+            // Don't start eager loading immediately - wait until user reaches the relevant page
 
 
             function getUpdatedSectionParts(responseText, emojiOrder = ['🔮', '👥', '📌', '✅']) {
@@ -1572,8 +1603,11 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                     
                     stepHtml += `</div></div>`;
 
-                    // Eager loading should already be running from when response was first received
-                    // Just show current status
+                    // Start loading strategies when user reaches this page
+                    if (!window.isLoadingStrategies && !window.strategiesLoaded) {
+                        console.log('Starting eager load of strategies (user reached strategy page)...');
+                        eagerLoadAllStrategies();
+                    }
                 } else if (currentStep === scenarioIndex && scenarioOptions.length > 0) {
                     const scenarioLines = (window.scenarioSection || '').split('\n');
                     const scenarioHeaderLine = scenarioLines.find(line => line.includes('🔮') || line.toLowerCase().includes('scenario'));
@@ -1635,6 +1669,13 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
 
                     stepHtml += `</div>`;
 
+                    // Start loading scenarios when user reaches this page
+                    if (!window.isLoadingScenarios && !window.scenariosLoaded) {
+                        console.log('Starting eager load of scenarios (user reached scenario page)...');
+                        eagerLoadAllScenarios();
+                    }
+                    
+                    // Also load the active scenario if not cached
                     if (activeScenario && !window.scenarioResponsesCache[activeScenario]) {
                         fetchScenarioResponse(activeScenario, false);
                     }
@@ -1697,13 +1738,13 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                 loadingDiv.innerHTML = stepHtml + `
                     <div class="mt-2">
                         ${currentStep > 0 ? '<button class="btn btn-secondary btn-sm prev-step-btn">Previous</button>' : ''}
-                        <button class="btn btn-primary btn-sm next-step-btn" ${(window.apiCallInProgress || window.pendingApiCalls > 0) ? 'disabled' : ''}>
-                            ${(window.apiCallInProgress || window.pendingApiCalls > 0) ? '<i class="bi bi-hourglass-split me-1"></i>Loading...' : (currentStep === sections.length - 1 ? 'Finish' : 'Next')}
+                        <button class="btn btn-primary btn-sm next-step-btn">
+                            ${currentStep === sections.length - 1 ? 'Finish' : 'Next'}
                         </button>
                     </div>
                 `;
                 
-                // Update button state after rendering
+                // Update button state after rendering (checks if next step's data is ready)
                 updateNextButtonState();
 
                 // Add event listener for strategy selection if this is the Strategy Map step
