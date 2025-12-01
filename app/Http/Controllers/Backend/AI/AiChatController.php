@@ -1185,11 +1185,22 @@ public function users_new_chat_ask(Request $request)
         ->where('user_id', $user->id)
         ->latest()
         ->first();
-    $chectdata = DB::table('search_user_chat')->where('id', $chatId)->first();
+    $chectdata = DB::table('search_user_chat')->where('id', $chatId)->where('user_id', $user->id)->first();
 
-    // Check if chat exists
+    // Check if chat exists, if not create a new one
     if (!$chectdata) {
-        return response()->json(['error' => 'Chat session not found.'], 404);
+        // Create a new chat session
+        $newChatId = DB::table('search_user_chat')->insertGetId([
+            'user_id' => $user->id,
+            'status1' => 0,
+        ]);
+        
+        // Use the new chat ID
+        $chatId = $newChatId;
+        $chectdata = DB::table('search_user_chat')->where('id', $chatId)->where('user_id', $user->id)->first();
+        
+        // Return the new chat ID in response so frontend can update
+        // But continue with the request
     }
 
     // Get user's documents for company context with document metadata
@@ -1648,9 +1659,10 @@ public function users_new_chat_ask(Request $request)
         ]));
 
         // Return final formatted response
-        return response()->json([
+        $responseData = [
             'question' => $question,
             'answer' => $responseContent,
+            'chat_id' => $chatId, // Include chat_id in response
             'previousContext' => $previousContext ? (object)[
                 'status1' => $previousContext->status1 ?? null,
                 'status2' => $previousContext->status2 ?? null,
