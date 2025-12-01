@@ -1798,10 +1798,10 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                     </div>
                 `;
                 
-                // Add export and brief buttons after final answer is rendered
+                // Add export button and auto-generate brief after final answer is rendered
                 setTimeout(() => {
                     addExportButtonToRoleGoals();
-                    addAlignmentBriefButton();
+                    autoGenerateAlignmentBrief();
                 }, 100);
             }
 
@@ -1857,10 +1857,10 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                     </div>
                 `;
                 
-                // Add export and brief buttons after final steps are rendered
+                // Add export button and auto-generate brief after final steps are rendered
                 setTimeout(() => {
                     addExportButtonToRoleGoals();
-                    addAlignmentBriefButton();
+                    autoGenerateAlignmentBrief();
                 }, 100);
             }
 
@@ -1894,10 +1894,10 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                     </svg>
                 </button>`;
             
-            // Add export and brief buttons after answer is rendered
+            // Add export button and auto-generate brief after answer is rendered
             setTimeout(() => {
                 addExportButtonToRoleGoals();
-                addAlignmentBriefButton();
+                autoGenerateAlignmentBrief();
             }, 100);
         }
 
@@ -2049,12 +2049,23 @@ document.addEventListener('click', function (e) {
         });
     };
 
-    // Generate Leadership Alignment Brief
+    // Generate Leadership Alignment Brief (automatically called)
     window.generateLeadershipAlignmentBrief = function(chatId, selectedStrategy, selectedScenario, originalQuestion, fullResponse) {
-        const loadingDiv = document.createElement('div');
-        loadingDiv.className = 'alert alert-info';
-        loadingDiv.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Generating Leadership Alignment Brief...';
-        document.getElementById('chat-messages').appendChild(loadingDiv);
+        // Find the loading indicator we created
+        const loadingIndicator = document.querySelector('.leadership-alignment-brief-loading');
+        const finalOutcomeSection = Array.from(document.querySelectorAll('.response-text'))
+            .find(el => el.textContent.includes('✅') && el.textContent.includes('Final Outcome'));
+        
+        if (!finalOutcomeSection) {
+            if (loadingIndicator) loadingIndicator.remove();
+            return;
+        }
+        
+        const cardContainer = finalOutcomeSection.closest('.tt-template-carddads');
+        if (!cardContainer) {
+            if (loadingIndicator) loadingIndicator.remove();
+            return;
+        }
 
         fetch('{{ route("users-new-chat-generate-alignment-brief.index") }}', {
             method: 'POST',
@@ -2072,25 +2083,50 @@ document.addEventListener('click', function (e) {
         })
         .then(response => response.json())
         .then(data => {
-            loadingDiv.remove();
+            // Remove loading indicator
+            if (loadingIndicator) loadingIndicator.remove();
+            
             if (data.success && data.brief) {
+                // Check if brief already exists
+                const existingBrief = cardContainer.querySelector('.leadership-alignment-brief');
+                if (existingBrief) return; // Already displayed
+                
+                // Create brief section
                 const briefDiv = document.createElement('div');
-                briefDiv.className = 'tt-template-carddads mt-3';
+                briefDiv.className = 'leadership-alignment-brief mt-3';
                 briefDiv.innerHTML = `
                     <div class="response-text">${marked.parse(data.brief)}</div>
-                    <button type="button" class="btn btn-sm text-success me-2 copy-btn" data-bs-toggle="tooltip" title="Copy Brief">
-                        <i class="bi bi-copy"></i>
+                    <button type="button" class="btn btn-sm text-success me-2 copy-btn mt-2" data-bs-toggle="tooltip" title="Copy Brief">
+                        <i class="bi bi-copy"></i> Copy Brief
                     </button>
                 `;
-                document.getElementById('chat-messages').appendChild(briefDiv);
+                
+                // Insert after final outcome section, inside the same card container
+                finalOutcomeSection.insertAdjacentElement('afterend', briefDiv);
             } else {
-                alert('Failed to generate alignment brief: ' + (data.error || 'Unknown error'));
+                // Show error message if generation fails
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'alert alert-warning mt-3';
+                errorDiv.innerHTML = '<i class="bi bi-exclamation-triangle me-2"></i>Could not generate alignment brief: ' + (data.error || 'Unknown error');
+                if (loadingIndicator) {
+                    loadingIndicator.replaceWith(errorDiv);
+                } else {
+                    finalOutcomeSection.insertAdjacentElement('afterend', errorDiv);
+                }
             }
         })
         .catch(error => {
-            loadingDiv.remove();
+            // Remove loading indicator
+            if (loadingIndicator) loadingIndicator.remove();
+            
             console.error('Error generating brief:', error);
-            alert('Failed to generate alignment brief. Please try again.');
+            // Don't show alert for automatic generation - just log it
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'alert alert-warning mt-3';
+            errorDiv.innerHTML = '<i class="bi bi-exclamation-triangle me-2"></i>Could not generate alignment brief. Please refresh and try again.';
+            if (finalOutcomeSection) {
+                finalOutcomeSection.insertAdjacentElement('afterend', errorDiv);
+            }
         });
     };
 
@@ -2135,8 +2171,8 @@ document.addEventListener('click', function (e) {
         }
     }
 
-    // Add Leadership Alignment Brief button after final outcome
-    function addAlignmentBriefButton() {
+    // Automatically generate and display Leadership Alignment Brief after final outcome
+    function autoGenerateAlignmentBrief() {
         const allResponseTexts = Array.from(document.querySelectorAll('.response-text'));
         const finalOutcomeSection = allResponseTexts.find(el => 
             el.textContent.includes('✅') && el.textContent.includes('Final Outcome')
@@ -2147,37 +2183,34 @@ document.addEventListener('click', function (e) {
             const cardContainer = finalOutcomeSection.closest('.tt-template-carddads');
             if (!cardContainer) return;
             
-            const existingBriefBtn = cardContainer.querySelector('.generate-alignment-brief-btn');
-            if (!existingBriefBtn) {
-                const briefBtn = document.createElement('button');
-                briefBtn.type = 'button'; // Prevent form submission
-                briefBtn.className = 'btn btn-info btn-sm generate-alignment-brief-btn mt-2 me-2';
-                briefBtn.innerHTML = '<i class="bi bi-file-earmark-text me-1"></i>Generate Leadership Alignment Brief';
-                briefBtn.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    
-                    const chatId = document.getElementById('chat_id')?.value || window.chatChatId;
-                    const selectedStrategy = window.selectedStrategy || '';
-                    const selectedScenario = window.selectedScenario || '';
-                    const originalQuestion = window.chatQuestion || '';
-                    const fullResponse = Array.from(document.querySelectorAll('.response-text'))
-                        .map(el => el.textContent || el.innerText)
-                        .join('\n\n');
-                    
-                    window.generateLeadershipAlignmentBrief(chatId, selectedStrategy, selectedScenario, originalQuestion, fullResponse);
-                });
-                
-                // Insert button after the response-text div, inside the card container
-                finalOutcomeSection.insertAdjacentElement('afterend', briefBtn);
-            }
+            // Check if brief already exists
+            const existingBrief = cardContainer.querySelector('.leadership-alignment-brief');
+            if (existingBrief) return; // Already generated
+            
+            // Show loading indicator
+            const loadingDiv = document.createElement('div');
+            loadingDiv.className = 'alert alert-info mt-3 leadership-alignment-brief-loading';
+            loadingDiv.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Generating Leadership Alignment Brief...';
+            finalOutcomeSection.insertAdjacentElement('afterend', loadingDiv);
+            
+            // Get required data
+            const chatId = document.getElementById('chat_id')?.value || window.chatChatId;
+            const selectedStrategy = window.selectedStrategy || '';
+            const selectedScenario = window.selectedScenario || '';
+            const originalQuestion = window.chatQuestion || '';
+            const fullResponse = Array.from(document.querySelectorAll('.response-text'))
+                .map(el => el.textContent || el.innerText)
+                .join('\n\n');
+            
+            // Generate brief automatically
+            window.generateLeadershipAlignmentBrief(chatId, selectedStrategy, selectedScenario, originalQuestion, fullResponse);
         }
     }
 
     // Monitor for new sections and add buttons
     const observer = new MutationObserver(function(mutations) {
         addExportButtonToRoleGoals();
-        addAlignmentBriefButton();
+        autoGenerateAlignmentBrief();
     });
 
     observer.observe(document.getElementById('chat-messages'), {
@@ -2188,7 +2221,7 @@ document.addEventListener('click', function (e) {
     // Initial check
     setTimeout(() => {
         addExportButtonToRoleGoals();
-        addAlignmentBriefButton();
+        autoGenerateAlignmentBrief();
     }, 1000);
 </script>
 
