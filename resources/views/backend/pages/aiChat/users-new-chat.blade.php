@@ -1413,17 +1413,12 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                 return;
             }
             
-            // Start loading scenarios when user is 1 step behind (on step before scenario page)
-            // This way Next button can be disabled until scenarios are ready
+            // Scenarios are already in the first response - no need to pre-load them
+            // We only load scenario-specific content when user actually selects a scenario
             function startLoadingScenariosIfNeeded() {
-                if (scenarioIndex !== -1 && currentStep === scenarioIndex - 1) {
-                    // User is 1 step before scenario page, start loading scenarios
-                    // But only if a strategy has been selected (scenarios depend on strategy)
-                    if (window.selectedStrategy && !window.isLoadingScenarios && !window.scenariosLoaded) {
-                        console.log('Starting eager load of scenarios (1 step behind scenario page)...');
-                        eagerLoadAllScenarios();
-                    }
-                }
+                // Scenarios are already in the response, no need to pre-load
+                // We'll load scenario-specific content only when user selects one
+                return;
             }
 
 
@@ -1834,11 +1829,9 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                                             renderStep();
                                         }
                                         
-                                        // Start loading scenarios for this strategy
-                                        if (scenarioIndex !== -1 && !window.isLoadingScenarios && !window.scenariosLoaded) {
-                                            console.log('Starting eager load of scenarios after strategy selection...');
-                                            eagerLoadAllScenarios();
-                                        }
+                                        // Don't eager load scenarios - they're already in the first response
+                                        // Scenarios will be loaded when user actually navigates to scenario page
+                                        // This prevents unnecessary API calls when switching strategies
                                         
                                         updateNextButtonState();
                                     })
