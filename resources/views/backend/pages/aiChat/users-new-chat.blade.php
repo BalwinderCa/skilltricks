@@ -1953,6 +1953,18 @@ document.addEventListener('click', function (e) {
 
     // Export Role Goals to Spreadsheet
     window.exportRoleGoals = function(roleGoalsText, goal, scenario, strategy) {
+        console.log('Starting export...', { roleGoalsTextLength: roleGoalsText.length, goal, scenario, strategy });
+        
+        // Show loading indicator
+        const loadingMsg = document.createElement('div');
+        loadingMsg.className = 'alert alert-info mt-2';
+        loadingMsg.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Preparing export...';
+        const exportBtn = document.querySelector('.export-role-goals-btn');
+        if (exportBtn) {
+            exportBtn.disabled = true;
+            exportBtn.insertAdjacentElement('afterend', loadingMsg);
+        }
+        
         const formData = new FormData();
         formData.append('role_goals_text', roleGoalsText);
         formData.append('goal', goal || '');
@@ -1962,27 +1974,60 @@ document.addEventListener('click', function (e) {
 
         fetch('{{ route("users-new-chat-export-role-goals.index") }}', {
             method: 'POST',
-            body: formData
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
         })
         .then(response => {
+            console.log('Export response status:', response.status, response.statusText);
+            
             if (response.ok) {
-                return response.blob();
+                // Check if response is actually a file
+                const contentType = response.headers.get('content-type');
+                console.log('Response content-type:', contentType);
+                
+                if (contentType && (contentType.includes('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') || contentType.includes('application/octet-stream'))) {
+                    return response.blob();
+                } else {
+                    // If not a blob, try to get as text to see error
+                    return response.text().then(text => {
+                        console.error('Unexpected response:', text);
+                        throw new Error('Server returned non-file response: ' + text.substring(0, 200));
+                    });
+                }
+            } else {
+                return response.text().then(text => {
+                    console.error('Export failed:', response.status, text);
+                    throw new Error('Export failed: ' + response.status + ' - ' + text.substring(0, 200));
+                });
             }
-            throw new Error('Export failed');
         })
         .then(blob => {
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `role_goals_${new Date().getTime()}.xlsx`;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
+            if (blob instanceof Blob) {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `role_goals_${new Date().getTime()}.xlsx`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+                // Remove loading message
+                if (loadingMsg) loadingMsg.remove();
+                if (exportBtn) exportBtn.disabled = false;
+                
+                console.log('Export completed successfully');
+            } else {
+                throw new Error('Invalid response format');
+            }
         })
         .catch(error => {
             console.error('Export error:', error);
-            alert('Failed to export role goals. Please try again.');
+            if (loadingMsg) loadingMsg.remove();
+            if (exportBtn) exportBtn.disabled = false;
+            alert('Failed to export role goals: ' + error.message + '\n\nPlease check the browser console for details.');
         });
     };
 
@@ -2033,48 +2078,80 @@ document.addEventListener('click', function (e) {
 
     // Add export button to role goals section
     function addExportButtonToRoleGoals() {
-        const roleGoalsSection = document.querySelector('.response-text');
-        if (roleGoalsSection && roleGoalsSection.textContent.includes('👥') && roleGoalsSection.textContent.includes('Rephrased Goals')) {
-            const existingExportBtn = document.querySelector('.export-role-goals-btn');
+        // Find ALL response-text elements and check which one contains role goals
+        const allResponseTexts = Array.from(document.querySelectorAll('.response-text'));
+        const roleGoalsSection = allResponseTexts.find(el => 
+            el.textContent.includes('👥') && 
+            (el.textContent.includes('Rephrased Goals') || el.textContent.includes('Goals by Role'))
+        );
+        
+        if (roleGoalsSection) {
+            // Find the parent card container
+            const cardContainer = roleGoalsSection.closest('.tt-template-carddads');
+            if (!cardContainer) return;
+            
+            const existingExportBtn = cardContainer.querySelector('.export-role-goals-btn');
             if (!existingExportBtn) {
                 const exportBtn = document.createElement('button');
-                exportBtn.className = 'btn btn-primary btn-sm export-role-goals-btn mt-2';
+                exportBtn.type = 'button'; // Prevent form submission
+                exportBtn.className = 'btn btn-primary btn-sm export-role-goals-btn mt-2 me-2';
                 exportBtn.innerHTML = '<i class="bi bi-download me-1"></i>Export Role Goals to Spreadsheet';
-                exportBtn.onclick = function() {
-                    const roleGoalsText = roleGoalsSection.textContent;
+                exportBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    // Extract role goals text from the specific section
+                    const roleGoalsText = roleGoalsSection.textContent || roleGoalsSection.innerText;
                     const goal = window.chatQuestion || '';
                     const scenario = window.selectedScenario || '';
                     const strategy = window.selectedStrategy || '';
+                    
+                    console.log('Exporting role goals:', { roleGoalsText: roleGoalsText.substring(0, 100), goal, scenario, strategy });
+                    
                     window.exportRoleGoals(roleGoalsText, goal, scenario, strategy);
-                };
-                roleGoalsSection.parentElement.appendChild(exportBtn);
+                });
+                
+                // Insert button after the response-text div, inside the card container
+                roleGoalsSection.insertAdjacentElement('afterend', exportBtn);
             }
         }
     }
 
     // Add Leadership Alignment Brief button after final outcome
     function addAlignmentBriefButton() {
-        const finalOutcomeSection = Array.from(document.querySelectorAll('.response-text'))
-            .find(el => el.textContent.includes('✅') && el.textContent.includes('Final Outcome'));
+        const allResponseTexts = Array.from(document.querySelectorAll('.response-text'));
+        const finalOutcomeSection = allResponseTexts.find(el => 
+            el.textContent.includes('✅') && el.textContent.includes('Final Outcome')
+        );
         
         if (finalOutcomeSection) {
-            const existingBriefBtn = document.querySelector('.generate-alignment-brief-btn');
+            // Find the parent card container
+            const cardContainer = finalOutcomeSection.closest('.tt-template-carddads');
+            if (!cardContainer) return;
+            
+            const existingBriefBtn = cardContainer.querySelector('.generate-alignment-brief-btn');
             if (!existingBriefBtn) {
                 const briefBtn = document.createElement('button');
-                briefBtn.className = 'btn btn-info btn-sm generate-alignment-brief-btn mt-2';
+                briefBtn.type = 'button'; // Prevent form submission
+                briefBtn.className = 'btn btn-info btn-sm generate-alignment-brief-btn mt-2 me-2';
                 briefBtn.innerHTML = '<i class="bi bi-file-earmark-text me-1"></i>Generate Leadership Alignment Brief';
-                briefBtn.onclick = function() {
+                briefBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
                     const chatId = document.getElementById('chat_id')?.value || window.chatChatId;
                     const selectedStrategy = window.selectedStrategy || '';
                     const selectedScenario = window.selectedScenario || '';
                     const originalQuestion = window.chatQuestion || '';
                     const fullResponse = Array.from(document.querySelectorAll('.response-text'))
-                        .map(el => el.textContent)
+                        .map(el => el.textContent || el.innerText)
                         .join('\n\n');
                     
                     window.generateLeadershipAlignmentBrief(chatId, selectedStrategy, selectedScenario, originalQuestion, fullResponse);
-                };
-                finalOutcomeSection.parentElement.appendChild(briefBtn);
+                });
+                
+                // Insert button after the response-text div, inside the card container
+                finalOutcomeSection.insertAdjacentElement('afterend', briefBtn);
             }
         }
     }
