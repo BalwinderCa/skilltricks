@@ -340,11 +340,11 @@
 
             <div class="d-flex justify-content-between align-items-center mt-2 flex-wrap flex-lg-nowrap gap-2">
                 <div class="d-flex align-items-center">
-                    <span class="">{{ localize('Upload Image') }}
+                    <span class="">{{ localize('Upload Document') }}
                         <input type="file"
                                name="pdfFile"
                                id="pdfFile"
-                               accept=".pdf"
+                               accept=".pdf,.doc,.docx,.xlsx,.xls,.pptx,.ppt"
                                class="form-control" />
                     </span>
                 </div>

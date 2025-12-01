@@ -39,7 +39,8 @@ use Illuminate\Support\Facades\Session;
 use App\Notifications\EmailChatMessages;
 
 use App\Services\Integration\IntegrationService;
-
+use App\Exports\RoleGoalsExport;
+use Maatwebsite\Excel\Facades\Excel;
 use DB;
 
 use Carbon\Carbon;
@@ -1161,6 +1162,7 @@ public function users_new_chat_ask(Request $request)
     $user = auth()->user();
     $question = $request->input('question');
     $chatId = $request->input('chat_id');
+    $additionalContext = $request->input('additional_context'); // Context from form submission
 
     // Validate inputs
     if (!$question || !$chatId) {
@@ -1179,7 +1181,7 @@ public function users_new_chat_ask(Request $request)
         return response()->json(['error' => 'Chat session not found.'], 404);
     }
 
-    // Get user's documents for company context
+    // Get user's documents for company context with document metadata
     $documents = Document::where('user_id', $user->id)
         ->whereNotNull('parsed_text')
         ->where('parse_status', 'completed')
@@ -1187,11 +1189,21 @@ public function users_new_chat_ask(Request $request)
         ->get();
     
     $documentContext = '';
+    $documentMetadata = [];
     if ($documents->count() > 0) {
         $documentContext = "\n\n--- COMPANY DOCUMENTS CONTEXT ---\n";
         $documentContext .= "The following information is from uploaded company documents. Use this context to provide accurate and relevant responses about the company:\n\n";
-        $documentContext .= $documents->pluck('parsed_text')->filter()->implode("\n\n--- Document Separator ---\n\n");
-        $documentContext .= "\n--- END COMPANY DOCUMENTS CONTEXT ---\n";
+        
+        foreach ($documents as $doc) {
+            $documentMetadata[] = [
+                'name' => $doc->name,
+                'type' => $doc->file_type,
+                'text' => $doc->parsed_text
+            ];
+            $documentContext .= "--- Document: {$doc->name} (Type: {$doc->file_type}) ---\n";
+            $documentContext .= $doc->parsed_text . "\n\n";
+        }
+        $documentContext .= "--- END COMPANY DOCUMENTS CONTEXT ---\n";
     }
 
     $systemMessage = 'You are a strategy assistant. Respond only using structured ChatGPT-style text with emojis and clean formatting based on the GoalSync method.';
@@ -1199,8 +1211,108 @@ public function users_new_chat_ask(Request $request)
         $systemMessage .= $documentContext;
     }
 
+    // Process additional context from request (if provided in this request)
+    $contextFromRequest = '';
+    if ($additionalContext && is_array($additionalContext)) {
+        $contextParts = [];
+        if (!empty($additionalContext['field1'])) {
+            $contextParts[] = "Field 1: " . $additionalContext['field1'];
+        }
+        if (!empty($additionalContext['field2'])) {
+            $contextParts[] = "Field 2: " . $additionalContext['field2'];
+        }
+        if (!empty($additionalContext['field3'])) {
+            $contextParts[] = "Field 3: " . $additionalContext['field3'];
+        }
+        if (!empty($additionalContext['additional_details'])) {
+            $contextParts[] = "Additional Details: " . $additionalContext['additional_details'];
+        }
+        
+        if (!empty($contextParts)) {
+            $contextFromRequest = "\n\n--- ADDITIONAL USER CONTEXT (FROM THIS REQUEST) ---\n";
+            $contextFromRequest .= "The user has provided the following additional context that should be considered in your responses:\n\n";
+            $contextFromRequest .= implode("\n", $contextParts);
+            $contextFromRequest .= "\n--- END ADDITIONAL USER CONTEXT ---\n";
+            
+            // Save to database for future use
+            try {
+                $contextArray = [];
+                $existingContext = $chectdata->additional_context ?? '';
+                if (!empty($existingContext)) {
+                    $contextArray = json_decode($existingContext, true);
+                    if (!is_array($contextArray)) {
+                        $contextArray = [];
+                    }
+                }
+                $contextArray[] = [
+                    'field1' => $additionalContext['field1'] ?? '',
+                    'field2' => $additionalContext['field2'] ?? '',
+                    'field3' => $additionalContext['field3'] ?? '',
+                    'additional_details' => $additionalContext['additional_details'] ?? '',
+                    'created_at' => now()->toDateTimeString()
+                ];
+                
+                // Try to add column if it doesn't exist
+                try {
+                    DB::statement("ALTER TABLE search_user_chat ADD COLUMN additional_context TEXT NULL");
+                } catch (\Exception $e) {
+                    // Column might already exist
+                }
+                
+                DB::table('search_user_chat')
+                    ->where('id', $chatId)
+                    ->update(['additional_context' => json_encode($contextArray)]);
+            } catch (\Exception $e) {
+                Log::error('Error saving context to database', ['error' => $e->getMessage()]);
+                // Continue anyway
+            }
+        }
+    }
+    
+    // Get additional context from database (if exists and not already provided in request)
+    $contextFromDB = '';
+    if (empty($contextFromRequest) && isset($chectdata->additional_context) && !empty($chectdata->additional_context)) {
+        $contextArray = json_decode($chectdata->additional_context, true);
+        if (is_array($contextArray) && count($contextArray) > 0) {
+            $contextFromDB = "\n\n--- ADDITIONAL USER CONTEXT (PREVIOUSLY PROVIDED) ---\n";
+            $contextFromDB .= "The user has provided the following additional context that should be considered in your responses:\n\n";
+            foreach ($contextArray as $context) {
+                if (!empty($context['field1'])) {
+                    $contextFromDB .= "Field 1: " . $context['field1'] . "\n";
+                }
+                if (!empty($context['field2'])) {
+                    $contextFromDB .= "Field 2: " . $context['field2'] . "\n";
+                }
+                if (!empty($context['field3'])) {
+                    $contextFromDB .= "Field 3: " . $context['field3'] . "\n";
+                }
+                if (!empty($context['additional_details'])) {
+                    $contextFromDB .= "Additional Details: " . $context['additional_details'] . "\n";
+                }
+                $contextFromDB .= "\n";
+            }
+            $contextFromDB .= "--- END ADDITIONAL USER CONTEXT ---\n";
+        }
+    }
+    
+    // Add context to system message (prefer request context over DB context)
+    if (!empty($contextFromRequest)) {
+        $systemMessage .= $contextFromRequest;
+    } elseif (!empty($contextFromDB)) {
+        $systemMessage .= $contextFromDB;
+    }
+
  if(($previousContext && ($previousContext->status1 == '0' || $previousContext->status1 == 0)) || ($chectdata->status1 == '0' || $chectdata->status1 == 0)){
     // Build prompt to return GOALSYNC output in natural ChatGPT-style format
+    // Build document names list for prompt
+    $documentNamesList = '';
+    if (count($documentMetadata) > 0) {
+        $documentNamesList = "\n\nAvailable Documents:\n";
+        foreach ($documentMetadata as $meta) {
+            $documentNamesList .= "- {$meta['name']} ({$meta['type']})\n";
+        }
+    }
+
     $prompt = <<<EOT
     You are an executive strategy assistant trained in the GoalSync 7-step framework.
 
@@ -1217,6 +1329,7 @@ public function users_new_chat_ask(Request $request)
     ✅ Final Outcome Summary  
 
     User Goal: "$question"
+    {$documentNamesList}
 
     Format:
     - Write in paragraphs, not JSON
@@ -1225,15 +1338,54 @@ public function users_new_chat_ask(Request $request)
     - DO NOT include JSON, markdown, or meta instructions
     - Return only the content in clean GoalSync format
     
-    CRITICAL REQUIREMENT FOR STRATEGY MAP:
-    - In the 🗺️ Strategy Map (Decision Paths) section, you MUST provide EXACTLY 3 or 4 strategies ONLY
-    - Minimum: 3 strategies
-    - Maximum: 4 strategies
-    - DO NOT provide 5, 6, 7, 8, 9, 10, or any number greater than 4
-    - DO NOT provide fewer than 3 strategies
-    - Each strategy should be on a separate line starting with a bullet point (-) or dash
-    - Format: "- Strategy Name: Description" or "• Strategy Name: Description"
-    - Stop after 4 strategies maximum. Do not continue listing more.
+    CRITICAL REQUIREMENTS FOR EACH SECTION:
+
+    📁 Document Insights:
+    - Extract EXACTLY 3-5 insights relevant to the user's goal and situation
+    - Explicitly reference document names/types (e.g., "Based on [Document Name]...")
+    - At least 1 insight MUST reference a specific document
+    - Highlight: dependencies, conflicting priorities, strategic anchors, misalignment risks
+    - No generic outputs - be specific and actionable
+    - Format each insight as a bullet point with document reference
+
+    🗺️ Strategy Map (Decision Paths):
+    - Provide EXACTLY 3-4 decision paths grounded in:
+      * The user's situation
+      * Insights from documents
+      * Team dependencies
+      * Strategic tensions identified
+    - Each path MUST include:
+      * Rationale (why this path)
+      * Teams impacted (list specific teams/roles)
+      * Trade-offs (what's gained vs. lost)
+      * Risk level (Low/Med/High)
+    - Format: "- Path Name: [Rationale] | Teams: [list] | Trade-offs: [description] | Risk: [Low/Med/High]"
+    - Each path must feel customized, not generic
+
+    🔮 Scenario Simulations:
+    Based on the chosen Decision Path, generate 3 scenarios:
+    1. Acceleration Scenario (best case)
+    2. Expected Scenario (most likely)
+    3. Risk Scenario (worst case)
+    
+    For EACH scenario, include:
+    - Key risks (bullet points, not paragraphs)
+    - Cross-team dependencies (specific teams/roles)
+    - Timeline impact (how it affects schedule)
+    - Role friction points (where conflicts may arise)
+    - Operational consequences (practical impacts)
+    - Keep it structured with bullet points, not long paragraphs
+
+    👥 Rephrased Goals by Role:
+    - Translate the goal into role-specific directions referencing:
+      * The scenario chosen
+      * That role's core responsibilities
+      * Dependencies identified earlier
+    - Avoid OKR phrasing - use leadership-alignment language
+    - Directions must vary per role
+    - Reference scenario impacts
+    - Reference at least one dependency per role
+    - No template-style outputs - make each unique
 
     EOT;
  
@@ -1542,6 +1694,36 @@ public function users_new_chat_ask(Request $request)
            $systemMessage .= $documentContext;
        }
 
+       // Get additional context if it exists
+       $chatData = DB::table('search_user_chat')->where('id', $chatId)->where('user_id', $user->id)->first();
+       $additionalContext = '';
+       if ($chatData && isset($chatData->additional_context) && !empty($chatData->additional_context)) {
+           $contextArray = json_decode($chatData->additional_context, true);
+           if (is_array($contextArray) && count($contextArray) > 0) {
+               $additionalContext = "\n\n--- ADDITIONAL USER CONTEXT ---\n";
+               $additionalContext .= "The user has provided the following additional context that should be considered in your responses:\n\n";
+               foreach ($contextArray as $context) {
+                   if (!empty($context['field1'])) {
+                       $additionalContext .= "Field 1: " . $context['field1'] . "\n";
+                   }
+                   if (!empty($context['field2'])) {
+                       $additionalContext .= "Field 2: " . $context['field2'] . "\n";
+                   }
+                   if (!empty($context['field3'])) {
+                       $additionalContext .= "Field 3: " . $context['field3'] . "\n";
+                   }
+                   if (!empty($context['additional_details'])) {
+                       $additionalContext .= "Additional Details: " . $context['additional_details'] . "\n";
+                   }
+                   $additionalContext .= "\n";
+               }
+               $additionalContext .= "--- END ADDITIONAL USER CONTEXT ---\n";
+           }
+       }
+       if (!empty($additionalContext)) {
+           $systemMessage .= $additionalContext;
+       }
+
        // Build prompt to regenerate sections after Strategy Map based on selected strategy
        $prompt = <<<EOT
 Strategy: "$selectedStrategy"
@@ -1796,6 +1978,16 @@ EOT;
             $systemMessage .= $documentContext;
         }
 
+        // Get document metadata for role extraction
+        $documentMetadata = [];
+        foreach ($documents as $doc) {
+            $documentMetadata[] = [
+                'name' => $doc->name,
+                'type' => $doc->file_type,
+                'text' => $doc->parsed_text
+            ];
+        }
+
         $prompt = <<<EOT
 Strategy Context: "{$selectedStrategy}"
 Focused Scenario: "{$selectedScenario}"
@@ -1810,8 +2002,16 @@ Regenerate these sections tailored to the selected scenario (and strategy if pro
 - Study the uploaded org/company documents in context.
 - Select the sections/roles most relevant to this scenario (and strategy, if provided).
 - Output 5 to 10 roles only, numbered in order (1., 2., 3., ...).
-- For each role, write the role name on one line, then a second line starting with “Goal:” followed by 1–2 sentences.
+- For each role, write the role name on one line, then a second line starting with "Goal:" followed by 1–2 sentences.
 - Only use role titles that exist in the documents.
+- Translate the goal into role-specific directions referencing:
+  * The scenario chosen ("{$selectedScenario}")
+  * That role's core responsibilities
+  * Dependencies identified earlier
+- Avoid OKR phrasing - use leadership-alignment language
+- Directions must vary per role and reference scenario impacts
+- Reference at least one dependency per role
+- No template-style outputs - make each unique
 
 📌 Complementary Goals
 2 goals, 1 sentence each.
@@ -1954,6 +2154,111 @@ EOT;
         ]);
     }
 
+    public function users_new_chat_add_context(Request $request)
+    {
+        $user = auth()->user();
+        $chatId = $request->input('chat_id');
+        $userId = $request->input('user_id');
+        $field1 = $request->input('field1', '');
+        $field2 = $request->input('field2', '');
+        $field3 = $request->input('field3', '');
+        $additionalDetails = $request->input('additional_details', '');
+
+        // Validate
+        if (!$chatId || !$userId) {
+            return response()->json(['error' => 'Chat ID and User ID are required.'], 400);
+        }
+
+        // Verify chat belongs to user
+        $chatData = DB::table('search_user_chat')
+            ->where('id', $chatId)
+            ->where('user_id', $user->id)
+            ->first();
+
+        if (!$chatData) {
+            return response()->json(['error' => 'Chat session not found or access denied.'], 404);
+        }
+
+        // Build context string
+        $contextParts = [];
+        if (!empty($field1)) {
+            $contextParts[] = "Field 1: " . $field1;
+        }
+        if (!empty($field2)) {
+            $contextParts[] = "Field 2: " . $field2;
+        }
+        if (!empty($field3)) {
+            $contextParts[] = "Field 3: " . $field3;
+        }
+        if (!empty($additionalDetails)) {
+            $contextParts[] = "Additional Details: " . $additionalDetails;
+        }
+
+        $additionalContext = implode("\n", $contextParts);
+
+        // Check if additional_context column exists, if not we'll store in a JSON field or create migration
+        // For now, let's store it in a JSON format in a new column or use existing structure
+        try {
+            // Check if column exists
+            $columns = DB::select("SHOW COLUMNS FROM search_user_chat LIKE 'additional_context'");
+            if (count($columns) > 0) {
+                // Column exists, update it
+                $existingContext = $chatData->additional_context ?? '';
+                $contextArray = !empty($existingContext) ? json_decode($existingContext, true) : [];
+                $contextArray[] = [
+                    'field1' => $field1,
+                    'field2' => $field2,
+                    'field3' => $field3,
+                    'additional_details' => $additionalDetails,
+                    'created_at' => now()->toDateTimeString()
+                ];
+                
+                DB::table('search_user_chat')
+                    ->where('id', $chatId)
+                    ->update(['additional_context' => json_encode($contextArray)]);
+            } else {
+                // Column doesn't exist, store in a text field or create it
+                // For now, we'll use a simple approach: store as JSON in a text field
+                // You may want to create a migration to add 'additional_context' column
+                $contextData = [
+                    'field1' => $field1,
+                    'field2' => $field2,
+                    'field3' => $field3,
+                    'additional_details' => $additionalDetails,
+                    'created_at' => now()->toDateTimeString()
+                ];
+                
+                // Try to add column if it doesn't exist (for development - in production use migrations)
+                try {
+                    DB::statement("ALTER TABLE search_user_chat ADD COLUMN additional_context TEXT NULL");
+                } catch (\Exception $e) {
+                    // Column might already exist or other error, continue
+                }
+                
+                $existingContext = $chatData->additional_context ?? '';
+                $contextArray = !empty($existingContext) ? json_decode($existingContext, true) : [];
+                $contextArray[] = $contextData;
+                
+                DB::table('search_user_chat')
+                    ->where('id', $chatId)
+                    ->update(['additional_context' => json_encode($contextArray)]);
+            }
+        } catch (\Exception $e) {
+            Log::error('Error saving additional context', [
+                'error' => $e->getMessage(),
+                'chat_id' => $chatId,
+                'user_id' => $user->id
+            ]);
+            return response()->json(['error' => 'Failed to save context: ' . $e->getMessage()], 500);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Additional context saved successfully.',
+            'context' => $additionalContext
+        ]);
+    }
+
       public function userschat_search_delete(Request $request,$id)
     {
         DB::table('search_user_chat')->where('id', $id)->delete();
@@ -2077,6 +2382,238 @@ public function chat_question_store(Request $request)
 
     flash(localize('Answers processed successfully.'));
     return redirect('dashboard/users-new-chat/'.$newChat);
+}
+
+    /**
+     * Generate Leadership Alignment Brief
+     */
+    public function generate_leadership_alignment_brief(Request $request)
+    {
+        $user = auth()->user();
+        $chatId = $request->input('chat_id');
+        $selectedStrategy = $request->input('selected_strategy');
+        $selectedScenario = $request->input('selected_scenario');
+        $originalQuestion = $request->input('original_question');
+        $fullResponse = $request->input('full_response');
+
+        if (!$chatId || !$originalQuestion) {
+            return response()->json(['error' => 'Chat ID and original question are required.'], 400);
+        }
+
+        // Get user's documents
+        $documents = Document::where('user_id', $user->id)
+            ->whereNotNull('parsed_text')
+            ->where('parse_status', 'completed')
+            ->latest()
+            ->get();
+        
+        $documentContext = '';
+        if ($documents->count() > 0) {
+            $documentContext = "\n\n--- COMPANY DOCUMENTS CONTEXT ---\n";
+            $documentContext .= "The following information is from uploaded company documents:\n\n";
+            foreach ($documents as $doc) {
+                $documentContext .= "--- Document: {$doc->name} (Type: {$doc->file_type}) ---\n";
+                $documentContext .= $doc->parsed_text . "\n\n";
+            }
+            $documentContext .= "--- END COMPANY DOCUMENTS CONTEXT ---\n";
+        }
+
+        $systemMessage = 'You are an executive strategy assistant. Provide executive-ready, consulting-style summaries.';
+        if (!empty($documentContext)) {
+            $systemMessage .= $documentContext;
+        }
+
+        $prompt = <<<EOT
+Provide an executive-ready alignment summary in a clean, structured consulting format.
+
+Context:
+- Decision Chosen: "{$selectedStrategy}"
+- Scenario Selected: "{$selectedScenario}"
+- Goal: "{$originalQuestion}"
+
+Full Analysis Context:
+{$fullResponse}
+
+Generate a Leadership Alignment Brief with the following structure:
+
+📋 LEADERSHIP ALIGNMENT BRIEF
+
+**Decision Chosen:**
+[Name of the selected decision path]
+
+**Scenario Selected:**
+[Name of the selected scenario]
+
+**Top 3 Risks:**
+1. [Risk 1 with brief description]
+2. [Risk 2 with brief description]
+3. [Risk 3 with brief description]
+
+**Top 3 Dependencies:**
+1. [Dependency 1 - specific teams/roles/resources]
+2. [Dependency 2 - specific teams/roles/resources]
+3. [Dependency 3 - specific teams/roles/resources]
+
+**Teams Impacted:**
+[List specific teams/roles that will be affected]
+
+**Alignment Score:**
+[Low/Med/High] - [Brief rationale]
+
+**Recommended Next Step for Leadership:**
+[1-2 sentences with specific, actionable recommendation]
+
+Format:
+- Use clean, structured bullet points
+- No fluff - be concise and actionable
+- Executive-ready language
+- Consulting-style format
+EOT;
+
+        try {
+            $openAiResponse = Http::withToken(env('OPENAI_API_KEY'))
+                ->timeout(90)
+                ->connectTimeout(10)
+                ->retry(2, 1000)
+                ->post('https://api.openai.com/v1/chat/completions', [
+                    'model' => 'gpt-4-turbo',
+                    'temperature' => 0.7,
+                    'max_tokens' => 2000,
+                    'messages' => [
+                        [
+                            'role' => 'system',
+                            'content' => $systemMessage
+                        ],
+                        [
+                            'role' => 'user',
+                            'content' => $prompt
+                        ],
+                    ],
+                ]);
+
+            if ($openAiResponse->successful()) {
+                $brief = $openAiResponse->json('choices.0.message.content');
+                return response()->json([
+                    'success' => true,
+                    'brief' => $brief
+                ]);
+            } else {
+                return response()->json([
+                    'error' => 'Failed to generate alignment brief.',
+                    'details' => $openAiResponse->body()
+                ], 500);
+            }
+        } catch (\Exception $e) {
+            Log::error('Leadership Alignment Brief Generation Failed', [
+                'user_id' => $user->id,
+                'chat_id' => $chatId,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'error' => 'An error occurred while generating the alignment brief.',
+                'details' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Export Role-Based Goals to Spreadsheet
+     */
+    public function export_role_goals(Request $request)
+    {
+        $user = auth()->user();
+        $roleGoalsText = $request->input('role_goals_text');
+        $goal = $request->input('goal', '');
+        $scenario = $request->input('scenario', '');
+        $strategy = $request->input('strategy', '');
+
+        if (!$roleGoalsText) {
+            return response()->json(['error' => 'Role goals text is required.'], 400);
+        }
+
+        // Parse role goals from text
+        $roleGoals = $this->parseRoleGoalsFromText($roleGoalsText);
+
+        if (empty($roleGoals)) {
+            return response()->json(['error' => 'No role goals found to export.'], 400);
+        }
+
+        try {
+            $export = new RoleGoalsExport($roleGoals, $goal, $scenario, $strategy);
+            $fileName = 'role_goals_' . date('Y-m-d_His') . '.xlsx';
+            
+            return Excel::download($export, $fileName);
+        } catch (\Exception $e) {
+            Log::error('Role Goals Export Failed', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'error' => 'Failed to export role goals.',
+                'details' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Parse role goals from text format
+     */
+    private function parseRoleGoalsFromText($text)
+    {
+        $roleGoals = [];
+        $lines = explode("\n", $text);
+        
+        $currentRole = null;
+        $currentGoal = null;
+        
+        foreach ($lines as $line) {
+            $line = trim($line);
+            
+            // Skip empty lines and section headers
+            if (empty($line) || strpos($line, '👥') !== false || strpos($line, 'Rephrased Goals') !== false) {
+                continue;
+            }
+            
+            // Check if line is a role (usually numbered: 1., 2., etc. or starts with a role name)
+            if (preg_match('/^(\d+\.?\s*)?([A-Z][^:]+?):?\s*$/i', $line, $matches)) {
+                // Save previous role if exists
+                if ($currentRole && $currentGoal) {
+                    $roleGoals[] = [
+                        'role' => $currentRole,
+                        'goal' => $currentGoal,
+                        'notes' => ''
+                    ];
+                }
+                $currentRole = trim($matches[2]);
+                $currentGoal = '';
+            }
+            // Check if line starts with "Goal:"
+            elseif (preg_match('/^Goal:\s*(.+)$/i', $line, $matches)) {
+                $currentGoal = trim($matches[1]);
+            }
+            // If we have a role but no goal yet, this might be the goal
+            elseif ($currentRole && empty($currentGoal) && !empty($line)) {
+                $currentGoal = $line;
+            }
+            // Additional goal text
+            elseif ($currentRole && !empty($currentGoal) && !empty($line)) {
+                $currentGoal .= ' ' . $line;
+            }
+        }
+        
+        // Save last role
+        if ($currentRole && $currentGoal) {
+            $roleGoals[] = [
+                'role' => $currentRole,
+                'goal' => $currentGoal,
+                'notes' => ''
+            ];
+        }
+        
+        return $roleGoals;
+    }
 }
 
 

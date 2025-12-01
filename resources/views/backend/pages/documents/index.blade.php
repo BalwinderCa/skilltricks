@@ -38,16 +38,16 @@
                             <form action="{{ route('documents.upload') }}" method="POST" enctype="multipart/form-data" class="mb-4">
                                 @csrf
                                 <div class="file-drop-area file-upload text-center rounded-3 py-4">
-                                    <input type="file" class="file-drop-input" name="document" id="document" accept=".pdf" required />
+                                    <input type="file" class="file-drop-input" name="document" id="document" accept=".pdf,.doc,.docx,.xlsx,.xls,.pptx,.ppt" required />
                                     <div class="file-drop-icon ci-cloud-upload">
                                         <i data-feather="file-text"></i>
                                     </div>
                                     <p class="text-dark fw-bold mb-2 mt-3">
-                                        {{ localize('Drop your PDF file here or') }}
+                                        {{ localize('Drop your document here or') }}
                                         <a href="javascript:void(0);" class="text-primary" onclick="document.getElementById('document').click();">{{ localize('Browse') }}</a>
                                     </p>
                                     <p class="mb-0 file-name text-muted">
-                                        <small>* {{ localize('Allowed file type: PDF (Max 10MB)') }}</small>
+                                        <small>* {{ localize('Allowed file types: PDF, DOC, DOCX, XLSX, XLS, PPTX, PPT (Max 10MB)') }}</small>
                                     </p>
                                 </div>
                                 @if ($errors->has('document'))
@@ -92,8 +92,19 @@
                                                 <tr>
                                                     <td>
                                                         <div class="d-flex align-items-center">
-                                                            <i data-feather="file-text" class="me-2 text-danger"></i>
+                                                            @if($document->file_type == 'pdf')
+                                                                <i data-feather="file-text" class="me-2 text-danger"></i>
+                                                            @elseif($document->file_type == 'doc')
+                                                                <i data-feather="file-text" class="me-2 text-primary"></i>
+                                                            @elseif($document->file_type == 'xlsx')
+                                                                <i data-feather="file-text" class="me-2 text-success"></i>
+                                                            @elseif($document->file_type == 'ppt')
+                                                                <i data-feather="file-text" class="me-2 text-warning"></i>
+                                                            @else
+                                                                <i data-feather="file-text" class="me-2 text-secondary"></i>
+                                                            @endif
                                                             <span>{{ $document->name }}</span>
+                                                            <span class="badge bg-secondary ms-2">{{ strtoupper($document->file_type) }}</span>
                                                         </div>
                                                     </td>
                                                     <td>
@@ -105,7 +116,7 @@
                                                     </td>
                                                     <td>{{ $document->created_at->format('M d, Y') }}</td>
                                                     <td class="text-end">
-                                                        <a href="{{ asset($document->file_path) }}" target="_blank" class="btn btn-sm btn-secondary me-2" title="{{ localize('View PDF') }}">
+                                                        <a href="{{ asset($document->file_path) }}" target="_blank" class="btn btn-sm btn-secondary me-2" title="{{ localize('View Document') }}" download>
                                                             <i data-feather="eye" class="icon-14"></i>
                                                         </a>
                                                         @if($document->parsed_text)

@@ -30,7 +30,7 @@ class PdfChatStoreRequest extends FormRequest
 
         return [
             "prompt"   => "required",
-            "pdfFile"  => "required|mimes:pdf"
+            "pdfFile"  => "required|mimes:pdf,doc,docx,xlsx,xls,pptx,ppt|max:10240" // Supports PDF, DOC, DOCX, XLSX, XLS, PPTX, PPT (10MB max)
         ];
     }
 
@@ -41,7 +41,7 @@ class PdfChatStoreRequest extends FormRequest
         $responsePayloads = [
             "status"  => $appStatic::FALSE,
             "code"    => $appStatic::INTERNAL_SERVER_ERROR,
-            "message" => "Pdf Chat Validation Errors.",
+            "message" => "Document Chat Validation Errors.",
             "data"    => $validator->errors()
         ];
 
