@@ -1713,6 +1713,13 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                                 window.selectedStrategy = exactStrategy;
                                 selectedStrategy = exactStrategy;
                                 
+                                // CRITICAL: Clear scenario cache when strategy changes
+                                // Scenarios are strategy-specific, so old cached scenarios are invalid
+                                if (window.scenarioResponsesCache) {
+                                    console.log('🗑️ Clearing scenario cache - scenarios are strategy-specific');
+                                    window.scenarioResponsesCache = {};
+                                }
+                                
                                 console.log('Strategy selected:', exactStrategy);
                                 console.log('Available cache keys:', Object.keys(window.strategyResponsesCache || {}));
                                 console.log('Cache available for exact strategy:', window.strategyResponsesCache && window.strategyResponsesCache[exactStrategy] ? 'Yes' : 'No');
@@ -1824,6 +1831,13 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                                                 console.log('Cleaned scenario options:', newScenarioOptions);
                                                 
                                                 if (newScenarioOptions.length > 0) {
+                                                    // CRITICAL: Clear scenario cache when scenarios change
+                                                    // Old cached scenario responses are invalid for new strategy
+                                                    if (window.scenarioResponsesCache) {
+                                                        console.log('🗑️ Clearing scenario responses cache - new scenarios for new strategy');
+                                                        window.scenarioResponsesCache = {};
+                                                    }
+                                                    
                                                     // Update scenarios with strategy-specific ones
                                                     window.scenarioSection = newScenarioSection;
                                                     
