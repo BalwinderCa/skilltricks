@@ -1796,8 +1796,8 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
 
                 loadingDiv.innerHTML = stepHtml + `
                     <div class="mt-2">
-                        ${currentStep > 0 ? '<button class="btn btn-secondary btn-sm prev-step-btn">Previous</button>' : ''}
-                        <button class="btn btn-primary btn-sm next-step-btn">
+                        ${currentStep > 0 ? '<button type="button" class="btn btn-secondary btn-sm prev-step-btn">Previous</button>' : ''}
+                        <button type="button" class="btn btn-primary btn-sm next-step-btn">
                             ${currentStep === sections.length - 1 ? 'Finish' : 'Next'}
                         </button>
                     </div>
@@ -2064,14 +2064,22 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
             renderStep();
 
             loadingDiv.addEventListener('click', function (e) {
-                if (e.target.classList.contains('next-step-btn')) {
+                if (e.target.classList.contains('next-step-btn') || e.target.closest('.next-step-btn')) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const btn = e.target.classList.contains('next-step-btn') ? e.target : e.target.closest('.next-step-btn');
+                    if (btn && btn.disabled) {
+                        return; // Don't proceed if button is disabled
+                    }
                     if (currentStep === sections.length - 1) {
                         renderFinalAnswer();
                     } else {
                         currentStep++;
                         renderStep();
                     }
-                } else if (e.target.classList.contains('prev-step-btn')) {
+                } else if (e.target.classList.contains('prev-step-btn') || e.target.closest('.prev-step-btn')) {
+                    e.preventDefault();
+                    e.stopPropagation();
                     if (currentStep > 0) {
                         currentStep--;
                         renderStep();
@@ -2123,14 +2131,22 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
             renderStep();
 
             loadingDiv.addEventListener('click', function (e) {
-                if (e.target.classList.contains('next-step-btn')) {
+                if (e.target.classList.contains('next-step-btn') || e.target.closest('.next-step-btn')) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const btn = e.target.classList.contains('next-step-btn') ? e.target : e.target.closest('.next-step-btn');
+                    if (btn && btn.disabled) {
+                        return; // Don't proceed if button is disabled
+                    }
                     if (currentStep === steps.length - 1) {
                         renderFinalSteps();
                     } else {
                         currentStep++;
                         renderStep();
                     }
-                } else if (e.target.classList.contains('prev-step-btn')) {
+                } else if (e.target.classList.contains('prev-step-btn') || e.target.closest('.prev-step-btn')) {
+                    e.preventDefault();
+                    e.stopPropagation();
                     if (currentStep > 0) {
                         currentStep--;
                         renderStep();
