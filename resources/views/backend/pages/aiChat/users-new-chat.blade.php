@@ -1817,6 +1817,9 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                                     if (currentStep > strategyMapIndex) {
                                         renderStep();
                                     }
+                                    
+                                    // Update Next button state after strategy selection
+                                    updateNextButtonState();
                                 } else {
                                     console.log('Exact strategy not in cache yet, waiting...');
                                     console.log('Trying to find similar strategy in cache...');
@@ -1867,6 +1870,8 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                                 window.selectedScenario = scenarioValue;
                                 fetchScenarioResponse(scenarioValue, true);
                                 renderStep();
+                                // Update Next button state after scenario selection
+                                updateNextButtonState();
                             }
                         });
                     });
