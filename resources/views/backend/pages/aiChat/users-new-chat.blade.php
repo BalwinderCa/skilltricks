@@ -1794,7 +1794,7 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                             }
                         });
                     });
-                } else if (currentStep === scenarioIndex && scenarioOptions.length > 0) {
+                } else if (currentStep === scenarioIndex && window.scenarioOptions && window.scenarioOptions.length > 0) {
                     const scenarioRadios = loadingDiv.querySelectorAll('.scenario-radio');
                     scenarioRadios.forEach(radio => {
                         radio.addEventListener('change', function() {
