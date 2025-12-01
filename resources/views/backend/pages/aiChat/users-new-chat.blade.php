@@ -2195,11 +2195,23 @@ document.addEventListener('click', function (e) {
     // Track if brief generation is in progress or completed
     window.briefGenerationInProgress = false;
     window.briefGenerationCompleted = false;
+    
+    // Check if brief already exists from database (page load)
+    @if(isset($leadershipBriefFromDB) && !empty($leadershipBriefFromDB))
+        window.briefGenerationCompleted = true;
+    @endif
 
     // Automatically generate and display Leadership Alignment Brief after final outcome
     function autoGenerateAlignmentBrief() {
         // Prevent multiple simultaneous calls
         if (window.briefGenerationInProgress || window.briefGenerationCompleted) {
+            return;
+        }
+        
+        // Check if brief already exists in DOM (from database)
+        const existingBrief = document.querySelector('.leadership-alignment-brief');
+        if (existingBrief && existingBrief.textContent.trim().length > 0) {
+            window.briefGenerationCompleted = true;
             return;
         }
         
