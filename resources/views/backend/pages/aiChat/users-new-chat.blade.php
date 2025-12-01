@@ -1208,6 +1208,18 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
             
             // Function to check if next step's data is ready
             function isNextStepDataReady(nextStepIndex) {
+                // If next step IS the strategy map, check if all strategies are loaded
+                if (strategyMapIndex !== -1 && nextStepIndex === strategyMapIndex) {
+                    // Check if strategies are still loading or not loaded
+                    if (window.isLoadingStrategies || !window.strategiesLoaded) {
+                        return false;
+                    }
+                    // Check if at least one strategy is loaded (for display)
+                    if (!window.strategyResponsesCache || Object.keys(window.strategyResponsesCache).length === 0) {
+                        return false;
+                    }
+                }
+                
                 // If next step is after strategy map, check if selected strategy data is ready
                 if (strategyMapIndex !== -1 && nextStepIndex > strategyMapIndex) {
                     const selectedStrategy = window.selectedStrategy;
@@ -1216,6 +1228,18 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                         if (!window.strategyResponsesCache || !window.strategyResponsesCache[selectedStrategy]) {
                             return false;
                         }
+                    }
+                }
+                
+                // If next step IS the scenario selection, check if all scenarios are loaded
+                if (scenarioIndex !== -1 && nextStepIndex === scenarioIndex) {
+                    // Check if scenarios are still loading or not loaded
+                    if (window.isLoadingScenarios || !window.scenariosLoaded) {
+                        return false;
+                    }
+                    // Check if at least one scenario is loaded (for display)
+                    if (!window.scenarioResponsesCache || Object.keys(window.scenarioResponsesCache).length === 0) {
+                        return false;
                     }
                 }
                 
@@ -1613,11 +1637,8 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                     
                     stepHtml += `</div></div>`;
 
-                    // Start loading strategies when user reaches this page
-                    if (!window.isLoadingStrategies && !window.strategiesLoaded) {
-                        console.log('Starting eager load of strategies (user reached strategy page)...');
-                        eagerLoadAllStrategies();
-                    }
+                    // Strategies should already be loaded (started 1 step behind)
+                    // Just show current status
                 } else if (currentStep === scenarioIndex && scenarioOptions.length > 0) {
                     const scenarioLines = (window.scenarioSection || '').split('\n');
                     const scenarioHeaderLine = scenarioLines.find(line => line.includes('🔮') || line.toLowerCase().includes('scenario'));
@@ -1679,11 +1700,8 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
 
                     stepHtml += `</div>`;
 
-                    // Start loading scenarios when user reaches this page
-                    if (!window.isLoadingScenarios && !window.scenariosLoaded) {
-                        console.log('Starting eager load of scenarios (user reached scenario page)...');
-                        eagerLoadAllScenarios();
-                    }
+                    // Scenarios should already be loaded (started 1 step behind)
+                    // Just show current status
                     
                     // Also load the active scenario if not cached
                     if (activeScenario && !window.scenarioResponsesCache[activeScenario]) {
@@ -1753,6 +1771,10 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                         </button>
                     </div>
                 `;
+                
+                // Start loading data 1 step ahead if needed
+                startLoadingStrategiesIfNeeded();
+                startLoadingScenariosIfNeeded();
                 
                 // Update button state after rendering (checks if next step's data is ready)
                 updateNextButtonState();
