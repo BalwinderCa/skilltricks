@@ -1327,11 +1327,87 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                 }
             }
             
+            // Function to eager load all scenario responses
+            async function eagerLoadAllScenarios() {
+                if (!window.scenarioOptions || window.scenarioOptions.length === 0) return;
+                if (window.isLoadingScenarios || window.scenariosLoaded) return;
+                
+                window.isLoadingScenarios = true;
+                const sectionsBeforeScenario = window.chatSections && window.scenarioIndex > -1
+                    ? window.chatSections.slice(0, window.scenarioIndex).join('')
+                    : '';
+                
+                // Fetch all scenarios in parallel
+                const scenarioPromises = window.scenarioOptions.map(async (scenarioText) => {
+                    if (window.scenarioResponsesCache && window.scenarioResponsesCache[scenarioText]) {
+                        return { scenario: scenarioText, response: window.scenarioResponsesCache[scenarioText] };
+                    }
+                    
+                    // Track API call
+                    window.pendingApiCalls++;
+                    window.apiCallInProgress = true;
+                    updateNextButtonState();
+                    
+                    try {
+                        const scenarioRes = await fetch('/dashboard/users-new-chat-update-scenario', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                            },
+                            body: JSON.stringify({
+                                chat_id: window.chatChatId,
+                                user_id: window.chatUserId,
+                                selected_scenario: scenarioText,
+                                selected_strategy: window.selectedStrategy || null,
+                                original_question: window.chatQuestion,
+                                sections_before: sectionsBeforeScenario,
+                                scenario_section: window.scenarioSection,
+                                is_user_selection: false // Eager loading
+                            })
+                        });
+
+                        if (scenarioRes.ok) {
+                            const updateData = await scenarioRes.json();
+                            const response = updateData.updated_sections || '';
+                            if (!window.scenarioResponsesCache) {
+                                window.scenarioResponsesCache = {};
+                            }
+                            window.scenarioResponsesCache[scenarioText] = response;
+                            return { scenario: scenarioText, response: response };
+                        }
+                    } catch (error) {
+                        console.error(`Error eager loading scenario "${scenarioText}":`, error);
+                    } finally {
+                        window.pendingApiCalls = Math.max(0, window.pendingApiCalls - 1);
+                        window.apiCallInProgress = window.pendingApiCalls > 0;
+                        updateNextButtonState();
+                    }
+                    return null;
+                });
+
+                await Promise.all(scenarioPromises);
+                window.scenariosLoaded = true;
+                window.isLoadingScenarios = false;
+                console.log('All scenarios eager loaded');
+            }
+            
             // Start eager loading immediately after parsing strategies (don't wait for user to navigate)
             if (strategyPoints.length > 0 && strategyMapIndex !== -1) {
                 // Start eager loading in the background right away - this happens as soon as first response arrives
                 console.log('Starting eager load of strategies immediately...');
                 eagerLoadAllStrategies();
+            }
+            
+            // Start eager loading scenarios after strategies are loaded or after a delay
+            if (window.scenarioOptions && window.scenarioOptions.length > 0 && window.scenarioIndex !== -1) {
+                // Wait a bit for strategies to start, then load scenarios
+                setTimeout(() => {
+                    if (!window.scenariosLoaded) {
+                        console.log('Starting eager load of scenarios...');
+                        eagerLoadAllScenarios();
+                    }
+                }, 2000); // Start loading scenarios 2 seconds after strategies start
             }
 
 
