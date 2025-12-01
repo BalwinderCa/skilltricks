@@ -1661,7 +1661,10 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                         radio.addEventListener('change', function() {
                             if (this.checked) {
                                 // Get the original strategy text from data attribute (this is the cache key)
-                                const exactStrategy = this.getAttribute('data-original-strategy') || this.value;
+                                let exactStrategy = this.getAttribute('data-original-strategy') || this.value;
+                                
+                                // Clean "Path A:", "Path B:", etc. from strategy text for cache key
+                                exactStrategy = exactStrategy.replace(/^Path\s+[A-Z][\.:]\s*/i, '');
                                 
                                 // Store globally so it persists across navigation
                                 window.selectedStrategy = exactStrategy;
@@ -1768,8 +1771,11 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                                                 
                                                 const newScenarioOptions = newScenarioItems.map(line => {
                                                     let cleaned = line.replace(/^[-•*]\s*/, '').trim();
-                                                    cleaned = cleaned.replace(/\*\*([^*]+)\*\*/g, '**$1**');
-                                                    return cleaned;
+                                                    // Remove markdown bold but keep the text
+                                                    cleaned = cleaned.replace(/\*\*([^*]+)\*\*/g, '$1');
+                                                    // Remove any remaining **
+                                                    cleaned = cleaned.replace(/\*\*/g, '');
+                                                    return cleaned.trim();
                                                 }).filter(item => item.length > 0);
                                                 
                                                 console.log('Cleaned scenario options:', newScenarioOptions);
