@@ -990,6 +990,22 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
 
     // Function to actually send the request to ChatGPT
     window.sendToChatGPT = async function(contextData = null) {
+        // Validate required fields
+        if (!currentQuestion || !currentQuestion.trim()) {
+            alert('Please enter a question or goal.');
+            return;
+        }
+        
+        if (!currentChat_id) {
+            alert('Chat ID is missing. Please refresh the page and try again.');
+            return;
+        }
+        
+        if (!currentUser_id) {
+            alert('User ID is missing. Please refresh the page and try again.');
+            return;
+        }
+        
         // Hide context options
         if (currentContextOptionsDiv) {
             currentContextOptionsDiv.style.display = 'none';
@@ -1009,7 +1025,7 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
 
         // Prepare request body
         const requestBody = {
-            question: currentQuestion,
+            question: currentQuestion.trim(),
             user_id: currentUser_id,
             chat_id: currentChat_id
         };
