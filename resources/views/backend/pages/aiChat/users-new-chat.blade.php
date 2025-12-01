@@ -1262,13 +1262,6 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                 const nextBtn = loadingDiv.querySelector('.next-step-btn');
                 if (!nextBtn) return;
                 
-                // Don't disable first Next button (step 0)
-                if (currentStep === 0) {
-                    nextBtn.disabled = false;
-                    nextBtn.classList.remove('disabled');
-                    return;
-                }
-                
                 const nextStepIndex = currentStep + 1;
                 
                 // Check if there's a next step
@@ -1279,12 +1272,11 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                     return;
                 }
                 
-                // Only check if NEXT step's data is ready (not current step)
-                // Don't disable based on current page's API calls - only check next step's requirements
+                // Check if NEXT step's data is ready (this applies to ALL steps including step 0)
                 const dataReady = isNextStepDataReady(nextStepIndex);
                 
                 if (!dataReady) {
-                    // Next step's data isn't ready yet
+                    // Next step's data isn't ready yet - disable button
                     nextBtn.disabled = true;
                     nextBtn.classList.add('disabled');
                     if (!nextBtn.dataset.originalText) {
