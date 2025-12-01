@@ -1201,6 +1201,31 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
             let currentStep = 0;
             let isLoadingStrategies = false;
             let strategiesLoaded = false;
+            
+            // Track API call states for Next button control
+            window.apiCallInProgress = false;
+            window.pendingApiCalls = 0;
+            
+            // Function to update Next button state
+            function updateNextButtonState() {
+                const nextBtn = loadingDiv.querySelector('.next-step-btn');
+                if (nextBtn) {
+                    if (window.apiCallInProgress || window.pendingApiCalls > 0) {
+                        nextBtn.disabled = true;
+                        nextBtn.classList.add('disabled');
+                        const originalText = nextBtn.textContent.trim();
+                        if (!originalText.includes('Loading')) {
+                            nextBtn.dataset.originalText = originalText;
+                            nextBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Loading...';
+                        }
+                    } else {
+                        nextBtn.disabled = false;
+                        nextBtn.classList.remove('disabled');
+                        const originalText = nextBtn.dataset.originalText || (currentStep === sections.length - 1 ? 'Finish' : 'Next');
+                        nextBtn.innerHTML = originalText;
+                    }
+                }
+            }
 
             // Function to eager load all strategy responses
             async function eagerLoadAllStrategies() {
@@ -1223,6 +1248,11 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
 
                 // Fetch all strategies in parallel with progressive loading
                 const strategyPromises = window.strategyPoints.map(async (point) => {
+                    // Track API call
+                    window.pendingApiCalls++;
+                    window.apiCallInProgress = true;
+                    updateNextButtonState();
+                    
                     try {
                         const updateRes = await fetch('/dashboard/users-new-chat-update-strategy', {
                             method: 'POST',
@@ -1262,6 +1292,11 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                         }
                     } catch (error) {
                         console.error(`Error loading strategy "${point}":`, error);
+                    } finally {
+                        // Update API call state
+                        window.pendingApiCalls = Math.max(0, window.pendingApiCalls - 1);
+                        window.apiCallInProgress = window.pendingApiCalls > 0;
+                        updateNextButtonState();
                     }
                     return null;
                 });
@@ -1344,6 +1379,11 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                     return;
                 }
 
+                // Track API call
+                window.pendingApiCalls++;
+                window.apiCallInProgress = true;
+                updateNextButtonState();
+
                 const sectionsBeforeScenario = window.chatSections && window.scenarioIndex > -1
                     ? window.chatSections.slice(0, window.scenarioIndex).join('')
                     : '';
@@ -1376,6 +1416,11 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                     }
                 } catch (error) {
                     console.error(`Error loading scenario "${scenarioText}":`, error);
+                } finally {
+                    // Update API call state
+                    window.pendingApiCalls = Math.max(0, window.pendingApiCalls - 1);
+                    window.apiCallInProgress = window.pendingApiCalls > 0;
+                    updateNextButtonState();
                 }
             }
 
@@ -1576,11 +1621,14 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                 loadingDiv.innerHTML = stepHtml + `
                     <div class="mt-2">
                         ${currentStep > 0 ? '<button class="btn btn-secondary btn-sm prev-step-btn">Previous</button>' : ''}
-                        <button class="btn btn-primary btn-sm next-step-btn">
-                            ${currentStep === sections.length - 1 ? 'Finish' : 'Next'}
+                        <button class="btn btn-primary btn-sm next-step-btn" ${(window.apiCallInProgress || window.pendingApiCalls > 0) ? 'disabled' : ''}>
+                            ${(window.apiCallInProgress || window.pendingApiCalls > 0) ? '<i class="bi bi-hourglass-split me-1"></i>Loading...' : (currentStep === sections.length - 1 ? 'Finish' : 'Next')}
                         </button>
                     </div>
                 `;
+                
+                // Update button state after rendering
+                updateNextButtonState();
 
                 // Add event listener for strategy selection if this is the Strategy Map step
                 if (currentStep === strategyMapIndex && strategyPoints.length > 0) {
@@ -1608,6 +1656,10 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                                     console.log('Using cached response for exact strategy');
                                     
                                     // Save selected strategy to database (so it persists on page reload)
+                                    window.pendingApiCalls++;
+                                    window.apiCallInProgress = true;
+                                    updateNextButtonState();
+                                    
                                     fetch('/dashboard/users-new-chat-update-strategy', {
                                         method: 'POST',
                                         headers: {
@@ -1623,7 +1675,18 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                                             strategy_map: window.strategyMapSection,
                                             is_user_selection: true // This is actual user selection - save to DB
                                         })
-                                    }).catch(err => console.error('Error saving strategy selection:', err));
+                                    })
+                                    .then(() => {
+                                        window.pendingApiCalls = Math.max(0, window.pendingApiCalls - 1);
+                                        window.apiCallInProgress = window.pendingApiCalls > 0;
+                                        updateNextButtonState();
+                                    })
+                                    .catch(err => {
+                                        console.error('Error saving strategy selection:', err);
+                                        window.pendingApiCalls = Math.max(0, window.pendingApiCalls - 1);
+                                        window.apiCallInProgress = window.pendingApiCalls > 0;
+                                        updateNextButtonState();
+                                    });
                                     
                                     // If we're viewing a section after strategy map, update it immediately
                                     if (currentStep > strategyMapIndex) {
