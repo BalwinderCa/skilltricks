@@ -1266,23 +1266,10 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                     }
                 }
                 
-                // If next step IS the scenario selection, check if scenarios are loaded
-                // But only if a strategy has been selected (scenarios depend on strategy)
+                // If next step IS the scenario selection, scenarios are already in the response
                 if (scenarioIndex !== -1 && nextStepIndex === scenarioIndex) {
-                    if (window.selectedStrategy) {
-                        // Check if scenarios are still loading or not loaded
-                        if (window.isLoadingScenarios || !window.scenariosLoaded) {
-                            return false;
-                        }
-                        // Check if at least one scenario is loaded (for display)
-                        if (!window.scenarioResponsesCache || Object.keys(window.scenarioResponsesCache).length === 0) {
-                            return false;
-                        }
-                    } else {
-                        // No strategy selected, but scenarios might be in first response
-                        // Allow navigation to see scenarios from first response
-                        return true;
-                    }
+                    // Scenarios are in the first response, no need to check loading
+                    return true;
                 }
                 
                 // If next step is after scenario selection, check if selected scenario data is ready
@@ -1337,73 +1324,8 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
             // Strategies are already in the first response - no need to pre-load them
             // We only load strategy-specific content when user selects a strategy
             
-            // Function to eager load all scenario responses
-            async function eagerLoadAllScenarios() {
-                if (!window.scenarioOptions || window.scenarioOptions.length === 0) return;
-                if (window.isLoadingScenarios || window.scenariosLoaded) return;
-                
-                window.isLoadingScenarios = true;
-                const sectionsBeforeScenario = window.chatSections && window.scenarioIndex > -1
-                    ? window.chatSections.slice(0, window.scenarioIndex).join('')
-                    : '';
-                
-                // Fetch all scenarios in parallel
-                const scenarioPromises = window.scenarioOptions.map(async (scenarioText) => {
-                    if (window.scenarioResponsesCache && window.scenarioResponsesCache[scenarioText]) {
-                        return { scenario: scenarioText, response: window.scenarioResponsesCache[scenarioText] };
-                    }
-                    
-                    // Track API call
-                    window.pendingApiCalls++;
-                    window.apiCallInProgress = true;
-                    updateNextButtonState();
-                    
-                    try {
-                        const scenarioRes = await fetch('/dashboard/users-new-chat-update-scenario', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                            },
-                            body: JSON.stringify({
-                                chat_id: window.chatChatId,
-                                user_id: window.chatUserId,
-                                selected_scenario: scenarioText,
-                                selected_strategy: window.selectedStrategy || null,
-                                original_question: window.chatQuestion,
-                                sections_before: sectionsBeforeScenario,
-                                scenario_section: window.scenarioSection,
-                                is_user_selection: false // Eager loading
-                            })
-                        });
-
-                        if (scenarioRes.ok) {
-                            const updateData = await scenarioRes.json();
-                            const response = updateData.updated_sections || '';
-                            if (!window.scenarioResponsesCache) {
-                                window.scenarioResponsesCache = {};
-                            }
-                            window.scenarioResponsesCache[scenarioText] = response;
-                            return { scenario: scenarioText, response: response };
-                        }
-                    } catch (error) {
-                        console.error(`Error eager loading scenario "${scenarioText}":`, error);
-                    } finally {
-                        window.pendingApiCalls = Math.max(0, window.pendingApiCalls - 1);
-                        window.apiCallInProgress = window.pendingApiCalls > 0;
-                        updateNextButtonState();
-                    }
-                    return null;
-                });
-
-                await Promise.all(scenarioPromises);
-                window.scenariosLoaded = true;
-                window.isLoadingScenarios = false;
-                console.log('All scenarios eager loaded');
-                
-                // Update Next button state after scenarios are loaded
-                updateNextButtonState();
-            }
+            // Scenarios are already in the first response - no need to pre-load them
+            // We only load scenario-specific content when user actually selects a scenario
             
             // Don't pre-load strategies - strategies are already in the first response
             // Only load strategy-specific content when user actually selects a strategy
