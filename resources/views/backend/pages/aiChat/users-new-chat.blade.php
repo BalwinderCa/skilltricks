@@ -1372,6 +1372,9 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                         renderStep();
                     }
                 }
+                
+                // Update Next button state after strategies are loaded
+                updateNextButtonState();
             }
             
             // Function to eager load all scenario responses
@@ -1437,6 +1440,9 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                 window.scenariosLoaded = true;
                 window.isLoadingScenarios = false;
                 console.log('All scenarios eager loaded');
+                
+                // Update Next button state after scenarios are loaded
+                updateNextButtonState();
             }
             
             // Don't start eager loading immediately - wait until user reaches the relevant page
@@ -1520,6 +1526,8 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                         if (currentStep > scenarioIndex && typeof renderStep === 'function') {
                             renderStep();
                         }
+                        // Update Next button state when scenario data is loaded
+                        updateNextButtonState();
                     }
                 } catch (error) {
                     console.error(`Error loading scenario "${scenarioText}":`, error);
