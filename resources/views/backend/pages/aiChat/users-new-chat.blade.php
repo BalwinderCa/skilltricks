@@ -2102,8 +2102,8 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                 loadingDiv.innerHTML = `
                     <div class="response-text">${marked.parse(step)}</div>
                     <div class="mt-2">
-                        ${currentStep > 0 ? '<button class="btn btn-secondary btn-sm prev-step-btn">Previous</button>' : ''}
-                        <button class="btn btn-primary btn-sm next-step-btn">
+                        ${currentStep > 0 ? '<button type="button" class="btn btn-secondary btn-sm prev-step-btn">Previous</button>' : ''}
+                        <button type="button" class="btn btn-primary btn-sm next-step-btn">
                             ${currentStep === steps.length - 1 ? 'Finish' : 'Next'}
                         </button>
                     </div>
