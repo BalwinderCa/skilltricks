@@ -1154,6 +1154,9 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                     cleaned = cleaned.replace(/\*\*([^*]+?)\*\*/g, '$1');
                     cleaned = cleaned.replace(/\*\*/g, '');
                     
+                    // Remove "Path 1:", "Path 2:", "Path 3:", "Path 4:" patterns (case insensitive)
+                    cleaned = cleaned.replace(/^Path\s+\d+[\.:]\s*/i, '');
+                    
                     // Remove any leading numbers or "Strategy 1:", "Strategy 2:" patterns
                     cleaned = cleaned.replace(/^(Strategy\s+)?\d+[\.:]\s*/i, '');
                     cleaned = cleaned.replace(/^\d+[\.:]\s*/, '');
