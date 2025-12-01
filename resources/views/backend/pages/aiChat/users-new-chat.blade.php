@@ -1797,6 +1797,12 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                         </button>
                     </div>
                 `;
+                
+                // Add export and brief buttons after final answer is rendered
+                setTimeout(() => {
+                    addExportButtonToRoleGoals();
+                    addAlignmentBriefButton();
+                }, 100);
             }
 
             renderStep();
@@ -1850,6 +1856,12 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                         </button>
                     </div>
                 `;
+                
+                // Add export and brief buttons after final steps are rendered
+                setTimeout(() => {
+                    addExportButtonToRoleGoals();
+                    addAlignmentBriefButton();
+                }, 100);
             }
 
             renderStep();
@@ -1881,6 +1893,12 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                         <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
                     </svg>
                 </button>`;
+            
+            // Add export and brief buttons after answer is rendered
+            setTimeout(() => {
+                addExportButtonToRoleGoals();
+                addAlignmentBriefButton();
+            }, 100);
         }
 
             // } catch (error) {
