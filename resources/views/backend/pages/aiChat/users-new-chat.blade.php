@@ -1735,8 +1735,8 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                                             console.log('Found 🔮 emoji in strategy content');
                                             
                                             // Find scenario section in strategy-specific content - use a better regex
-                                            // Match from 🔮 until we hit 👥, 📌, or ✅
-                                            const scenarioMatch = strategyContent.match(/🔮[\s\S]*?(?=👥|📌|✅|$)/);
+                                            // Match from 🔮 until we hit 👥, 📌, or ✅ (non-greedy)
+                                            const scenarioMatch = strategyContent.match(/🔮[\s\S]*?(?=\n\s*(?:👥|📌|✅)|$)/);
                                             if (scenarioMatch) {
                                                 const newScenarioSection = scenarioMatch[0];
                                                 console.log('Extracted scenario section:', newScenarioSection.substring(0, 300));
