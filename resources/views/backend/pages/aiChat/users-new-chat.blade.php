@@ -951,10 +951,24 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
     const user_id = userIdInput.value;
     const chat_id = chatIdInput.value;
 
-    // if (!question) {
-    //     alert("Please enter a question.");
-    //     return;
-    // }
+    // Validate question before proceeding
+    if (!question) {
+        alert("Please enter a question or goal.");
+        questionInput.focus();
+        return;
+    }
+    
+    // Validate chat_id
+    if (!chat_id) {
+        alert("Chat ID is missing. Please refresh the page and try again.");
+        return;
+    }
+    
+    // Validate user_id
+    if (!user_id) {
+        alert("User ID is missing. Please refresh the page and try again.");
+        return;
+    }
 
     const userCard = document.createElement('div');
     userCard.className = 'tt-template-carddads';
