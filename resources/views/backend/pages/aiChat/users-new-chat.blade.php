@@ -2083,13 +2083,22 @@ document.addEventListener('click', function (e) {
         })
         .then(response => response.json())
         .then(data => {
+            // Mark as no longer in progress
+            window.briefGenerationInProgress = false;
+            
             // Remove loading indicator
             if (loadingIndicator) loadingIndicator.remove();
             
             if (data.success && data.brief) {
                 // Check if brief already exists
                 const existingBrief = cardContainer.querySelector('.leadership-alignment-brief');
-                if (existingBrief) return; // Already displayed
+                if (existingBrief) {
+                    window.briefGenerationCompleted = true;
+                    return; // Already displayed
+                }
+                
+                // Mark as completed
+                window.briefGenerationCompleted = true;
                 
                 // Create brief section
                 const briefDiv = document.createElement('div');
@@ -2104,6 +2113,9 @@ document.addEventListener('click', function (e) {
                 // Insert after final outcome section, inside the same card container
                 finalOutcomeSection.insertAdjacentElement('afterend', briefDiv);
             } else {
+                // Mark as completed even on error to prevent retries
+                window.briefGenerationCompleted = true;
+                
                 // Show error message if generation fails
                 const errorDiv = document.createElement('div');
                 errorDiv.className = 'alert alert-warning mt-3';
@@ -2116,6 +2128,10 @@ document.addEventListener('click', function (e) {
             }
         })
         .catch(error => {
+            // Mark as no longer in progress and completed (to prevent retries)
+            window.briefGenerationInProgress = false;
+            window.briefGenerationCompleted = true;
+            
             // Remove loading indicator
             if (loadingIndicator) loadingIndicator.remove();
             
@@ -2171,46 +2187,77 @@ document.addEventListener('click', function (e) {
         }
     }
 
+    // Track if brief generation is in progress or completed
+    window.briefGenerationInProgress = false;
+    window.briefGenerationCompleted = false;
+
     // Automatically generate and display Leadership Alignment Brief after final outcome
     function autoGenerateAlignmentBrief() {
+        // Prevent multiple simultaneous calls
+        if (window.briefGenerationInProgress || window.briefGenerationCompleted) {
+            return;
+        }
+        
         const allResponseTexts = Array.from(document.querySelectorAll('.response-text'));
         const finalOutcomeSection = allResponseTexts.find(el => 
             el.textContent.includes('✅') && el.textContent.includes('Final Outcome')
         );
         
-        if (finalOutcomeSection) {
-            // Find the parent card container
-            const cardContainer = finalOutcomeSection.closest('.tt-template-carddads');
-            if (!cardContainer) return;
-            
-            // Check if brief already exists
-            const existingBrief = cardContainer.querySelector('.leadership-alignment-brief');
-            if (existingBrief) return; // Already generated
-            
-            // Show loading indicator
-            const loadingDiv = document.createElement('div');
-            loadingDiv.className = 'alert alert-info mt-3 leadership-alignment-brief-loading';
-            loadingDiv.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Generating Leadership Alignment Brief...';
-            finalOutcomeSection.insertAdjacentElement('afterend', loadingDiv);
-            
-            // Get required data
-            const chatId = document.getElementById('chat_id')?.value || window.chatChatId;
-            const selectedStrategy = window.selectedStrategy || '';
-            const selectedScenario = window.selectedScenario || '';
-            const originalQuestion = window.chatQuestion || '';
-            const fullResponse = Array.from(document.querySelectorAll('.response-text'))
-                .map(el => el.textContent || el.innerText)
-                .join('\n\n');
-            
-            // Generate brief automatically
-            window.generateLeadershipAlignmentBrief(chatId, selectedStrategy, selectedScenario, originalQuestion, fullResponse);
+        if (!finalOutcomeSection) {
+            return;
         }
+        
+        // Find the parent card container
+        const cardContainer = finalOutcomeSection.closest('.tt-template-carddads');
+        if (!cardContainer) return;
+        
+        // Check if brief already exists
+        const existingBrief = cardContainer.querySelector('.leadership-alignment-brief');
+        if (existingBrief) {
+            window.briefGenerationCompleted = true;
+            return; // Already generated
+        }
+        
+        // Check if loading indicator already exists
+        const existingLoading = cardContainer.querySelector('.leadership-alignment-brief-loading');
+        if (existingLoading) {
+            return; // Already generating
+        }
+        
+        // Mark as in progress
+        window.briefGenerationInProgress = true;
+        
+        // Show loading indicator
+        const loadingDiv = document.createElement('div');
+        loadingDiv.className = 'alert alert-info mt-3 leadership-alignment-brief-loading';
+        loadingDiv.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Generating Leadership Alignment Brief...';
+        finalOutcomeSection.insertAdjacentElement('afterend', loadingDiv);
+        
+        // Get required data
+        const chatId = document.getElementById('chat_id')?.value || window.chatChatId;
+        const selectedStrategy = window.selectedStrategy || '';
+        const selectedScenario = window.selectedScenario || '';
+        const originalQuestion = window.chatQuestion || '';
+        const fullResponse = Array.from(document.querySelectorAll('.response-text'))
+            .map(el => el.textContent || el.innerText)
+            .join('\n\n');
+        
+        // Generate brief automatically
+        window.generateLeadershipAlignmentBrief(chatId, selectedStrategy, selectedScenario, originalQuestion, fullResponse);
     }
 
-    // Monitor for new sections and add buttons
+    // Monitor for new sections and add buttons (with debouncing to prevent infinite loops)
+    let observerTimeout;
     const observer = new MutationObserver(function(mutations) {
-        addExportButtonToRoleGoals();
-        autoGenerateAlignmentBrief();
+        // Debounce to prevent rapid repeated calls
+        clearTimeout(observerTimeout);
+        observerTimeout = setTimeout(() => {
+            addExportButtonToRoleGoals();
+            // Only call autoGenerateAlignmentBrief if not already in progress or completed
+            if (!window.briefGenerationInProgress && !window.briefGenerationCompleted) {
+                autoGenerateAlignmentBrief();
+            }
+        }, 500); // 500ms debounce
     });
 
     observer.observe(document.getElementById('chat-messages'), {
@@ -2218,11 +2265,13 @@ document.addEventListener('click', function (e) {
         subtree: true
     });
 
-    // Initial check
+    // Initial check (with delay to ensure DOM is ready)
     setTimeout(() => {
         addExportButtonToRoleGoals();
-        autoGenerateAlignmentBrief();
-    }, 1000);
+        if (!window.briefGenerationInProgress && !window.briefGenerationCompleted) {
+            autoGenerateAlignmentBrief();
+        }
+    }, 2000); // Increased delay to 2 seconds
 </script>
 
 
