@@ -1720,14 +1720,60 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                                         }
                                         window.strategyResponsesCache[exactStrategy] = data.updated_sections || '';
                                         
+                                        // Extract scenarios from strategy-specific content
+                                        const strategyContent = data.updated_sections || '';
+                                        if (strategyContent && strategyContent.includes('🔮')) {
+                                            // Find scenario section in strategy-specific content
+                                            const scenarioMatch = strategyContent.match(/🔮[^👥📌✅]*/s);
+                                            if (scenarioMatch) {
+                                                const newScenarioSection = scenarioMatch[0];
+                                                const scenarioLines = newScenarioSection.split('\n');
+                                                let foundScenarioHeader = false;
+                                                const newScenarioItems = [];
+                                                
+                                                for (let i = 0; i < scenarioLines.length; i++) {
+                                                    const line = scenarioLines[i].trim();
+                                                    if (!line) continue;
+                                                    
+                                                    if (line.includes('🔮') || line.toLowerCase().includes('scenario')) {
+                                                        foundScenarioHeader = true;
+                                                        continue;
+                                                    }
+                                                    
+                                                    if (foundScenarioHeader && line && 
+                                                        (line.startsWith('-') || 
+                                                         line.startsWith('•') || 
+                                                         line.startsWith('*'))) {
+                                                        newScenarioItems.push(line);
+                                                    }
+                                                }
+                                                
+                                                const newScenarioOptions = newScenarioItems.map(line => {
+                                                    let cleaned = line.replace(/^[-•*]\s*/, '').trim();
+                                                    cleaned = cleaned.replace(/\*\*([^*]+)\*\*/g, '**$1**');
+                                                    return cleaned;
+                                                }).filter(item => item.length > 0);
+                                                
+                                                if (newScenarioOptions.length > 0) {
+                                                    // Update scenarios with strategy-specific ones
+                                                    window.scenarioSection = newScenarioSection;
+                                                    window.scenarioOptions = newScenarioOptions;
+                                                    
+                                                    // Reset selected scenario to first one if current selection is not in new options
+                                                    if (!newScenarioOptions.includes(window.selectedScenario)) {
+                                                        window.selectedScenario = newScenarioOptions[0];
+                                                    }
+                                                    
+                                                    console.log('Updated scenarios for strategy:', exactStrategy);
+                                                    console.log('New scenarios:', newScenarioOptions);
+                                                }
+                                            }
+                                        }
+                                        
                                         // If we're viewing a section after strategy map, update it immediately
                                         if (currentStep > strategyMapIndex) {
                                             renderStep();
                                         }
-                                        
-                                        // Don't eager load scenarios - they're already in the first response
-                                        // Scenarios will be loaded when user actually navigates to scenario page
-                                        // This prevents unnecessary API calls when switching strategies
                                         
                                         updateNextButtonState();
                                     })
