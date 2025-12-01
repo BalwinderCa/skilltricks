@@ -1512,13 +1512,15 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
 
                     // Strategies should already be loaded (started 1 step behind)
                     // Just show current status
-                } else if (currentStep === scenarioIndex && scenarioOptions.length > 0) {
+                } else if (currentStep === scenarioIndex && window.scenarioOptions && window.scenarioOptions.length > 0) {
+                    // Use window.scenarioOptions which gets updated when strategy is selected
+                    const currentScenarioOptions = window.scenarioOptions;
                     const scenarioLines = (window.scenarioSection || '').split('\n');
                     const scenarioHeaderLine = scenarioLines.find(line => line.includes('🔮') || line.toLowerCase().includes('scenario'));
                     const scenarioGroupName = `scenario-${Date.now()}`;
-                    const activeScenario = (window.selectedScenario && scenarioOptions.includes(window.selectedScenario))
+                    const activeScenario = (window.selectedScenario && currentScenarioOptions.includes(window.selectedScenario))
                         ? window.selectedScenario
-                        : (scenarioOptions[0] || null);
+                        : (currentScenarioOptions[0] || null);
 
                     if (!window.selectedScenario && activeScenario) {
                         window.selectedScenario = activeScenario;
@@ -1532,7 +1534,7 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
 
                     stepHtml += `<div class="scenario-options mt-3">`;
 
-                    scenarioOptions.forEach((scenarioText, index) => {
+                    currentScenarioOptions.forEach((scenarioText, index) => {
                         const scenarioId = `${scenarioGroupName}-${index}`;
                         const isSelected = window.selectedScenario
                             ? window.selectedScenario === scenarioText
@@ -1848,7 +1850,9 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                     return html;
                 }
 
-                if (sectionIndex === scenarioIndex && scenarioOptions.length > 0) {
+                if (sectionIndex === scenarioIndex && window.scenarioOptions && window.scenarioOptions.length > 0) {
+                    // Use window.scenarioOptions which gets updated when strategy is selected
+                    const currentScenarioOptions = window.scenarioOptions;
                     const scenarioLines = (window.scenarioSection || '').split('\n');
                     const headerLine = scenarioLines.find(line => line.includes('🔮') || line.toLowerCase().includes('scenario'));
                     let html = `<div class="response-text">`;
@@ -1857,7 +1861,7 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                         html += marked.parse(cleanHeader);
                     }
                     html += `<div class="scenario-options mt-3">`;
-                    scenarioOptions.forEach((text, idx) => {
+                    currentScenarioOptions.forEach((text, idx) => {
                         const colonIndex = text.indexOf(':');
                         let displayPoint = text;
                         if (colonIndex > 0) {
