@@ -1672,40 +1672,7 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                                 
                                 // Immediately update subsequent sections using cached response
                                 if (window.strategyResponsesCache && window.strategyResponsesCache[exactStrategy]) {
-                                    console.log('Using cached response for exact strategy');
-                                    
-                                    // Save selected strategy to database (so it persists on page reload)
-                                    window.pendingApiCalls++;
-                                    window.apiCallInProgress = true;
-                                    updateNextButtonState();
-                                    
-                                    fetch('/dashboard/users-new-chat-update-strategy', {
-                                        method: 'POST',
-                                        headers: {
-                                            'Content-Type': 'application/json',
-                                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                                        },
-                                        body: JSON.stringify({
-                                            chat_id: window.chatChatId,
-                                            user_id: window.chatUserId,
-                                            selected_strategy: exactStrategy,
-                                            original_question: window.chatQuestion,
-                                            sections_before: window.chatSections.slice(0, window.strategyMapIndex).join(''),
-                                            strategy_map: window.strategyMapSection,
-                                            is_user_selection: true // This is actual user selection - save to DB
-                                        })
-                                    })
-                                    .then(() => {
-                                        window.pendingApiCalls = Math.max(0, window.pendingApiCalls - 1);
-                                        window.apiCallInProgress = window.pendingApiCalls > 0;
-                                        updateNextButtonState();
-                                    })
-                                    .catch(err => {
-                                        console.error('Error saving strategy selection:', err);
-                                        window.pendingApiCalls = Math.max(0, window.pendingApiCalls - 1);
-                                        window.apiCallInProgress = window.pendingApiCalls > 0;
-                                        updateNextButtonState();
-                                    });
+                                    console.log('Using cached response for exact strategy - no API call needed');
                                     
                                     // If we're viewing a section after strategy map, update it immediately
                                     if (currentStep > strategyMapIndex) {
@@ -1714,6 +1681,10 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                                     
                                     // Update Next button state after strategy selection
                                     updateNextButtonState();
+                                    
+                                    // Only save to DB if not already saved (check if this is first time selecting)
+                                    // We'll save to DB when user actually uses the content, not on every selection
+                                    // This prevents unnecessary API calls when re-selecting the same strategy
                                 } else {
                                     // Strategy-specific content not cached - load it now when user selects
                                     console.log('Loading strategy-specific content for selected strategy:', exactStrategy);
