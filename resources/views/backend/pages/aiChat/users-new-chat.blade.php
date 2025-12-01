@@ -1641,15 +1641,22 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                     // Scenarios should already be loaded (started 1 step behind)
                     // Just show current status
                     
-                    // Also load the active scenario if not cached
-                    if (activeScenario && !window.scenarioResponsesCache[activeScenario]) {
-                        fetchScenarioResponse(activeScenario, false);
+                    // Also load the active scenario if not cached (using strategy-specific key)
+                    if (activeScenario) {
+                        const strategyKey = window.selectedStrategy ? window.selectedStrategy.substring(0, 50) : 'no-strategy';
+                        const activeScenarioCacheKey = `${strategyKey}||${activeScenario}`;
+                        if (!window.scenarioResponsesCache || !window.scenarioResponsesCache[activeScenarioCacheKey]) {
+                            fetchScenarioResponse(activeScenario, false);
+                        }
                     }
                 } else {
                     // For other sections, check if we need to use updated content
                     const currentSelectedScenario = window.selectedScenario;
-                    const scenarioCache = (scenarioIndex !== -1 && window.scenarioResponsesCache && currentSelectedScenario)
-                        ? window.scenarioResponsesCache[currentSelectedScenario]
+                    // Use strategy-specific cache key
+                    const strategyKey = window.selectedStrategy ? window.selectedStrategy.substring(0, 50) : 'no-strategy';
+                    const scenarioCacheKey = currentSelectedScenario ? `${strategyKey}||${currentSelectedScenario}` : null;
+                    const scenarioCache = (scenarioIndex !== -1 && window.scenarioResponsesCache && scenarioCacheKey)
+                        ? window.scenarioResponsesCache[scenarioCacheKey]
                         : null;
                     const currentSelectedStrategy = window.selectedStrategy || selectedStrategy;
                     const strategyCache = (window.strategyResponsesCache && currentSelectedStrategy)
