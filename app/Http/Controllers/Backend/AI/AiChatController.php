@@ -1659,10 +1659,10 @@ public function users_new_chat_ask(Request $request)
         ]));
 
         // Return final formatted response
-        $responseData = [
+        return response()->json([
             'question' => $question,
             'answer' => $responseContent,
-            'chat_id' => $chatId, // Include chat_id in response
+            'chat_id' => $chatId, // Include chat_id in case it was created
             'previousContext' => $previousContext ? (object)[
                 'status1' => $previousContext->status1 ?? null,
                 'status2' => $previousContext->status2 ?? null,
