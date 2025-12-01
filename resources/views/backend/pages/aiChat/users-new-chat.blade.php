@@ -1238,8 +1238,6 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
             const strategyResponsesCache = window.strategyResponsesCache;
             
             let currentStep = 0;
-            let isLoadingStrategies = false;
-            let strategiesLoaded = false;
             
             // Track API call states for Next button control
             window.apiCallInProgress = false;
