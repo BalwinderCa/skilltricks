@@ -1514,20 +1514,33 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                     // Just show current status
                 } else if (currentStep === scenarioIndex && window.scenarioOptions && window.scenarioOptions.length > 0) {
                     // Use window.scenarioOptions which gets updated when strategy is selected
-                    const currentScenarioOptions = window.scenarioOptions;
-                    console.log('🔍 Rendering scenario page with options:', currentScenarioOptions);
+                    // CRITICAL: Always use the latest window.scenarioOptions (updated when strategy changes)
+                    const currentScenarioOptions = window.scenarioOptions || [];
+                    console.log('🔍 ===== RENDERING SCENARIO PAGE =====');
+                    console.log('🔍 Current step:', currentStep);
+                    console.log('🔍 Scenario index:', scenarioIndex);
+                    console.log('🔍 window.scenarioOptions:', currentScenarioOptions);
+                    console.log('🔍 window.scenarioOptions length:', currentScenarioOptions.length);
                     console.log('🔍 Current selectedScenario:', window.selectedScenario);
+                    console.log('🔍 Selected strategy:', window.selectedStrategy);
+                    
+                    if (currentScenarioOptions.length === 0) {
+                        console.error('❌ ERROR: window.scenarioOptions is empty!');
+                    }
                     
                     const scenarioLines = (window.scenarioSection || '').split('\n');
                     const scenarioHeaderLine = scenarioLines.find(line => line.includes('🔮') || line.toLowerCase().includes('scenario'));
                     const scenarioGroupName = `scenario-${Date.now()}`;
                     
-                    // Find matching scenario (fuzzy match in case of slight differences)
-                    let activeScenario = null;
+                    // Always use first scenario if selectedScenario doesn't match (scenarios changed with strategy)
+                    let activeScenario = currentScenarioOptions[0] || null;
+                    
+                    // Only try to match if we have a selectedScenario and it exists in current options
                     if (window.selectedScenario && currentScenarioOptions.length > 0) {
                         // Try exact match first
                         if (currentScenarioOptions.includes(window.selectedScenario)) {
                             activeScenario = window.selectedScenario;
+                            console.log('🔍 Exact match found for selectedScenario');
                         } else {
                             // Try fuzzy match - check if any scenario starts with selected scenario or vice versa
                             const match = currentScenarioOptions.find(opt => 
@@ -1535,13 +1548,22 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                                 opt.startsWith(window.selectedScenario.substring(0, 30)) ||
                                 window.selectedScenario.startsWith(opt.substring(0, 30))
                             );
-                            activeScenario = match || currentScenarioOptions[0];
+                            if (match) {
+                                activeScenario = match;
+                                console.log('🔍 Fuzzy match found for selectedScenario');
+                            } else {
+                                console.log('🔍 No match found, using first scenario:', activeScenario);
+                            }
                         }
-                    } else {
-                        activeScenario = currentScenarioOptions[0] || null;
+                    }
+                    
+                    // Update window.selectedScenario to match activeScenario
+                    if (activeScenario) {
+                        window.selectedScenario = activeScenario;
                     }
                     
                     console.log('🔍 Active scenario selected:', activeScenario);
+                    console.log('🔍 ===== END SCENARIO PAGE RENDER =====');
 
                     if (!window.selectedScenario && activeScenario) {
                         window.selectedScenario = activeScenario;
