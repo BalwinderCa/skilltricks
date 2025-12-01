@@ -247,7 +247,7 @@
                 return;
             }
             if($('#pdfFile')[0].files.length === 0) {
-                notifyMe("error",'Please upload pdf');
+                notifyMe("error",'Please upload a document');
                 return;
             }
             formData.append('prompt', promptValue);
@@ -468,11 +468,11 @@
 
             // Check if a file is selected
             if (file) {
-                // Display the selected PDF file's name along with an icon
-                fileNameDisplay.innerHTML = 'Selected PDF: ' + file.name + ' <img src="' + pdfSvg + '" loading="lazy" alt="Icon Not Found." />';
+                // Display the selected document file's name along with an icon
+                fileNameDisplay.innerHTML = 'Selected Document: ' + file.name + ' <img src="' + pdfSvg + '" loading="lazy" alt="Icon Not Found." />';
             } else {
-                // Display a message if no PDF is selected
-                fileNameDisplay.innerHTML = 'No PDF selected';
+                // Display a message if no document is selected
+                fileNameDisplay.innerHTML = 'No document selected';
             }
         });
 

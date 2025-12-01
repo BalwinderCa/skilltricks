@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Backend;
 use App\Http\Controllers\Controller;
 use App\Models\Document;
 use App\Http\Services\LlamaParseService;
+use App\Http\Services\DocumentParserService;
 use Illuminate\Http\Request;
 use Auth;
 
@@ -23,7 +24,7 @@ class DocumentsController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'document' => 'required|mimes:pdf|max:10240', // 10MB max
+            'document' => 'required|mimes:pdf,doc,docx,xlsx,xls,pptx,ppt|max:10240', // 10MB max - supports PDF, DOC, DOCX, XLSX, XLS, PPTX, PPT
         ]);
 
         try {
@@ -40,6 +41,10 @@ class DocumentsController extends Controller
                 $fileSize = $file->getSize();
                 $originalName = $file->getClientOriginalName();
                 
+                // Detect file type from extension
+                $extension = strtolower($file->getClientOriginalExtension());
+                $fileType = $this->normalizeFileType($extension);
+                
                 $document = new Document;
                 $document->user_id = Auth::user()->id;
                 $document->name = $originalName;
@@ -55,38 +60,26 @@ class DocumentsController extends Controller
                 // Remove leading slash if present
                 $document->file_path = ltrim($document->file_path, '/');
                 
-                $document->file_type = 'pdf';
+                $document->file_type = $fileType;
                 $document->file_size = $fileSize;
                 
-                // Parse PDF using LlamaParse API or local parser as fallback
+                // Parse document using DocumentParserService
                 try {
                     $llamaParseApiKey = config('services.llamaparse.api_key');
+                    $parser = new DocumentParserService($llamaParseApiKey);
                     
-                    if ($llamaParseApiKey) {
-                        // Use LlamaParse API
-                        $document->parse_status = 'processing';
-                        $document->save(); // Save first so user sees status
-                        
-                        $llamaParse = new LlamaParseService($llamaParseApiKey);
-                        $parsedText = $llamaParse->parsePdf($uploadedPath, 'text');
-                        
-                        // Clean and limit parsed text
-                        $parsedText = mb_convert_encoding($parsedText, 'UTF-8', mb_detect_encoding($parsedText));
-                        $document->parsed_text = mb_substr($parsedText, 0, 50000);
-                        $document->parse_status = 'completed';
-                    } else {
-                        // Fallback to local parser if API key not configured
-                        $pdfParser = initPdfParser();
-                        $pdf = $pdfParser->parseFile($uploadedPath);
-                        $parsedText = $pdf->getText();
-                        
-                        $parsedText = mb_convert_encoding($parsedText, 'UTF-8', mb_detect_encoding($parsedText));
-                        $document->parsed_text = mb_substr($parsedText, 0, 50000);
-                        $document->parse_status = 'completed';
-                    }
+                    $document->parse_status = 'processing';
+                    $document->save(); // Save first so user sees status
+                    
+                    $parsedText = $parser->parseDocument($uploadedPath, $extension);
+                    
+                    // Clean and limit parsed text
+                    $parsedText = mb_convert_encoding($parsedText, 'UTF-8', mb_detect_encoding($parsedText));
+                    $document->parsed_text = mb_substr($parsedText, 0, 50000);
+                    $document->parse_status = 'completed';
                 } catch (\Exception $e) {
                     // If parsing fails, log but don't fail the upload
-                    \Log::warning('PDF parsing failed for document: ' . $e->getMessage());
+                    \Log::warning('Document parsing failed for ' . $fileType . ': ' . $e->getMessage());
                     $document->parsed_text = null;
                     $document->parse_status = 'failed';
                 }
@@ -107,6 +100,26 @@ class DocumentsController extends Controller
             flash(localize('Failed to upload document: ') . $th->getMessage())->error();
             return back();
         }
+    }
+
+    /**
+     * Normalize file extension to a standard file type
+     */
+    private function normalizeFileType(string $extension): string
+    {
+        $extension = strtolower($extension);
+        
+        $typeMap = [
+            'pdf' => 'pdf',
+            'doc' => 'doc',
+            'docx' => 'doc',
+            'xls' => 'xlsx',
+            'xlsx' => 'xlsx',
+            'ppt' => 'ppt',
+            'pptx' => 'ppt',
+        ];
+        
+        return $typeMap[$extension] ?? $extension;
     }
 
     # delete document
@@ -147,35 +160,25 @@ class DocumentsController extends Controller
             $filePath = public_path($document->file_path);
             
             if (!file_exists($filePath)) {
-                flash(localize('PDF file not found'))->error();
+                flash(localize('Document file not found'))->error();
                 return back();
             }
 
-            $llamaParseApiKey = config('services.llamaparse.api_key');
+            // Get file extension from the stored file
+            $extension = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
             
-            if ($llamaParseApiKey) {
-                // Use LlamaParse API
-                $document->parse_status = 'processing';
-                $document->save();
-                
-                $llamaParse = new LlamaParseService($llamaParseApiKey);
-                $parsedText = $llamaParse->parsePdf($filePath, 'text');
-                
-                // Clean and limit parsed text
-                $parsedText = mb_convert_encoding($parsedText, 'UTF-8', mb_detect_encoding($parsedText));
-                $document->parsed_text = mb_substr($parsedText, 0, 50000);
-                $document->parse_status = 'completed';
-            } else {
-                // Fallback to local parser if API key not configured
-                $pdfParser = initPdfParser();
-                $pdf = $pdfParser->parseFile($filePath);
-                $parsedText = $pdf->getText();
-                
-                // Clean and limit parsed text
-                $parsedText = mb_convert_encoding($parsedText, 'UTF-8', mb_detect_encoding($parsedText));
-                $document->parsed_text = mb_substr($parsedText, 0, 50000);
-                $document->parse_status = 'completed';
-            }
+            $llamaParseApiKey = config('services.llamaparse.api_key');
+            $parser = new DocumentParserService($llamaParseApiKey);
+            
+            $document->parse_status = 'processing';
+            $document->save();
+            
+            $parsedText = $parser->parseDocument($filePath, $extension);
+            
+            // Clean and limit parsed text
+            $parsedText = mb_convert_encoding($parsedText, 'UTF-8', mb_detect_encoding($parsedText));
+            $document->parsed_text = mb_substr($parsedText, 0, 50000);
+            $document->parse_status = 'completed';
             
             $document->save();
 

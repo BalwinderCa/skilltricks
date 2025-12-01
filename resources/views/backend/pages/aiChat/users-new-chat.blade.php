@@ -445,6 +445,62 @@
         border-color: #a07cf0;
         background-color: #1e1b2a;
     }
+
+    /* Add Context Form Styles */
+    .add-context-form {
+        margin-top: 20px;
+        padding: 20px;
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        border: 1px solid #e0e0e0;
+    }
+
+    .add-context-form .form-group {
+        margin-bottom: 15px;
+    }
+
+    .add-context-form label {
+        font-weight: 500;
+        margin-bottom: 5px;
+        display: block;
+        color: #333;
+    }
+
+    .add-context-form input,
+    .add-context-form textarea {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+    }
+
+    .add-context-form textarea {
+        min-height: 100px;
+        resize: vertical;
+    }
+
+    .add-context-form .form-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 15px;
+    }
+
+    [data-bs-theme="dark"] .add-context-form {
+        background-color: #1a1a1a;
+        border-color: #454545;
+    }
+
+    [data-bs-theme="dark"] .add-context-form label {
+        color: #fff;
+    }
+
+    [data-bs-theme="dark"] .add-context-form input,
+    [data-bs-theme="dark"] .add-context-form textarea {
+        background-color: #242424;
+        border-color: #454545;
+        color: #fff;
+    }
 </style>
 
 
@@ -633,6 +689,34 @@
 
     </section>
 
+    <!-- Add Context Modal -->
+    <div class="modal fade" id="addContextModal" tabindex="-1" aria-labelledby="addContextModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addContextModalLabel">
+                        <i class="bi bi-info-circle me-2"></i>Add Additional Context
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="contextForm">
+                        <div class="mb-3">
+                            <label for="context-field" class="form-label" id="context-field-label">Describe the situation behind this goal (1–2 sentences)</label>
+                            <textarea class="form-control" id="context-field" rows="5" placeholder="Enter 1-2 sentences describing the situation behind your goal..."></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="submitContextBtn">
+                        <i class="bi bi-check-circle me-1"></i> Submit & Send to ChatGPT
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 @endsection
 
 
@@ -749,6 +833,104 @@
 
 
  <script>
+// Global variables to store current context
+let currentUserCard = null;
+let currentSendCallback = null;
+let currentChatId = null;
+let currentUserId = null;
+let currentQuestion = null;
+let currentUser_id = null;
+let currentChat_id = null;
+let currentContextOptionsDiv = null;
+
+// Function to show add context modal
+function showAddContextModal(userCard, chatId, userId, sendToChatGPTCallback) {
+    currentUserCard = userCard;
+    currentChatId = chatId;
+    currentUserId = userId;
+    currentSendCallback = sendToChatGPTCallback;
+    
+    // Clear form
+    document.getElementById('context-field').value = '';
+    
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('addContextModal'));
+    modal.show();
+}
+
+// Function to submit context from modal
+async function submitContextFromModal() {
+    const contextField = document.getElementById('context-field').value.trim();
+
+    // Check if field has content
+    if (!contextField) {
+        alert('Please enter some context before submitting.');
+        return;
+    }
+
+    // Show loading state
+    const submitBtn = document.getElementById('submitContextBtn');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> Processing...';
+
+    // Prepare context data
+    const contextData = {
+        additional_details: contextField
+    };
+
+    // Save context to database (optional, for future use)
+    try {
+        const response = await fetch('/dashboard/users-new-chat-add-context', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({
+                chat_id: currentChatId,
+                user_id: currentUserId,
+                field1: '',
+                field2: '',
+                field3: '',
+                additional_details: contextField
+            })
+        });
+        // Don't wait for response, just log it
+        response.json().then(data => {
+            if (data.success) {
+                console.log('Context saved to database');
+            }
+        }).catch(err => console.error('Error saving context:', err));
+    } catch (error) {
+        console.error('Error saving context to database:', error);
+        // Continue anyway, context will still be sent to ChatGPT
+    }
+
+    // Hide modal
+    const modal = bootstrap.Modal.getInstance(document.getElementById('addContextModal'));
+    modal.hide();
+
+    // Reset button
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = originalText;
+
+    // Call the sendToChatGPT callback with context
+    if (currentSendCallback) {
+        currentSendCallback(contextData);
+    }
+}
+
+// Event listener for modal submit button
+document.addEventListener('DOMContentLoaded', function() {
+    const submitContextBtn = document.getElementById('submitContextBtn');
+    if (submitContextBtn) {
+        submitContextBtn.addEventListener('click', function() {
+            submitContextFromModal();
+        });
+    }
+});
+
 document.getElementById('ask-form').addEventListener('submit', async function (e) {
     e.preventDefault();
 
@@ -771,45 +953,94 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
     userCard.innerHTML = `<div class="user-message">${question}</div>`;
     chatContainer.appendChild(userCard);
 
-    const loadingDiv = document.createElement('div');
-    loadingDiv.className = 'bot-message';
-    loadingDiv.innerHTML = `
-        <div class="text-center text-info" style="padding: 20px;">
-            <img class="custom-loder" width="150" height="150" src="${loaderImageUrl}" alt="Loading..." style="display: block; margin: 0 auto 10px auto; max-width: 150px; height: auto;">
-            <div class="mt-2">please wait...</div>
-        </div>`;
-    userCard.appendChild(loadingDiv);
+    // Show context options buttons instead of immediately sending
+    const contextOptionsDiv = document.createElement('div');
+    contextOptionsDiv.className = 'context-options-container mt-3';
+    contextOptionsDiv.innerHTML = `
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-primary btn-sm add-context-btn">
+                <i class="bi bi-plus-circle me-1"></i> Add More Context
+            </button>
+            <button type="button" class="btn btn-primary btn-sm skip-context-btn">
+                <i class="bi bi-arrow-right me-1"></i> Continue to ChatGPT
+            </button>
+        </div>
+    `;
+    userCard.appendChild(contextOptionsDiv);
 
-    // try {
-        const res = await fetch('/dashboard/users-new-chat-ask', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': '{{ csrf_token() }}'
-            },
-            body: JSON.stringify({ question, user_id, chat_id })
-        });
+    // Store question and IDs for later use
+    userCard.dataset.question = question;
+    userCard.dataset.userId = user_id;
+    userCard.dataset.chatId = chat_id;
 
-        if (!res.ok) {
-            const errorText = await res.text();
-            loadingDiv.innerHTML = `<div class="alert alert-danger">Error: ${res.status} ${res.statusText}. ${errorText.substring(0, 200)}</div>`;
-            return;
+    // Store values globally for sendToChatGPT function
+    currentQuestion = question;
+    currentUser_id = user_id;
+    currentChat_id = chat_id;
+    currentUserCard = userCard;
+    currentContextOptionsDiv = contextOptionsDiv;
+
+    // Function to actually send the request to ChatGPT
+    window.sendToChatGPT = async function(contextData = null) {
+        // Hide context options
+        if (currentContextOptionsDiv) {
+            currentContextOptionsDiv.style.display = 'none';
+        }
+        
+        // Show loading
+        const loadingDiv = document.createElement('div');
+        loadingDiv.className = 'bot-message';
+        loadingDiv.innerHTML = `
+            <div class="text-center text-info" style="padding: 20px;">
+                <img class="custom-loder" width="150" height="150" src="${loaderImageUrl}" alt="Loading..." style="display: block; margin: 0 auto 10px auto; max-width: 150px; height: auto;">
+                <div class="mt-2">please wait...</div>
+            </div>`;
+        if (currentUserCard) {
+            currentUserCard.appendChild(loadingDiv);
         }
 
-        const data = await res.json();
-        const fullAnswer = data.answer || 'No answer returned.';
-        const previousContext = data.previousContext || {};
-        const chectdata = data.chectdata || {};
+        // Prepare request body
+        const requestBody = {
+            question: currentQuestion,
+            user_id: currentUser_id,
+            chat_id: currentChat_id
+        };
 
-        // Check if this is the first message (status1 is 0) or status2 is 0
-        const isFirstMessage = (previousContext && (previousContext.status1 === 0 || previousContext.status1 === '0')) || 
-                               (chectdata && (chectdata.status1 === 0 || chectdata.status1 === '0'));
-        const isSecondMessage = (previousContext && (previousContext.status2 === 0 || previousContext.status2 === '0')) || 
-                                (chectdata && (chectdata.status2 === 0 || chectdata.status2 === '0'));
+        // Add context if provided
+        if (contextData) {
+            requestBody.additional_context = contextData;
+        }
 
-        if (isFirstMessage) {
+        // try {
+            const res = await fetch('/dashboard/users-new-chat-ask', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                },
+                body: JSON.stringify(requestBody)
+            });
+
+            if (!res.ok) {
+                const errorText = await res.text();
+                loadingDiv.innerHTML = `<div class="alert alert-danger">Error: ${res.status} ${res.statusText}. ${errorText.substring(0, 200)}</div>`;
+                return;
+            }
+
+            const data = await res.json();
+            const fullAnswer = data.answer || 'No answer returned.';
+            const previousContext = data.previousContext || {};
+            const chectdata = data.chectdata || {};
+
+            // Check if this is the first message (status1 is 0) or status2 is 0
+            const isFirstMessage = (previousContext && (previousContext.status1 === 0 || previousContext.status1 === '0')) || 
+                                   (chectdata && (chectdata.status1 === 0 || chectdata.status1 === '0'));
+            const isSecondMessage = (previousContext && (previousContext.status2 === 0 || previousContext.status2 === '0')) || 
+                                    (chectdata && (chectdata.status2 === 0 || chectdata.status2 === '0'));
+
+            if (isFirstMessage) {
             // Parse the full response into sections
-            const sections = fullAnswer.split(/(?=🧩|📁|📊|📈|🗺️|🔮|👥|📌|✅)/);
+            const sections = fullAnswer.split(/(?=🧩|📁|📊|📈|🗺️|🔮|👥|📌|✅|📋)/);
             if (!sections.length) {
                 loadingDiv.innerHTML = `<div class="alert alert-warning">No sections found in the response.</div>`;
                 return;
@@ -1060,6 +1291,7 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                 eagerLoadAllStrategies();
             }
 
+
             function getUpdatedSectionParts(responseText, emojiOrder = ['🔮', '👥', '📌', '✅']) {
                 if (!responseText) {
                     return [];
@@ -1186,7 +1418,6 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                                 displayPoint = `<strong>${firstPart}</strong> ${rest}`;
                             }
                         }
-                        
                         // For the value attribute, use plain text (point is already clean)
                         const escapedPoint = point.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
                         
@@ -1446,12 +1677,134 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                 }
             }
 
+            function buildFinalSectionHtml(sectionIndex) {
+                const step = sections[sectionIndex] || '';
+
+                if (sectionIndex === strategyMapIndex && strategyPoints.length > 0) {
+                    const strategyLines = (strategyMapSection || '').split('\n');
+                    const headerLine = strategyLines.find(line => line.includes('🗺️') || line.includes('Strategy Map'));
+                    let html = `<div class="response-text">`;
+                    if (headerLine) {
+                        const cleanHeader = headerLine.replace(/\*\*/g, '').trim();
+                        html += marked.parse(cleanHeader);
+                    }
+                    html += `<div class="strategy-options mt-3">`;
+                    strategyPoints.forEach(point => {
+                        const colonIndex = point.indexOf(':');
+                        let displayPoint = point;
+                        if (colonIndex > 0) {
+                            const title = point.substring(0, colonIndex + 1);
+                            const description = point.substring(colonIndex + 1);
+                            displayPoint = `<strong>${title}</strong>${description}`;
+                        } else {
+                            const words = point.split(' ');
+                            const head = words.slice(0, Math.min(3, words.length)).join(' ');
+                            const rest = words.slice(Math.min(3, words.length)).join(' ');
+                            displayPoint = `<strong>${head}</strong> ${rest}`;
+                        }
+                        const isSelected = window.selectedStrategy === point || (window.selectedStrategy && window.selectedStrategy.includes(point.substring(0, 30)));
+                        html += `
+                            <div class="strategy-option mb-2 ${isSelected ? 'strategy-loaded' : ''}">
+                                <div class="strategy-label">
+                                    ${displayPoint}
+                                    ${isSelected ? '<span class="badge bg-success ms-auto">Selected</span>' : ''}
+                                </div>
+                            </div>
+                        `;
+                    });
+                    html += `</div></div>`;
+                    return html;
+                }
+
+                if (sectionIndex === scenarioIndex && scenarioOptions.length > 0) {
+                    const scenarioLines = (window.scenarioSection || '').split('\n');
+                    const headerLine = scenarioLines.find(line => line.includes('🔮') || line.toLowerCase().includes('scenario'));
+                    let html = `<div class="response-text">`;
+                    if (headerLine) {
+                        const cleanHeader = headerLine.replace(/\*\*/g, '').trim();
+                        html += marked.parse(cleanHeader);
+                    }
+                    html += `<div class="scenario-options mt-3">`;
+                    scenarioOptions.forEach((text, idx) => {
+                        const colonIndex = text.indexOf(':');
+                        let displayPoint = text;
+                        if (colonIndex > 0) {
+                            const title = text.substring(0, colonIndex + 1);
+                            const description = text.substring(colonIndex + 1);
+                            displayPoint = `<strong>${title}</strong>${description}`;
+                        } else {
+                            const words = text.split(' ');
+                            const head = words.slice(0, Math.min(3, words.length)).join(' ');
+                            const rest = words.slice(Math.min(3, words.length)).join(' ');
+                            displayPoint = `<strong>${head}</strong> ${rest}`;
+                        }
+                        const isSelected = window.selectedScenario ? window.selectedScenario === text : idx === 0;
+                        html += `
+                            <div class="scenario-option ${isSelected ? 'scenario-selected' : ''}">
+                                <span class="scenario-label">${displayPoint}</span>
+                                ${isSelected ? '<span class="badge bg-primary ms-auto">Selected</span>' : ''}
+                            </div>
+                        `;
+                    });
+                    html += `</div></div>`;
+                    return html;
+                }
+
+                const currentSelectedScenario = window.selectedScenario;
+                const scenarioCache = (scenarioIndex !== -1 && window.scenarioResponsesCache && currentSelectedScenario)
+                    ? window.scenarioResponsesCache[currentSelectedScenario]
+                    : null;
+                const currentSelectedStrategy = window.selectedStrategy || selectedStrategy;
+                const strategyCache = (window.strategyResponsesCache && currentSelectedStrategy)
+                    ? window.strategyResponsesCache[currentSelectedStrategy]
+                    : null;
+
+                if (scenarioIndex !== -1 && sectionIndex > scenarioIndex && scenarioCache) {
+                    const updatedIndex = sectionIndex - scenarioIndex - 1;
+                    const updatedParts = getUpdatedSectionParts(scenarioCache, ['👥', '📌', '✅']);
+                    if (updatedIndex >= 0 && updatedIndex < updatedParts.length) {
+                        const partToShow = updatedParts[updatedIndex];
+                        if (partToShow && partToShow.trim() && partToShow.length > 10) {
+                            return `<div class="response-text">${marked.parse(partToShow)}</div>`;
+                        }
+                    }
+                }
+
+                if (sectionIndex > strategyMapIndex && strategyCache) {
+                    const updatedIndex = sectionIndex - strategyMapIndex - 1;
+                    const updatedParts = getUpdatedSectionParts(strategyCache, ['🔮', '👥', '📌', '✅']);
+                    if (updatedIndex >= 0 && updatedIndex < updatedParts.length) {
+                        const partToShow = updatedParts[updatedIndex];
+                        if (partToShow && partToShow.trim() && partToShow.length > 10) {
+                            return `<div class="response-text">${marked.parse(partToShow)}</div>`;
+                        }
+                    }
+                }
+
+                return `<div class="response-text">${marked.parse(step)}</div>`;
+            }
+
+            function renderFinalAnswer() {
+                let combined = '';
+                sections.forEach((_, idx) => {
+                    combined += `<div class="response-section">${buildFinalSectionHtml(idx)}</div>`;
+                });
+                loadingDiv.innerHTML = `
+                    ${combined}
+                    <div class="mt-2">
+                        <button type="button" class="btn btn-sm text-success copy-btn" data-bs-toggle="tooltip" title="Copy Answer">
+                            <i class="bi bi-copy"></i>
+                        </button>
+                    </div>
+                `;
+            }
+
             renderStep();
 
             loadingDiv.addEventListener('click', function (e) {
                 if (e.target.classList.contains('next-step-btn')) {
                     if (currentStep === sections.length - 1) {
-                        window.location.reload();
+                        renderFinalAnswer();
                     } else {
                         currentStep++;
                         renderStep();
@@ -1487,12 +1840,24 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                 `;
             }
 
+            function renderFinalSteps() {
+                const combined = steps.map(step => `<div class="response-text">${marked.parse(step)}</div>`).join('');
+                loadingDiv.innerHTML = `
+                    ${combined}
+                    <div class="mt-2">
+                        <button type="button" class="btn btn-sm text-success copy-btn" data-bs-toggle="tooltip" title="Copy Answer">
+                            <i class="bi bi-copy"></i>
+                        </button>
+                    </div>
+                `;
+            }
+
             renderStep();
 
             loadingDiv.addEventListener('click', function (e) {
                 if (e.target.classList.contains('next-step-btn')) {
                     if (currentStep === steps.length - 1) {
-                        window.location.reload();
+                        renderFinalSteps();
                     } else {
                         currentStep++;
                         renderStep();
@@ -1518,10 +1883,25 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                 </button>`;
         }
 
-    // } catch (error) {
-    //     console.error(error);
-    //     loadingDiv.innerHTML = `<div class="alert alert-danger">Something went wrong while fetching the answer.</div>`;
-    // }
+            // } catch (error) {
+            //     console.error(error);
+            //     loadingDiv.innerHTML = `<div class="alert alert-danger">Something went wrong while fetching the answer.</div>`;
+            // }
+        }
+
+        // Add event listeners for context buttons (outside the function so they're available immediately)
+        const addContextBtn = contextOptionsDiv.querySelector('.add-context-btn');
+        const skipContextBtn = contextOptionsDiv.querySelector('.skip-context-btn');
+
+        addContextBtn.addEventListener('click', function() {
+            showAddContextModal(userCard, chat_id, user_id, window.sendToChatGPT);
+        });
+
+        skipContextBtn.addEventListener('click', function() {
+            if (window.sendToChatGPT) {
+                window.sendToChatGPT(null); // Send without context
+            }
+        });
 
     questionInput.value = '';
 });
@@ -1530,7 +1910,10 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
 document.addEventListener('click', function (e) {
     if (e.target.closest('.copy-btn')) {
         const card = e.target.closest('.tt-template-carddads');
-        const text = card.querySelector('.response-text')?.innerText || '';
+        const sections = card ? card.querySelectorAll('.response-text') : [];
+        const text = sections.length
+            ? Array.from(sections).map(section => section.innerText.trim()).filter(Boolean).join('\n\n')
+            : '';
         navigator.clipboard.writeText(text)
             .then(() => alert('Answer copied!'))
             .catch(err => alert('Copy failed: ' + err));
@@ -1549,7 +1932,10 @@ document.addEventListener('click', function (e) {
         document.querySelectorAll('.copy-btn').forEach(button => {
             button.addEventListener('click', function () {
                 const card = this.closest('.tt-template-carddads');
-                const answer = card.querySelector('.response-text')?.innerText || '';
+                const sections = card ? card.querySelectorAll('.response-text') : [];
+                const answer = sections.length
+                    ? Array.from(sections).map(section => section.innerText.trim()).filter(Boolean).join('\n\n')
+                    : '';
 
                 if (!answer.trim()) {
                     alert('Nothing to copy!');
@@ -1564,6 +1950,151 @@ document.addEventListener('click', function (e) {
             });
         });
     });
+
+    // Export Role Goals to Spreadsheet
+    window.exportRoleGoals = function(roleGoalsText, goal, scenario, strategy) {
+        const formData = new FormData();
+        formData.append('role_goals_text', roleGoalsText);
+        formData.append('goal', goal || '');
+        formData.append('scenario', scenario || '');
+        formData.append('strategy', strategy || '');
+        formData.append('_token', '{{ csrf_token() }}');
+
+        fetch('{{ route("users-new-chat-export-role-goals.index") }}', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            if (response.ok) {
+                return response.blob();
+            }
+            throw new Error('Export failed');
+        })
+        .then(blob => {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `role_goals_${new Date().getTime()}.xlsx`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        })
+        .catch(error => {
+            console.error('Export error:', error);
+            alert('Failed to export role goals. Please try again.');
+        });
+    };
+
+    // Generate Leadership Alignment Brief
+    window.generateLeadershipAlignmentBrief = function(chatId, selectedStrategy, selectedScenario, originalQuestion, fullResponse) {
+        const loadingDiv = document.createElement('div');
+        loadingDiv.className = 'alert alert-info';
+        loadingDiv.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Generating Leadership Alignment Brief...';
+        document.getElementById('chat-messages').appendChild(loadingDiv);
+
+        fetch('{{ route("users-new-chat-generate-alignment-brief.index") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({
+                chat_id: chatId,
+                selected_strategy: selectedStrategy || '',
+                selected_scenario: selectedScenario || '',
+                original_question: originalQuestion || '',
+                full_response: fullResponse || ''
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            loadingDiv.remove();
+            if (data.success && data.brief) {
+                const briefDiv = document.createElement('div');
+                briefDiv.className = 'tt-template-carddads mt-3';
+                briefDiv.innerHTML = `
+                    <div class="response-text">${marked.parse(data.brief)}</div>
+                    <button type="button" class="btn btn-sm text-success me-2 copy-btn" data-bs-toggle="tooltip" title="Copy Brief">
+                        <i class="bi bi-copy"></i>
+                    </button>
+                `;
+                document.getElementById('chat-messages').appendChild(briefDiv);
+            } else {
+                alert('Failed to generate alignment brief: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            loadingDiv.remove();
+            console.error('Error generating brief:', error);
+            alert('Failed to generate alignment brief. Please try again.');
+        });
+    };
+
+    // Add export button to role goals section
+    function addExportButtonToRoleGoals() {
+        const roleGoalsSection = document.querySelector('.response-text');
+        if (roleGoalsSection && roleGoalsSection.textContent.includes('👥') && roleGoalsSection.textContent.includes('Rephrased Goals')) {
+            const existingExportBtn = document.querySelector('.export-role-goals-btn');
+            if (!existingExportBtn) {
+                const exportBtn = document.createElement('button');
+                exportBtn.className = 'btn btn-primary btn-sm export-role-goals-btn mt-2';
+                exportBtn.innerHTML = '<i class="bi bi-download me-1"></i>Export Role Goals to Spreadsheet';
+                exportBtn.onclick = function() {
+                    const roleGoalsText = roleGoalsSection.textContent;
+                    const goal = window.chatQuestion || '';
+                    const scenario = window.selectedScenario || '';
+                    const strategy = window.selectedStrategy || '';
+                    window.exportRoleGoals(roleGoalsText, goal, scenario, strategy);
+                };
+                roleGoalsSection.parentElement.appendChild(exportBtn);
+            }
+        }
+    }
+
+    // Add Leadership Alignment Brief button after final outcome
+    function addAlignmentBriefButton() {
+        const finalOutcomeSection = Array.from(document.querySelectorAll('.response-text'))
+            .find(el => el.textContent.includes('✅') && el.textContent.includes('Final Outcome'));
+        
+        if (finalOutcomeSection) {
+            const existingBriefBtn = document.querySelector('.generate-alignment-brief-btn');
+            if (!existingBriefBtn) {
+                const briefBtn = document.createElement('button');
+                briefBtn.className = 'btn btn-info btn-sm generate-alignment-brief-btn mt-2';
+                briefBtn.innerHTML = '<i class="bi bi-file-earmark-text me-1"></i>Generate Leadership Alignment Brief';
+                briefBtn.onclick = function() {
+                    const chatId = document.getElementById('chat_id')?.value || window.chatChatId;
+                    const selectedStrategy = window.selectedStrategy || '';
+                    const selectedScenario = window.selectedScenario || '';
+                    const originalQuestion = window.chatQuestion || '';
+                    const fullResponse = Array.from(document.querySelectorAll('.response-text'))
+                        .map(el => el.textContent)
+                        .join('\n\n');
+                    
+                    window.generateLeadershipAlignmentBrief(chatId, selectedStrategy, selectedScenario, originalQuestion, fullResponse);
+                };
+                finalOutcomeSection.parentElement.appendChild(briefBtn);
+            }
+        }
+    }
+
+    // Monitor for new sections and add buttons
+    const observer = new MutationObserver(function(mutations) {
+        addExportButtonToRoleGoals();
+        addAlignmentBriefButton();
+    });
+
+    observer.observe(document.getElementById('chat-messages'), {
+        childList: true,
+        subtree: true
+    });
+
+    // Initial check
+    setTimeout(() => {
+        addExportButtonToRoleGoals();
+        addAlignmentBriefButton();
+    }, 1000);
 </script>
 
 

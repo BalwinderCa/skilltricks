@@ -6,7 +6,7 @@
                   rows="2"
                   name="prompt"
                   id="prompt"
-                  placeholder="{{ localize('Write a content based on pdf ') }}.."></textarea>
+                  placeholder="{{ localize('Write a content based on document ') }}.."></textarea>
         <div class="tt-product-thumb mt-2 text-start tt-vision-thumb" id="vision_image">
 
         </div>
@@ -18,11 +18,11 @@
 
 
                     <i data-feather="paperclip" class="icon-14 me-1"></i>
-                    <span class="d-none d-lg-block lh-base">{{ localize('Select PDF File') }}</span>
+                    <span class="d-none d-lg-block lh-base">{{ localize('Select Document') }}</span>
                     <input type="file"
                            name="pdfFile"
                            id="pdfFile"
-                           accept=".pdf"
+                           accept=".pdf,.doc,.docx,.xlsx,.xls,.pptx,.ppt"
                            class="d-none"
                     />
                 </label>

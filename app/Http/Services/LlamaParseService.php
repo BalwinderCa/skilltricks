@@ -17,6 +17,19 @@ class LlamaParseService
     }
 
     /**
+     * Parse document file using LlamaParse API (supports PDF, DOC, DOCX, PPT, PPTX, etc.)
+     * 
+     * @param string $filePath Full path to the document file
+     * @param string $resultType 'markdown' or 'text'
+     * @return string Parsed text content
+     */
+    public function parseDocument(string $filePath, string $resultType = 'text'): string
+    {
+        // Use the same logic as parsePdf - LlamaParse API supports multiple formats
+        return $this->parsePdf($filePath, $resultType);
+    }
+
+    /**
      * Parse PDF file using LlamaParse API
      * 
      * @param string $filePath Full path to the PDF file

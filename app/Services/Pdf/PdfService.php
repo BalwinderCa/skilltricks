@@ -3,6 +3,7 @@ namespace App\Services\Pdf;
 
 use App\Models\PdfChat;
 use App\Models\PdfChatConversation;
+use App\Http\Services\DocumentParserService;
 use Illuminate\Support\Facades\Log;
 use Orhanerday\OpenAi\OpenAi;
 class PdfService
@@ -12,16 +13,47 @@ class PdfService
     const SESSION_PDF_CHAT_PROMPT_CONTENT  = "pdfChatPromptContent";
     CONST SESSION_PDF_CHAT_CODE = "chat_code";
     /**
-     * PDF Text Collect
+     * Document Text Collect (supports PDF, DOC, DOCX, XLSX, XLS, PPTX, PPT)
      *
      * @incomingParam $pdfFileWithDirectory contains a string data with directory/xyz.pdf file
+     *                                      Can be: "uploads/pdfChats/file.pdf" or "public/uploads/pdfChats/file.pdf"
      *
      * @return string
      * */
     public function getText($pdfFileWithDirectory) : string
     {
-        $file = asset('public/'.$pdfFileWithDirectory);
-        return initPdfParser()->parseFile($file)->getText();
+        // Normalize the path - remove 'public/' prefix if present
+        $normalizedPath = str_replace('public/', '', $pdfFileWithDirectory);
+        $normalizedPath = ltrim($normalizedPath, '/');
+        
+        // Get the full file path
+        $filePath = public_path($normalizedPath);
+        
+        // If file doesn't exist, try with the original path (for backward compatibility)
+        if (!file_exists($filePath)) {
+            $filePath = public_path($pdfFileWithDirectory);
+        }
+        
+        // If still not found, try with asset() approach (for backward compatibility)
+        if (!file_exists($filePath)) {
+            $assetPath = asset('public/'.$normalizedPath);
+            // Convert URL to file path
+            $filePath = public_path(str_replace(url('/'), '', $assetPath));
+            $filePath = str_replace('\\', '/', $filePath);
+        }
+        
+        if (!file_exists($filePath)) {
+            throw new \Exception("File not found. Tried: " . public_path($normalizedPath) . " | Original: {$pdfFileWithDirectory}");
+        }
+        
+        // Detect file type from extension
+        $extension = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+        
+        // Use DocumentParserService to parse the document
+        $llamaParseApiKey = config('services.llamaparse.api_key');
+        $parser = new DocumentParserService($llamaParseApiKey);
+        
+        return $parser->parseDocument($filePath, $extension);
     }
 
     public function getPdfChatConversations()
