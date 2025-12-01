@@ -1247,38 +1247,43 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
             
             // Function to check if next step's data is ready
             function isNextStepDataReady(nextStepIndex) {
-                // If next step IS the strategy map, check if all strategies are loaded
+                // If next step IS the strategy map, strategies are already in the response - always ready
                 if (strategyMapIndex !== -1 && nextStepIndex === strategyMapIndex) {
-                    // Check if strategies are still loading or not loaded
-                    if (window.isLoadingStrategies || !window.strategiesLoaded) {
-                        return false;
-                    }
-                    // Check if at least one strategy is loaded (for display)
-                    if (!window.strategyResponsesCache || Object.keys(window.strategyResponsesCache).length === 0) {
-                        return false;
-                    }
+                    // Strategies are in the first response, no need to check loading
+                    return true;
                 }
                 
                 // If next step is after strategy map, check if selected strategy data is ready
                 if (strategyMapIndex !== -1 && nextStepIndex > strategyMapIndex) {
                     const selectedStrategy = window.selectedStrategy;
                     if (selectedStrategy) {
-                        // Check if strategy response is cached
+                        // Check if strategy-specific content is cached
                         if (!window.strategyResponsesCache || !window.strategyResponsesCache[selectedStrategy]) {
                             return false;
                         }
+                    } else {
+                        // No strategy selected yet, but we can still show generic content from first response
+                        // So allow navigation
+                        return true;
                     }
                 }
                 
-                // If next step IS the scenario selection, check if all scenarios are loaded
+                // If next step IS the scenario selection, check if scenarios are loaded
+                // But only if a strategy has been selected (scenarios depend on strategy)
                 if (scenarioIndex !== -1 && nextStepIndex === scenarioIndex) {
-                    // Check if scenarios are still loading or not loaded
-                    if (window.isLoadingScenarios || !window.scenariosLoaded) {
-                        return false;
-                    }
-                    // Check if at least one scenario is loaded (for display)
-                    if (!window.scenarioResponsesCache || Object.keys(window.scenarioResponsesCache).length === 0) {
-                        return false;
+                    if (window.selectedStrategy) {
+                        // Check if scenarios are still loading or not loaded
+                        if (window.isLoadingScenarios || !window.scenariosLoaded) {
+                            return false;
+                        }
+                        // Check if at least one scenario is loaded (for display)
+                        if (!window.scenarioResponsesCache || Object.keys(window.scenarioResponsesCache).length === 0) {
+                            return false;
+                        }
+                    } else {
+                        // No strategy selected, but scenarios might be in first response
+                        // Allow navigation to see scenarios from first response
+                        return true;
                     }
                 }
                 
@@ -1502,16 +1507,12 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                 updateNextButtonState();
             }
             
-            // Start loading strategies when user is 1 step behind (on step before strategy page)
-            // This way Next button can be disabled until strategies are ready
+            // Don't pre-load strategies - strategies are already in the first response
+            // Only load strategy-specific content when user actually selects a strategy
             function startLoadingStrategiesIfNeeded() {
-                if (strategyMapIndex !== -1 && currentStep === strategyMapIndex - 1) {
-                    // User is 1 step before strategy page, start loading strategies
-                    if (!window.isLoadingStrategies && !window.strategiesLoaded) {
-                        console.log('Starting eager load of strategies (1 step behind strategy page)...');
-                        eagerLoadAllStrategies();
-                    }
-                }
+                // Strategies are already in the response, no need to pre-load
+                // We'll load strategy-specific content only when user selects one
+                return;
             }
             
             // Start loading scenarios when user is 1 step behind (on step before scenario page)
@@ -1519,7 +1520,8 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
             function startLoadingScenariosIfNeeded() {
                 if (scenarioIndex !== -1 && currentStep === scenarioIndex - 1) {
                     // User is 1 step before scenario page, start loading scenarios
-                    if (!window.isLoadingScenarios && !window.scenariosLoaded) {
+                    // But only if a strategy has been selected (scenarios depend on strategy)
+                    if (window.selectedStrategy && !window.isLoadingScenarios && !window.scenariosLoaded) {
                         console.log('Starting eager load of scenarios (1 step behind scenario page)...');
                         eagerLoadAllScenarios();
                     }
@@ -1898,39 +1900,58 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                                     // Update Next button state after strategy selection
                                     updateNextButtonState();
                                 } else {
-                                    console.log('Exact strategy not in cache yet, waiting...');
-                                    console.log('Trying to find similar strategy in cache...');
+                                    // Strategy-specific content not cached - load it now when user selects
+                                    console.log('Loading strategy-specific content for selected strategy:', exactStrategy);
                                     
-                                    // Try to find a matching strategy in cache (fuzzy match)
-                                    const cacheKeys = Object.keys(window.strategyResponsesCache || {});
-                                    const matchingKey = cacheKeys.find(key => {
-                                        const keyStart = key.substring(0, Math.min(50, key.length));
-                                        const exactStart = exactStrategy.substring(0, Math.min(50, exactStrategy.length));
-                                        return keyStart === exactStart || key.includes(exactStart) || exactStrategy.includes(keyStart);
-                                    });
+                                    window.pendingApiCalls++;
+                                    window.apiCallInProgress = true;
+                                    updateNextButtonState();
                                     
-                                    if (matchingKey) {
-                                        console.log('Found matching strategy in cache:', matchingKey);
-                                        window.selectedStrategy = matchingKey;
-                                        selectedStrategy = matchingKey;
+                                    fetch('/dashboard/users-new-chat-update-strategy', {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                                        },
+                                        body: JSON.stringify({
+                                            chat_id: window.chatChatId,
+                                            user_id: window.chatUserId,
+                                            selected_strategy: exactStrategy,
+                                            original_question: window.chatQuestion,
+                                            sections_before: window.chatSections.slice(0, window.strategyMapIndex).join(''),
+                                            strategy_map: window.strategyMapSection,
+                                            is_user_selection: true // This is actual user selection - save to DB
+                                        })
+                                    })
+                                    .then(response => response.json())
+                                    .then(data => {
+                                        // Cache the strategy-specific content
+                                        if (!window.strategyResponsesCache) {
+                                            window.strategyResponsesCache = {};
+                                        }
+                                        window.strategyResponsesCache[exactStrategy] = data.updated_sections || '';
+                                        
+                                        // If we're viewing a section after strategy map, update it immediately
                                         if (currentStep > strategyMapIndex) {
                                             renderStep();
                                         }
-                                    } else {
-                                        // Fallback: if not cached yet, wait for it or show loading
-                                        const checkCache = setInterval(() => {
-                                            if (window.strategyResponsesCache && window.strategyResponsesCache[exactStrategy]) {
-                                                console.log('Strategy now available in cache');
-                                                if (currentStep > strategyMapIndex) {
-                                                    renderStep();
-                                                }
-                                                clearInterval(checkCache);
-                                            }
-                                        }, 100);
                                         
-                                        // Stop checking after 10 seconds
-                                        setTimeout(() => clearInterval(checkCache), 10000);
-                                    }
+                                        // Start loading scenarios for this strategy
+                                        if (scenarioIndex !== -1 && !window.isLoadingScenarios && !window.scenariosLoaded) {
+                                            console.log('Starting eager load of scenarios after strategy selection...');
+                                            eagerLoadAllScenarios();
+                                        }
+                                        
+                                        updateNextButtonState();
+                                    })
+                                    .catch(err => {
+                                        console.error('Error loading strategy-specific content:', err);
+                                    })
+                                    .finally(() => {
+                                        window.pendingApiCalls = Math.max(0, window.pendingApiCalls - 1);
+                                        window.apiCallInProgress = window.pendingApiCalls > 0;
+                                        updateNextButtonState();
+                                    });
                                 }
                                 
                                 // Re-render current step to show selected state
