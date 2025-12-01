@@ -901,6 +901,7 @@ class AiChatController extends Controller
             ->first();
         
         $selectedStrategyFromDB = null;
+        $leadershipBriefFromDB = null;
         if ($chatRecord) {
             // Try to get selected_strategy column if it exists
             try {
@@ -911,9 +912,19 @@ class AiChatController extends Controller
             } catch (\Exception $e) {
                 // Column doesn't exist, that's okay - we'll try to add it when saving
             }
+            
+            // Try to get leadership_brief column if it exists
+            try {
+                $columns = DB::select("SHOW COLUMNS FROM search_user_chat LIKE 'leadership_brief'");
+                if (count($columns) > 0 && isset($chatRecord->leadership_brief) && !empty($chatRecord->leadership_brief)) {
+                    $leadershipBriefFromDB = $chatRecord->leadership_brief;
+                }
+            } catch (\Exception $e) {
+                // Column doesn't exist, that's okay
+            }
         }
 
-        return view('backend.pages.aiChat.users-new-chat', compact('user','promptGroups', 'prompts','searchKey','searchuserchatdata','id','searchuserchatdatanew', 'documentCount', 'selectedStrategyFromDB'));
+        return view('backend.pages.aiChat.users-new-chat', compact('user','promptGroups', 'prompts','searchKey','searchuserchatdata','id','searchuserchatdatanew', 'documentCount', 'selectedStrategyFromDB', 'leadershipBriefFromDB'));
     }
 
 
@@ -2493,6 +2504,28 @@ EOT;
 
             if ($openAiResponse->successful()) {
                 $brief = $openAiResponse->json('choices.0.message.content');
+                
+                // Save brief to database
+                try {
+                    // Check if leadership_brief column exists, if not add it
+                    $columns = DB::select("SHOW COLUMNS FROM search_user_chat LIKE 'leadership_brief'");
+                    if (count($columns) == 0) {
+                        DB::statement("ALTER TABLE search_user_chat ADD COLUMN leadership_brief TEXT NULL AFTER selected_scenario");
+                    }
+                    
+                    // Update the chat record with the brief
+                    DB::table('search_user_chat')
+                        ->where('id', $chatId)
+                        ->where('user_id', $user->id)
+                        ->update(['leadership_brief' => $brief]);
+                } catch (\Exception $e) {
+                    Log::warning('Failed to save leadership brief to database', [
+                        'chat_id' => $chatId,
+                        'error' => $e->getMessage()
+                    ]);
+                    // Continue even if save fails
+                }
+                
                 return response()->json([
                     'success' => true,
                     'brief' => $brief

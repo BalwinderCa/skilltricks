@@ -657,6 +657,14 @@
                                 </button>
                            </div>
                         @endforeach
+                        
+                        @if(isset($leadershipBriefFromDB) && !empty($leadershipBriefFromDB))
+                            <div class="tt-template-carddads">
+                                <div class="leadership-alignment-brief">
+                                    <div class="bot-message response-text">{!! \Illuminate\Support\Str::markdown($leadershipBriefFromDB) !!}</div>
+                                </div>
+                            </div>
+                        @endif
                     </div>
 
                     <!-- Chat Input -->
@@ -2105,9 +2113,6 @@ document.addEventListener('click', function (e) {
                 briefDiv.className = 'leadership-alignment-brief mt-3';
                 briefDiv.innerHTML = `
                     <div class="response-text">${marked.parse(data.brief)}</div>
-                    <button type="button" class="btn btn-sm text-success me-2 copy-btn mt-2" data-bs-toggle="tooltip" title="Copy Brief">
-                        <i class="bi bi-copy"></i> Copy Brief
-                    </button>
                 `;
                 
                 // Insert after final outcome section, inside the same card container
