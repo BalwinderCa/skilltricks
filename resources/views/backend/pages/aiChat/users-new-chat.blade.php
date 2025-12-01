@@ -1502,7 +1502,29 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                 updateNextButtonState();
             }
             
-            // Don't start eager loading immediately - wait until user reaches the relevant page
+            // Start loading strategies when user is 1 step behind (on step before strategy page)
+            // This way Next button can be disabled until strategies are ready
+            function startLoadingStrategiesIfNeeded() {
+                if (strategyMapIndex !== -1 && currentStep === strategyMapIndex - 1) {
+                    // User is 1 step before strategy page, start loading strategies
+                    if (!window.isLoadingStrategies && !window.strategiesLoaded) {
+                        console.log('Starting eager load of strategies (1 step behind strategy page)...');
+                        eagerLoadAllStrategies();
+                    }
+                }
+            }
+            
+            // Start loading scenarios when user is 1 step behind (on step before scenario page)
+            // This way Next button can be disabled until scenarios are ready
+            function startLoadingScenariosIfNeeded() {
+                if (scenarioIndex !== -1 && currentStep === scenarioIndex - 1) {
+                    // User is 1 step before scenario page, start loading scenarios
+                    if (!window.isLoadingScenarios && !window.scenariosLoaded) {
+                        console.log('Starting eager load of scenarios (1 step behind scenario page)...');
+                        eagerLoadAllScenarios();
+                    }
+                }
+            }
 
 
             function getUpdatedSectionParts(responseText, emojiOrder = ['🔮', '👥', '📌', '✅']) {
@@ -2473,8 +2495,8 @@ document.addEventListener('click', function (e) {
         }
         
         // Check if brief already exists in DOM (from database)
-        const existingBrief = document.querySelector('.leadership-alignment-brief');
-        if (existingBrief && existingBrief.textContent.trim().length > 0) {
+        const existingBriefInDOM = document.querySelector('.leadership-alignment-brief');
+        if (existingBriefInDOM && existingBriefInDOM.textContent.trim().length > 0) {
             window.briefGenerationCompleted = true;
             return;
         }
@@ -2492,9 +2514,9 @@ document.addEventListener('click', function (e) {
         const cardContainer = finalOutcomeSection.closest('.tt-template-carddads');
         if (!cardContainer) return;
         
-        // Check if brief already exists
-        const existingBrief = cardContainer.querySelector('.leadership-alignment-brief');
-        if (existingBrief) {
+        // Check if brief already exists in this card container
+        const existingBriefInCard = cardContainer.querySelector('.leadership-alignment-brief');
+        if (existingBriefInCard) {
             window.briefGenerationCompleted = true;
             return; // Already generated
         }
