@@ -1069,6 +1069,15 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
             const fullAnswer = data.answer || 'No answer returned.';
             const previousContext = data.previousContext || {};
             const chectdata = data.chectdata || {};
+            
+            // Update chat_id if a new one was created
+            if (data.chat_id && data.chat_id !== currentChat_id) {
+                currentChat_id = data.chat_id;
+                const chatIdInput = document.getElementById('chat_id');
+                if (chatIdInput) {
+                    chatIdInput.value = data.chat_id;
+                }
+            }
 
             // Check if this is the first message (status1 is 0) or status2 is 0
             const isFirstMessage = (previousContext && (previousContext.status1 === 0 || previousContext.status1 === '0')) || 
