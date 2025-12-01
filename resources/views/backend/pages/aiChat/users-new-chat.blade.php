@@ -1759,17 +1759,71 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                                 if (window.strategyResponsesCache && window.strategyResponsesCache[exactStrategy]) {
                                     console.log('Using cached response for exact strategy - no API call needed');
                                     
+                                    // CRITICAL: Extract scenarios from cached response too!
+                                    const cachedStrategyContent = window.strategyResponsesCache[exactStrategy];
+                                    console.log('Extracting scenarios from cached strategy content...');
+                                    
+                                    if (cachedStrategyContent && cachedStrategyContent.includes('🔮')) {
+                                        // Find scenario section in cached strategy content
+                                        const scenarioMatch = cachedStrategyContent.match(/🔮[\s\S]*?(?=\n\s*(?:👥|📌|✅)|$)/);
+                                        if (scenarioMatch) {
+                                            const newScenarioSection = scenarioMatch[0];
+                                            const scenarioLines = newScenarioSection.split('\n');
+                                            let foundScenarioHeader = false;
+                                            const newScenarioItems = [];
+                                            
+                                            for (let i = 0; i < scenarioLines.length; i++) {
+                                                const line = scenarioLines[i].trim();
+                                                if (!line) continue;
+                                                
+                                                if (line.includes('🔮') || line.toLowerCase().includes('scenario')) {
+                                                    foundScenarioHeader = true;
+                                                    continue;
+                                                }
+                                                
+                                                if (foundScenarioHeader && line && 
+                                                    (line.startsWith('-') || 
+                                                     line.startsWith('•') || 
+                                                     line.startsWith('*'))) {
+                                                    newScenarioItems.push(line);
+                                                }
+                                            }
+                                            
+                                            const newScenarioOptions = newScenarioItems.map(line => {
+                                                let cleaned = line.replace(/^[-•*]\s*/, '').trim();
+                                                cleaned = cleaned.replace(/\*\*([^*]+)\*\*/g, '$1');
+                                                cleaned = cleaned.replace(/\*\*/g, '');
+                                                return cleaned.trim();
+                                            }).filter(item => item.length > 0);
+                                            
+                                            if (newScenarioOptions.length > 0) {
+                                                // Clear scenario cache when scenarios change
+                                                if (window.scenarioResponsesCache) {
+                                                    console.log('🗑️ Clearing scenario responses cache - new scenarios from cached strategy');
+                                                    window.scenarioResponsesCache = {};
+                                                }
+                                                
+                                                // Update scenarios with strategy-specific ones
+                                                window.scenarioSection = newScenarioSection;
+                                                window.scenarioOptions = newScenarioOptions;
+                                                
+                                                // Reset selected scenario to first one
+                                                window.selectedScenario = newScenarioOptions[0];
+                                                
+                                                console.log('✅ Updated window.scenarioOptions from cache:', window.scenarioOptions);
+                                                console.log('New scenarios count:', newScenarioOptions.length);
+                                            }
+                                        }
+                                    }
+                                    
                                     // If we're viewing a section after strategy map, update it immediately
-                                    if (currentStep > strategyMapIndex) {
+                                    if (currentStep >= strategyMapIndex) {
+                                        console.log('Re-rendering to show updated scenarios from cache');
                                         renderStep();
                                     }
                                     
                                     // Update Next button state after strategy selection
                                     updateNextButtonState();
-                                    
-                                    // Only save to DB if not already saved (check if this is first time selecting)
-                                    // We'll save to DB when user actually uses the content, not on every selection
-                                    // This prevents unnecessary API calls when re-selecting the same strategy
                                 } else {
                                     // Strategy-specific content not cached - load it now when user selects
                                     console.log('Loading strategy-specific content for selected strategy:', exactStrategy);
