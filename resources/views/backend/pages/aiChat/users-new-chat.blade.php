@@ -1383,13 +1383,25 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                 if (!window.scenarioResponsesCache) {
                     window.scenarioResponsesCache = {};
                 }
+                
+                // CRITICAL: Include strategy in cache key since scenarios are strategy-specific
+                // This ensures "Best Case:" from Strategy 1 is different from "Best Case:" from Strategy 2
+                const strategyKey = window.selectedStrategy ? window.selectedStrategy.substring(0, 50) : 'no-strategy';
+                const cacheKey = `${strategyKey}||${scenarioText}`;
+                
+                console.log('🔑 Scenario cache key:', cacheKey);
+                console.log('🔑 Strategy:', strategyKey);
+                console.log('🔑 Scenario:', scenarioText.substring(0, 50));
 
-                if (window.scenarioResponsesCache[scenarioText]) {
+                if (window.scenarioResponsesCache[cacheKey]) {
+                    console.log('✅ Using cached scenario response');
                     if (currentStep > scenarioIndex && typeof renderStep === 'function') {
                         renderStep();
                     }
                     return;
                 }
+                
+                console.log('🔄 Fetching new scenario response (not in cache)');
 
                 // Track API call
                 window.pendingApiCalls++;
@@ -1986,8 +1998,11 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                 }
 
                 const currentSelectedScenario = window.selectedScenario;
-                const scenarioCache = (scenarioIndex !== -1 && window.scenarioResponsesCache && currentSelectedScenario)
-                    ? window.scenarioResponsesCache[currentSelectedScenario]
+                // Use strategy-specific cache key
+                const strategyKey = window.selectedStrategy ? window.selectedStrategy.substring(0, 50) : 'no-strategy';
+                const scenarioCacheKey = currentSelectedScenario ? `${strategyKey}||${currentSelectedScenario}` : null;
+                const scenarioCache = (scenarioIndex !== -1 && window.scenarioResponsesCache && scenarioCacheKey)
+                    ? window.scenarioResponsesCache[scenarioCacheKey]
                     : null;
                 const currentSelectedStrategy = window.selectedStrategy || selectedStrategy;
                 const strategyCache = (window.strategyResponsesCache && currentSelectedStrategy)
