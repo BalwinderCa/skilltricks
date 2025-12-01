@@ -1515,12 +1515,33 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                 } else if (currentStep === scenarioIndex && window.scenarioOptions && window.scenarioOptions.length > 0) {
                     // Use window.scenarioOptions which gets updated when strategy is selected
                     const currentScenarioOptions = window.scenarioOptions;
+                    console.log('🔍 Rendering scenario page with options:', currentScenarioOptions);
+                    console.log('🔍 Current selectedScenario:', window.selectedScenario);
+                    
                     const scenarioLines = (window.scenarioSection || '').split('\n');
                     const scenarioHeaderLine = scenarioLines.find(line => line.includes('🔮') || line.toLowerCase().includes('scenario'));
                     const scenarioGroupName = `scenario-${Date.now()}`;
-                    const activeScenario = (window.selectedScenario && currentScenarioOptions.includes(window.selectedScenario))
-                        ? window.selectedScenario
-                        : (currentScenarioOptions[0] || null);
+                    
+                    // Find matching scenario (fuzzy match in case of slight differences)
+                    let activeScenario = null;
+                    if (window.selectedScenario && currentScenarioOptions.length > 0) {
+                        // Try exact match first
+                        if (currentScenarioOptions.includes(window.selectedScenario)) {
+                            activeScenario = window.selectedScenario;
+                        } else {
+                            // Try fuzzy match - check if any scenario starts with selected scenario or vice versa
+                            const match = currentScenarioOptions.find(opt => 
+                                opt === window.selectedScenario ||
+                                opt.startsWith(window.selectedScenario.substring(0, 30)) ||
+                                window.selectedScenario.startsWith(opt.substring(0, 30))
+                            );
+                            activeScenario = match || currentScenarioOptions[0];
+                        }
+                    } else {
+                        activeScenario = currentScenarioOptions[0] || null;
+                    }
+                    
+                    console.log('🔍 Active scenario selected:', activeScenario);
 
                     if (!window.selectedScenario && activeScenario) {
                         window.selectedScenario = activeScenario;
@@ -1783,15 +1804,22 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                                                 if (newScenarioOptions.length > 0) {
                                                     // Update scenarios with strategy-specific ones
                                                     window.scenarioSection = newScenarioSection;
+                                                    
+                                                    // Store old scenarios for comparison
+                                                    const oldScenarios = window.scenarioOptions ? [...window.scenarioOptions] : [];
+                                                    
+                                                    // Update scenarios
                                                     window.scenarioOptions = newScenarioOptions;
                                                     
                                                     console.log('✅ Updated window.scenarioOptions:', window.scenarioOptions);
+                                                    console.log('Old scenarios:', oldScenarios);
+                                                    console.log('Scenarios changed?', JSON.stringify(oldScenarios) !== JSON.stringify(newScenarioOptions));
                                                     
-                                                    // Reset selected scenario to first one if current selection is not in new options
-                                                    if (!newScenarioOptions.includes(window.selectedScenario)) {
-                                                        window.selectedScenario = newScenarioOptions[0];
-                                                    }
+                                                    // Always reset selected scenario to first one when strategy changes
+                                                    // This ensures we're using the new scenarios
+                                                    window.selectedScenario = newScenarioOptions[0];
                                                     
+                                                    console.log('Reset selectedScenario to first option:', window.selectedScenario);
                                                     console.log('Updated scenarios for strategy:', exactStrategy);
                                                     console.log('New scenarios count:', newScenarioOptions.length);
                                                 } else {
