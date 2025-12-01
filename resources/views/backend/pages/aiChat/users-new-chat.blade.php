@@ -1806,8 +1806,9 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                                         
                                         console.log('=== END DEBUG ===');
                                         
-                                        // If we're viewing a section after strategy map, update it immediately
-                                        if (currentStep > strategyMapIndex) {
+                                        // Force re-render if viewing any section from strategy map onwards (including scenario page)
+                                        if (currentStep >= strategyMapIndex) {
+                                            console.log('Re-rendering to show updated scenarios for strategy:', exactStrategy);
                                             renderStep();
                                         }
                                         
