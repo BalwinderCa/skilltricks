@@ -1255,11 +1255,12 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                     return;
                 }
                 
-                // Check if next step's data is ready
+                // Only check if NEXT step's data is ready (not current step)
+                // Don't disable based on current page's API calls - only check next step's requirements
                 const dataReady = isNextStepDataReady(nextStepIndex);
-                const hasPendingCalls = window.apiCallInProgress || window.pendingApiCalls > 0;
                 
-                if (!dataReady || hasPendingCalls) {
+                if (!dataReady) {
+                    // Next step's data isn't ready yet
                     nextBtn.disabled = true;
                     nextBtn.classList.add('disabled');
                     if (!nextBtn.dataset.originalText) {
@@ -1267,6 +1268,7 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                     }
                     nextBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Loading...';
                 } else {
+                    // Next step's data is ready, enable button
                     nextBtn.disabled = false;
                     nextBtn.classList.remove('disabled');
                     const originalText = nextBtn.dataset.originalText || (currentStep === sections.length - 1 ? 'Finish' : 'Next');
