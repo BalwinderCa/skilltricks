@@ -642,7 +642,10 @@
                     <input type="hidden" name="id" id="chat_id" value="{{ $id }}">
                     
                     <div class="chat-messages" id="chat-messages">
-                        @foreach ($searchuserchatdata as $chat)
+                        @php
+                            $lastIndex = count($searchuserchatdata) - 1;
+                        @endphp
+                        @foreach ($searchuserchatdata as $index => $chat)
                            <div class="tt-template-carddads">
                             <div class="user-message">{{ $chat->search ?? '' }}</div>
                             <div class="bot-message  response-text">{!! \Illuminate\Support\Str::markdown($chat->response) !!} </div>
@@ -655,10 +658,16 @@
                                     </svg> -->
                                     <i class="bi bi-copy"></i>
                                 </button>
+                            
+                            @if($index === $lastIndex && isset($leadershipBriefFromDB) && !empty($leadershipBriefFromDB))
+                                <div class="leadership-alignment-brief mt-3">
+                                    <div class="bot-message response-text">{!! \Illuminate\Support\Str::markdown($leadershipBriefFromDB) !!}</div>
+                                </div>
+                            @endif
                            </div>
                         @endforeach
                         
-                        @if(isset($leadershipBriefFromDB) && !empty($leadershipBriefFromDB))
+                        @if(isset($leadershipBriefFromDB) && !empty($leadershipBriefFromDB) && count($searchuserchatdata) === 0)
                             <div class="tt-template-carddads">
                                 <div class="leadership-alignment-brief">
                                     <div class="bot-message response-text">{!! \Illuminate\Support\Str::markdown($leadershipBriefFromDB) !!}</div>
