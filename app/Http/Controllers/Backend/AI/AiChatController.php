@@ -2561,7 +2561,26 @@ EOT;
                     // Check if leadership_brief column exists, if not add it
                     $columns = DB::select("SHOW COLUMNS FROM search_user_chat LIKE 'leadership_brief'");
                     if (count($columns) == 0) {
+                        \Log::info('Creating leadership_brief column');
                         DB::statement("ALTER TABLE search_user_chat ADD COLUMN leadership_brief TEXT NULL AFTER selected_scenario");
+                    }
+                    
+                    // Verify chat record exists before updating
+                    $chatExists = DB::table('search_user_chat')
+                        ->where('id', $chatId)
+                        ->where('user_id', $user->id)
+                        ->exists();
+                    
+                    if (!$chatExists) {
+                        \Log::error('Chat record does not exist when trying to save brief', [
+                            'chat_id' => $chatId,
+                            'user_id' => $user->id
+                        ]);
+                        return response()->json([
+                            'success' => true,
+                            'brief' => $brief,
+                            'warning' => 'Brief generated but could not be saved - chat record not found'
+                        ]);
                     }
                     
                     // Update the chat record with the brief
@@ -2570,26 +2589,50 @@ EOT;
                         ->where('user_id', $user->id)
                         ->update(['leadership_brief' => $brief]);
                     
+                    if ($updated === 0) {
+                        \Log::error('Failed to update chat record with brief - no rows updated', [
+                            'chat_id' => $chatId,
+                            'user_id' => $user->id,
+                            'brief_length' => strlen($brief)
+                        ]);
+                    }
+                    
                     // Verify the brief was saved
                     $savedBrief = DB::table('search_user_chat')
                         ->where('id', $chatId)
                         ->where('user_id', $user->id)
                         ->value('leadership_brief');
                     
-                    \Log::info('Leadership Brief saved to database', [
+                    if (empty($savedBrief)) {
+                        \Log::error('Brief was not saved to database - verification failed', [
+                            'chat_id' => $chatId,
+                            'user_id' => $user->id,
+                            'rows_updated' => $updated,
+                            'brief_length' => strlen($brief)
+                        ]);
+                    } else {
+                        \Log::info('✅ Leadership Brief successfully saved to database', [
+                            'chat_id' => $chatId,
+                            'user_id' => $user->id,
+                            'rows_updated' => $updated,
+                            'brief_saved_length' => strlen($savedBrief),
+                            'brief_saved_preview' => substr($savedBrief, 0, 200),
+                            'brief_was_saved' => true
+                        ]);
+                    }
+                } catch (\Exception $e) {
+                    \Log::error('Failed to save leadership brief to database', [
                         'chat_id' => $chatId,
                         'user_id' => $user->id,
-                        'rows_updated' => $updated,
-                        'brief_saved_length' => strlen($savedBrief ?? ''),
-                        'brief_saved_preview' => substr($savedBrief ?? '', 0, 200),
-                        'brief_was_saved' => !empty($savedBrief)
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString()
                     ]);
-                } catch (\Exception $e) {
-                    Log::warning('Failed to save leadership brief to database', [
-                        'chat_id' => $chatId,
-                        'error' => $e->getMessage()
+                    // Continue even if save fails, but return warning
+                    return response()->json([
+                        'success' => true,
+                        'brief' => $brief,
+                        'warning' => 'Brief generated but could not be saved: ' . $e->getMessage()
                     ]);
-                    // Continue even if save fails
                 }
                 
                 return response()->json([
