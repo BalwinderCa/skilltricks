@@ -1282,10 +1282,14 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                 if (scenarioIndex !== -1 && nextStepIndex > scenarioIndex) {
                     const selectedScenario = window.selectedScenario;
                     if (selectedScenario) {
-                        // Check if scenario response is cached
-                        if (!window.scenarioResponsesCache || !window.scenarioResponsesCache[selectedScenario]) {
+                        // Check if scenario response is cached (using strategy-specific cache key)
+                        const strategyKey = window.selectedStrategy ? window.selectedStrategy.substring(0, 50) : 'no-strategy';
+                        const scenarioCacheKey = `${strategyKey}||${selectedScenario}`;
+                        if (!window.scenarioResponsesCache || !window.scenarioResponsesCache[scenarioCacheKey]) {
+                            console.log('⚠️ Scenario data not ready - cache key:', scenarioCacheKey);
                             return false;
                         }
+                        console.log('✅ Scenario data ready - cache key:', scenarioCacheKey);
                     }
                 }
                 
