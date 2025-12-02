@@ -2562,13 +2562,22 @@ document.addEventListener('click', function (e) {
             const cardContainer = roleGoalsSection.closest('.tt-template-carddads');
             if (!cardContainer) return;
             
-            // Don't add export button if this is the final message (contains Leadership Alignment Brief or Final Outcome only)
+            // Don't add export button if this card contains Leadership Alignment Brief
             const hasLeadershipBrief = cardContainer.querySelector('.leadership-alignment-brief');
-            const hasOnlyFinalOutcome = cardContainer.textContent.includes('✅') && 
-                                       cardContainer.textContent.includes('Final Outcome') &&
-                                       !cardContainer.textContent.includes('👥');
+            if (hasLeadershipBrief) {
+                console.log('⚠️ Skipping export button - Leadership Alignment Brief found in this card');
+                return; // Don't add export button to final message
+            }
             
-            if (hasLeadershipBrief || hasOnlyFinalOutcome) {
+            // Don't add export button if this is the final message (contains Final Outcome but no Role Goals)
+            const hasFinalOutcome = cardContainer.textContent.includes('✅') && 
+                                   cardContainer.textContent.includes('Final Outcome');
+            const hasRoleGoals = cardContainer.textContent.includes('👥') && 
+                                (cardContainer.textContent.includes('Rephrased Goals') || 
+                                 cardContainer.textContent.includes('Goals by Role'));
+            
+            if (hasFinalOutcome && !hasRoleGoals) {
+                console.log('⚠️ Skipping export button - Final Outcome only, no Role Goals');
                 return; // Don't add export button to final message
             }
             
@@ -2605,7 +2614,25 @@ document.addEventListener('click', function (e) {
     
     // Check if brief already exists from database (page load)
     @if(isset($leadershipBriefFromDB) && !empty($leadershipBriefFromDB))
+        console.log('📋 Leadership Alignment Brief loaded from database:', '{{ strlen($leadershipBriefFromDB) }} characters');
         window.briefGenerationCompleted = true;
+        // Wait for DOM to be ready, then verify brief is visible
+        setTimeout(() => {
+            const briefInDOM = document.querySelector('.leadership-alignment-brief');
+            if (briefInDOM) {
+                console.log('✅ Leadership Alignment Brief found in DOM');
+                const briefContent = briefInDOM.querySelector('.response-text');
+                if (briefContent) {
+                    console.log('✅ Brief content found:', briefContent.textContent.substring(0, 100) + '...');
+                } else {
+                    console.warn('⚠️ Brief element found but no response-text content');
+                }
+            } else {
+                console.error('❌ Leadership Alignment Brief NOT found in DOM even though it should be loaded from DB');
+            }
+        }, 1000);
+    @else
+        console.log('📋 No Leadership Alignment Brief in database for this chat');
     @endif
 
     // Automatically generate and display Leadership Alignment Brief after final outcome
