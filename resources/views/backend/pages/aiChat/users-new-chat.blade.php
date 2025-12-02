@@ -2668,15 +2668,21 @@ document.addEventListener('click', function (e) {
         setTimeout(() => {
             const briefInDOM = document.querySelector('.leadership-alignment-brief');
             if (briefInDOM) {
-                console.log('✅ Leadership Alignment Brief found in DOM');
+                console.log('✅ Leadership Alignment Brief found in DOM from database');
                 const briefContent = briefInDOM.querySelector('.response-text');
-                if (briefContent) {
+                if (briefContent && briefContent.textContent.trim().length > 0) {
                     console.log('✅ Brief content found:', briefContent.textContent.substring(0, 100) + '...');
+                    console.log('📍 Brief element:', briefInDOM);
+                    console.log('📍 Brief parent:', briefInDOM.parentElement);
+                    console.log('📍 Brief is visible:', briefInDOM.offsetHeight > 0 && briefInDOM.offsetWidth > 0);
                 } else {
-                    console.warn('⚠️ Brief element found but no response-text content');
+                    console.warn('⚠️ Brief element found but no response-text content or content is empty');
+                    console.log('📍 Brief element HTML:', briefInDOM.innerHTML.substring(0, 200));
                 }
             } else {
                 console.error('❌ Leadership Alignment Brief NOT found in DOM even though it should be loaded from DB');
+                console.log('📍 Searching for all .leadership-alignment-brief elements:', document.querySelectorAll('.leadership-alignment-brief').length);
+                console.log('📍 All .response-text elements:', document.querySelectorAll('.response-text').length);
             }
         }, 1000);
     @else
