@@ -2512,6 +2512,7 @@ document.addEventListener('click', function (e) {
                 // Check if brief already exists
                 const existingBrief = cardContainer.querySelector('.leadership-alignment-brief');
                 if (existingBrief) {
+                    console.log('⚠️ Brief already exists in card container, skipping insertion');
                     window.briefGenerationCompleted = true;
                     return; // Already displayed
                 }
@@ -2527,7 +2528,33 @@ document.addEventListener('click', function (e) {
                 `;
                 
                 // Insert after final outcome section, inside the same card container
+                console.log('📍 Inserting brief after final outcome section...');
+                console.log('📍 Final outcome section:', finalOutcomeSection);
+                console.log('📍 Card container:', cardContainer);
+                
                 finalOutcomeSection.insertAdjacentElement('afterend', briefDiv);
+                
+                // Verify insertion and scroll into view
+                setTimeout(() => {
+                    const insertedBrief = cardContainer.querySelector('.leadership-alignment-brief');
+                    if (insertedBrief) {
+                        console.log('✅ Brief successfully inserted and visible in DOM');
+                        console.log('📍 Brief element:', insertedBrief);
+                        console.log('📍 Brief content length:', insertedBrief.textContent.length);
+                        
+                        // Scroll the brief into view
+                        insertedBrief.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        
+                        // Add a visual highlight to show the brief was added
+                        insertedBrief.style.transition = 'background-color 0.3s';
+                        insertedBrief.style.backgroundColor = 'rgba(0, 123, 255, 0.1)';
+                        setTimeout(() => {
+                            insertedBrief.style.backgroundColor = '';
+                        }, 2000);
+                    } else {
+                        console.error('❌ Brief insertion failed - not found in DOM after insertion');
+                    }
+                }, 100);
             } else {
                 // Mark as completed even on error to prevent retries
                 window.briefGenerationCompleted = true;
