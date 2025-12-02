@@ -2472,6 +2472,14 @@ document.addEventListener('click', function (e) {
             return;
         }
 
+        console.log('🔄 Calling API to generate Leadership Alignment Brief...', {
+            chatId,
+            hasStrategy: !!selectedStrategy,
+            hasScenario: !!selectedScenario,
+            hasQuestion: !!originalQuestion,
+            responseLength: fullResponse.length
+        });
+        
         fetch('{{ route("users-new-chat-generate-alignment-brief.index") }}', {
             method: 'POST',
             headers: {
@@ -2486,8 +2494,13 @@ document.addEventListener('click', function (e) {
                 full_response: fullResponse || ''
             })
         })
-        .then(response => response.json())
+        .then(response => {
+            console.log('📡 API Response status:', response.status);
+            return response.json();
+        })
         .then(data => {
+            console.log('📡 API Response data:', { success: data.success, hasBrief: !!data.brief, error: data.error });
+            
             // Mark as no longer in progress
             window.briefGenerationInProgress = false;
             
@@ -2495,6 +2508,7 @@ document.addEventListener('click', function (e) {
             if (loadingIndicator) loadingIndicator.remove();
             
             if (data.success && data.brief) {
+                console.log('✅ Brief generated successfully, length:', data.brief.length);
                 // Check if brief already exists
                 const existingBrief = cardContainer.querySelector('.leadership-alignment-brief');
                 if (existingBrief) {
@@ -2557,54 +2571,61 @@ document.addEventListener('click', function (e) {
             (el.textContent.includes('Rephrased Goals') || el.textContent.includes('Goals by Role'))
         );
         
-        if (roleGoalsSection) {
-            // Find the parent card container
-            const cardContainer = roleGoalsSection.closest('.tt-template-carddads');
-            if (!cardContainer) return;
-            
-            // Don't add export button if this card contains Leadership Alignment Brief
-            const hasLeadershipBrief = cardContainer.querySelector('.leadership-alignment-brief');
-            if (hasLeadershipBrief) {
-                console.log('⚠️ Skipping export button - Leadership Alignment Brief found in this card');
-                return; // Don't add export button to final message
-            }
-            
-            // Don't add export button if this is the final message (contains Final Outcome but no Role Goals)
-            const hasFinalOutcome = cardContainer.textContent.includes('✅') && 
-                                   cardContainer.textContent.includes('Final Outcome');
-            const hasRoleGoals = cardContainer.textContent.includes('👥') && 
-                                (cardContainer.textContent.includes('Rephrased Goals') || 
-                                 cardContainer.textContent.includes('Goals by Role'));
-            
-            if (hasFinalOutcome && !hasRoleGoals) {
-                console.log('⚠️ Skipping export button - Final Outcome only, no Role Goals');
-                return; // Don't add export button to final message
-            }
-            
-            const existingExportBtn = cardContainer.querySelector('.export-role-goals-btn');
-            if (!existingExportBtn) {
-                const exportBtn = document.createElement('button');
-                exportBtn.type = 'button'; // Prevent form submission
-                exportBtn.className = 'btn btn-primary btn-sm export-role-goals-btn mt-2 me-2';
-                exportBtn.innerHTML = '<i class="bi bi-download me-1"></i>Export Role Goals to Spreadsheet';
-                exportBtn.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    
-                    // Extract role goals text from the specific section
-                    const roleGoalsText = roleGoalsSection.textContent || roleGoalsSection.innerText;
-                    const goal = window.chatQuestion || '';
-                    const scenario = window.selectedScenario || '';
-                    const strategy = window.selectedStrategy || '';
-                    
-                    console.log('Exporting role goals:', { roleGoalsText: roleGoalsText.substring(0, 100), goal, scenario, strategy });
-                    
-                    window.exportRoleGoals(roleGoalsText, goal, scenario, strategy);
-                });
+        if (!roleGoalsSection) {
+            console.log('🔍 No Role Goals section found - export button not needed');
+            return; // No role goals section, no export button needed
+        }
+        
+        // Find the parent card container
+        const cardContainer = roleGoalsSection.closest('.tt-template-carddads');
+        if (!cardContainer) {
+            console.log('⚠️ Role Goals section found but no card container');
+            return;
+        }
+        
+        // Don't add export button if this card contains Leadership Alignment Brief
+        const hasLeadershipBrief = cardContainer.querySelector('.leadership-alignment-brief');
+        if (hasLeadershipBrief) {
+            console.log('⚠️ Skipping export button - Leadership Alignment Brief found in this card');
+            return; // Don't add export button to final message
+        }
+        
+        // Don't add export button if this card only has Final Outcome (no Role Goals in this specific card)
+        // Check if Role Goals section is actually in THIS card container
+        const roleGoalsInThisCard = cardContainer.querySelector('.response-text') && 
+                                    cardContainer.textContent.includes('👥') &&
+                                    (cardContainer.textContent.includes('Rephrased Goals') || 
+                                     cardContainer.textContent.includes('Goals by Role'));
+        
+        if (!roleGoalsInThisCard) {
+            console.log('⚠️ Skipping export button - Role Goals not in this card container');
+            return;
+        }
+        
+        const existingExportBtn = cardContainer.querySelector('.export-role-goals-btn');
+        if (!existingExportBtn) {
+            console.log('✅ Adding export button to Role Goals section');
+            const exportBtn = document.createElement('button');
+            exportBtn.type = 'button'; // Prevent form submission
+            exportBtn.className = 'btn btn-primary btn-sm export-role-goals-btn mt-2 me-2';
+            exportBtn.innerHTML = '<i class="bi bi-download me-1"></i>Export Role Goals to Spreadsheet';
+            exportBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
                 
-                // Insert button after the response-text div, inside the card container
-                roleGoalsSection.insertAdjacentElement('afterend', exportBtn);
-            }
+                // Extract role goals text from the specific section
+                const roleGoalsText = roleGoalsSection.textContent || roleGoalsSection.innerText;
+                const goal = window.chatQuestion || '';
+                const scenario = window.selectedScenario || '';
+                const strategy = window.selectedStrategy || '';
+                
+                console.log('Exporting role goals:', { roleGoalsText: roleGoalsText.substring(0, 100), goal, scenario, strategy });
+                
+                window.exportRoleGoals(roleGoalsText, goal, scenario, strategy);
+            });
+            
+            // Insert button after the response-text div, inside the card container
+            roleGoalsSection.insertAdjacentElement('afterend', exportBtn);
         }
     }
 
