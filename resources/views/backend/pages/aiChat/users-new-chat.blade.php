@@ -1154,6 +1154,9 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                     cleaned = cleaned.replace(/\*\*([^*]+?)\*\*/g, '$1');
                     cleaned = cleaned.replace(/\*\*/g, '');
                     
+                    // Remove "Path A:", "Path B:", "Path C:", "Path D:" patterns (case insensitive)
+                    cleaned = cleaned.replace(/^Path\s+[A-Z][\.:]\s*/i, '');
+                    
                     // Remove "Path 1:", "Path 2:", "Path 3:", "Path 4:" patterns (case insensitive)
                     cleaned = cleaned.replace(/^Path\s+\d+[\.:]\s*/i, '');
                     
@@ -1733,8 +1736,9 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                                 // Get the original strategy text from data attribute (this is the cache key)
                                 let exactStrategy = this.getAttribute('data-original-strategy') || this.value;
                                 
-                                // Clean "Path A:", "Path B:", etc. from strategy text for cache key
+                                // Clean "Path A:", "Path B:", "Path 1:", etc. from strategy text for cache key
                                 exactStrategy = exactStrategy.replace(/^Path\s+[A-Z][\.:]\s*/i, '');
+                                exactStrategy = exactStrategy.replace(/^Path\s+\d+[\.:]\s*/i, '');
                                 
                                 // Store globally so it persists across navigation
                                 window.selectedStrategy = exactStrategy;
