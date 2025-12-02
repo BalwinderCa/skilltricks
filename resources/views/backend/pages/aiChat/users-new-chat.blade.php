@@ -2648,9 +2648,14 @@ document.addEventListener('click', function (e) {
             const briefContent = existingBriefInDOM.querySelector('.response-text');
             if (briefContent && briefContent.textContent.trim().length > 0) {
                 console.log('✅ Leadership Alignment Brief found in DOM from database');
+                console.log('📋 Brief content preview:', briefContent.textContent.substring(0, 150) + '...');
                 window.briefGenerationCompleted = true;
                 return;
+            } else {
+                console.warn('⚠️ Brief element found but content is empty');
             }
+        } else {
+            console.log('🔍 No brief found in DOM, will check if it needs to be generated');
         }
         
         const allResponseTexts = Array.from(document.querySelectorAll('.response-text'));
