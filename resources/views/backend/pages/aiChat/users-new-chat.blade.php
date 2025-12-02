@@ -1981,11 +1981,30 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                 } else if (currentStep === scenarioIndex && window.scenarioOptions && window.scenarioOptions.length > 0) {
                     const scenarioRadios = loadingDiv.querySelectorAll('.scenario-radio');
                     scenarioRadios.forEach(radio => {
-                        radio.addEventListener('change', function() {
+                        // Remove any existing event listeners to prevent duplicates
+                        const newRadio = radio.cloneNode(true);
+                        radio.parentNode.replaceChild(newRadio, radio);
+                        
+                        newRadio.addEventListener('change', function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            
                             if (this.checked) {
                                 const scenarioValue = this.getAttribute('data-scenario') || this.value;
+                                
+                                // Prevent duplicate calls - check if already processing
+                                if (window.scenarioSelectionInProgress) {
+                                    console.log('⚠️ Scenario selection already in progress, ignoring duplicate click');
+                                    return;
+                                }
+                                
+                                window.scenarioSelectionInProgress = true;
+                                console.log('📌 Scenario selected:', scenarioValue.substring(0, 50));
+                                
                                 window.selectedScenario = scenarioValue;
-                                fetchScenarioResponse(scenarioValue, true);
+                                fetchScenarioResponse(scenarioValue, true).finally(() => {
+                                    window.scenarioSelectionInProgress = false;
+                                });
                                 renderStep();
                                 // Update Next button state after scenario selection
                                 updateNextButtonState();
