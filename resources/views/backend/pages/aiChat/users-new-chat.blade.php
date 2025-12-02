@@ -665,6 +665,23 @@
                                     <div class="response-text">{!! \Illuminate\Support\Str::markdown($leadershipBriefFromDB) !!}</div>
                                 </div>
                             </div>
+                            <script>
+                                console.log('📋 BRIEF FROM DATABASE (Blade Template):');
+                                console.log('📍 Brief exists:', true);
+                                console.log('📍 Brief length:', {{ strlen($leadershipBriefFromDB) }});
+                                console.log('📍 Brief preview (first 200 chars):', {!! json_encode(substr($leadershipBriefFromDB, 0, 200)) !!});
+                                console.log('📍 Full brief (truncated for console):', {!! json_encode(strlen($leadershipBriefFromDB) > 500 ? substr($leadershipBriefFromDB, 0, 500) . '...' : $leadershipBriefFromDB) !!});
+                            </script>
+                        @else
+                            <script>
+                                console.log('📋 BRIEF FROM DATABASE (Blade Template):');
+                                console.log('📍 Brief exists:', false);
+                                console.log('📍 leadershipBriefFromDB isset:', {{ isset($leadershipBriefFromDB) ? 'true' : 'false' }});
+                                @if(isset($leadershipBriefFromDB))
+                                    console.log('📍 leadershipBriefFromDB is empty:', {{ empty($leadershipBriefFromDB) ? 'true' : 'false' }});
+                                    console.log('📍 leadershipBriefFromDB value:', {!! json_encode($leadershipBriefFromDB) !!});
+                                @endif
+                            </script>
                         @endif
                     </div>
 
@@ -2653,32 +2670,61 @@ document.addEventListener('click', function (e) {
     window.briefGenerationCompleted = false;
     
     // Check if brief already exists from database (page load)
+    console.log('🔍 CHECKING BRIEF FROM DATABASE...');
+    console.log('📍 PHP Variable Check:');
+    console.log('  - isset($leadershipBriefFromDB):', {{ isset($leadershipBriefFromDB) ? 'true' : 'false' }});
+    @if(isset($leadershipBriefFromDB))
+        console.log('  - leadershipBriefFromDB is set');
+        console.log('  - empty($leadershipBriefFromDB):', {{ empty($leadershipBriefFromDB) ? 'true' : 'false' }});
+        console.log('  - strlen($leadershipBriefFromDB):', {{ strlen($leadershipBriefFromDB) }});
+        console.log('  - Brief preview (first 300 chars):', {!! json_encode(substr($leadershipBriefFromDB, 0, 300)) !!});
+    @else
+        console.log('  - leadershipBriefFromDB is NOT set');
+    @endif
+    
     @if(isset($leadershipBriefFromDB) && !empty($leadershipBriefFromDB))
-        console.log('📋 Leadership Alignment Brief loaded from database:', '{{ strlen($leadershipBriefFromDB) }} characters');
+        console.log('✅ BRIEF EXISTS IN DATABASE - Length:', {{ strlen($leadershipBriefFromDB) }});
         window.briefGenerationCompleted = true;
         // Wait for DOM to be ready, then verify brief is visible
         setTimeout(() => {
+            console.log('🔍 Checking DOM for brief element...');
             const briefInDOM = document.querySelector('.leadership-alignment-brief');
             if (briefInDOM) {
                 console.log('✅ Leadership Alignment Brief found in DOM from database');
                 const briefContent = briefInDOM.querySelector('.response-text');
                 if (briefContent && briefContent.textContent.trim().length > 0) {
-                    console.log('✅ Brief content found:', briefContent.textContent.substring(0, 100) + '...');
-                    console.log('📍 Brief element:', briefInDOM);
-                    console.log('📍 Brief parent:', briefInDOM.parentElement);
-                    console.log('📍 Brief is visible:', briefInDOM.offsetHeight > 0 && briefInDOM.offsetWidth > 0);
+                    console.log('✅ Brief content found in DOM');
+                    console.log('  - Content length:', briefContent.textContent.length);
+                    console.log('  - Content preview (first 200 chars):', briefContent.textContent.substring(0, 200) + '...');
+                    console.log('  - Brief element:', briefInDOM);
+                    console.log('  - Brief parent:', briefInDOM.parentElement);
+                    console.log('  - Brief is visible:', briefInDOM.offsetHeight > 0 && briefInDOM.offsetWidth > 0);
+                    console.log('  - Brief computed style display:', window.getComputedStyle(briefInDOM).display);
+                    console.log('  - Brief computed style visibility:', window.getComputedStyle(briefInDOM).visibility);
                 } else {
                     console.warn('⚠️ Brief element found but no response-text content or content is empty');
-                    console.log('📍 Brief element HTML:', briefInDOM.innerHTML.substring(0, 200));
+                    console.log('  - Brief element HTML:', briefInDOM.innerHTML.substring(0, 200));
+                    console.log('  - Brief element children:', briefInDOM.children.length);
                 }
             } else {
                 console.error('❌ Leadership Alignment Brief NOT found in DOM even though it should be loaded from DB');
-                console.log('📍 Searching for all .leadership-alignment-brief elements:', document.querySelectorAll('.leadership-alignment-brief').length);
-                console.log('📍 All .response-text elements:', document.querySelectorAll('.response-text').length);
+                console.log('  - Searching for all .leadership-alignment-brief elements:', document.querySelectorAll('.leadership-alignment-brief').length);
+                console.log('  - All .response-text elements:', document.querySelectorAll('.response-text').length);
+                console.log('  - All .tt-template-carddads elements:', document.querySelectorAll('.tt-template-carddads').length);
+                
+                // Try to find any element containing "LEADERSHIP ALIGNMENT BRIEF"
+                const allText = Array.from(document.querySelectorAll('*')).map(el => el.textContent).join(' ');
+                if (allText.includes('LEADERSHIP ALIGNMENT BRIEF') || allText.includes('Leadership Alignment Brief')) {
+                    console.log('  - ⚠️ Found text "LEADERSHIP ALIGNMENT BRIEF" in page, but element not found with class');
+                }
             }
         }, 1000);
     @else
-        console.log('📋 No Leadership Alignment Brief in database for this chat');
+        console.log('❌ No Leadership Alignment Brief in database for this chat');
+        console.log('  - This means either:');
+        console.log('    1. Brief was never generated');
+        console.log('    2. Brief was generated but not saved to database');
+        console.log('    3. Brief exists but variable is not set correctly');
     @endif
 
     // Automatically generate and display Leadership Alignment Brief after final outcome
