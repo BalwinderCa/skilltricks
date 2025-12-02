@@ -669,8 +669,8 @@
                         
                         @if(isset($leadershipBriefFromDB) && !empty($leadershipBriefFromDB) && count($searchuserchatdata) === 0)
                             <div class="tt-template-carddads">
-                                <div class="leadership-alignment-brief">
-                                    <div class="bot-message response-text">{!! \Illuminate\Support\Str::markdown($leadershipBriefFromDB) !!}</div>
+                                <div class="leadership-alignment-brief mt-3">
+                                    <div class="response-text">{!! \Illuminate\Support\Str::markdown($leadershipBriefFromDB) !!}</div>
                                 </div>
                             </div>
                         @endif
