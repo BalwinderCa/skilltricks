@@ -2518,6 +2518,9 @@ document.addEventListener('click', function (e) {
             
             if (data.success && data.brief) {
                 console.log('✅ Brief generated successfully, length:', data.brief.length);
+                console.log('💾 Brief should be saved to database with chat_id:', chatId);
+                console.log('💾 Brief preview (first 200 chars):', data.brief.substring(0, 200));
+                
                 // Check if brief already exists
                 const existingBrief = cardContainer.querySelector('.leadership-alignment-brief');
                 if (existingBrief) {
@@ -2550,6 +2553,8 @@ document.addEventListener('click', function (e) {
                         console.log('✅ Brief successfully inserted and visible in DOM');
                         console.log('📍 Brief element:', insertedBrief);
                         console.log('📍 Brief content length:', insertedBrief.textContent.length);
+                        console.log('💾 IMPORTANT: Brief is now in DOM. After page reload, it should load from database.');
+                        console.log('💾 To verify: Reload the page and check console for "📋 BRIEF FROM DATABASE" logs');
                         
                         // Scroll the brief into view
                         insertedBrief.scrollIntoView({ behavior: 'smooth', block: 'nearest' });

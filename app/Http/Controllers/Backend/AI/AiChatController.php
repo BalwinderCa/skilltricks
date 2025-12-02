@@ -900,6 +900,12 @@ class AiChatController extends Controller
             ->where('user_id', $user->id)
             ->first();
         
+        \Log::info('Loading chat page - checking for brief in database', [
+            'chat_id' => $id,
+            'user_id' => $user->id,
+            'chat_record_exists' => !is_null($chatRecord)
+        ]);
+        
         $selectedStrategyFromDB = null;
         $leadershipBriefFromDB = null;
         if ($chatRecord) {
@@ -916,28 +922,44 @@ class AiChatController extends Controller
             // Try to get leadership_brief column if it exists
             try {
                 $columns = DB::select("SHOW COLUMNS FROM search_user_chat LIKE 'leadership_brief'");
+                \Log::info('Checking leadership_brief column', [
+                    'chat_id' => $id,
+                    'column_exists' => count($columns) > 0,
+                    'has_leadership_brief_property' => isset($chatRecord->leadership_brief),
+                    'leadership_brief_value' => $chatRecord->leadership_brief ?? 'NULL',
+                    'leadership_brief_length' => strlen($chatRecord->leadership_brief ?? ''),
+                    'leadership_brief_empty' => empty($chatRecord->leadership_brief ?? '')
+                ]);
+                
                 if (count($columns) > 0 && isset($chatRecord->leadership_brief) && !empty($chatRecord->leadership_brief)) {
                     $leadershipBriefFromDB = $chatRecord->leadership_brief;
-                    \Log::info('Leadership Brief retrieved from database', [
+                    \Log::info('✅ Leadership Brief retrieved from database', [
                         'chat_id' => $id,
                         'brief_length' => strlen($leadershipBriefFromDB),
                         'brief_preview' => substr($leadershipBriefFromDB, 0, 200)
                     ]);
                 } else {
-                    \Log::info('Leadership Brief column exists but is empty or not set', [
+                    \Log::warning('❌ Leadership Brief NOT found in database', [
                         'chat_id' => $id,
                         'column_exists' => count($columns) > 0,
                         'has_brief' => isset($chatRecord->leadership_brief),
-                        'brief_empty' => empty($chatRecord->leadership_brief ?? '')
+                        'brief_empty' => empty($chatRecord->leadership_brief ?? ''),
+                        'brief_value' => $chatRecord->leadership_brief ?? 'NULL'
                     ]);
                 }
             } catch (\Exception $e) {
-                \Log::warning('Error checking leadership_brief column', [
+                \Log::error('Error checking leadership_brief column', [
                     'chat_id' => $id,
-                    'error' => $e->getMessage()
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
                 ]);
                 // Column doesn't exist, that's okay
             }
+        } else {
+            \Log::warning('Chat record not found', [
+                'chat_id' => $id,
+                'user_id' => $user->id
+            ]);
         }
 
         return view('backend.pages.aiChat.users-new-chat', compact('user','promptGroups', 'prompts','searchKey','searchuserchatdata','id','searchuserchatdatanew', 'documentCount', 'selectedStrategyFromDB', 'leadershipBriefFromDB'));
@@ -2543,10 +2565,25 @@ EOT;
                     }
                     
                     // Update the chat record with the brief
-                    DB::table('search_user_chat')
+                    $updated = DB::table('search_user_chat')
                         ->where('id', $chatId)
                         ->where('user_id', $user->id)
                         ->update(['leadership_brief' => $brief]);
+                    
+                    // Verify the brief was saved
+                    $savedBrief = DB::table('search_user_chat')
+                        ->where('id', $chatId)
+                        ->where('user_id', $user->id)
+                        ->value('leadership_brief');
+                    
+                    \Log::info('Leadership Brief saved to database', [
+                        'chat_id' => $chatId,
+                        'user_id' => $user->id,
+                        'rows_updated' => $updated,
+                        'brief_saved_length' => strlen($savedBrief ?? ''),
+                        'brief_saved_preview' => substr($savedBrief ?? '', 0, 200),
+                        'brief_was_saved' => !empty($savedBrief)
+                    ]);
                 } catch (\Exception $e) {
                     Log::warning('Failed to save leadership brief to database', [
                         'chat_id' => $chatId,
