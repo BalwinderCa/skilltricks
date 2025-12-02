@@ -661,7 +661,7 @@
                             
                             @if($index === $lastIndex && isset($leadershipBriefFromDB) && !empty($leadershipBriefFromDB))
                                 <div class="leadership-alignment-brief mt-3">
-                                    <div class="bot-message response-text">{!! \Illuminate\Support\Str::markdown($leadershipBriefFromDB) !!}</div>
+                                    <div class="response-text">{!! \Illuminate\Support\Str::markdown($leadershipBriefFromDB) !!}</div>
                                 </div>
                             @endif
                            </div>
