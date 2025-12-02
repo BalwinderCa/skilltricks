@@ -1381,7 +1381,8 @@ public function users_new_chat_ask(Request $request)
       * Teams impacted (list specific teams/roles)
       * Trade-offs (what's gained vs. lost)
       * Risk level (Low/Med/High)
-    - Format: "- Path Name: [Rationale] | Teams: [list] | Trade-offs: [description] | Risk: [Low/Med/High]"
+    - Format: "- Strategy Name: [Rationale] | Teams: [list] | Trade-offs: [description] | Risk: [Low/Med/High]"
+    - DO NOT use "Path A", "Path B", "Path 1", "Path 2" or similar prefixes - use descriptive strategy names only (e.g., "Aggressive Expansion:", "Innovation Leadership:", "Market Penetration:")
     - Each path must feel customized, not generic
 
     🔮 Scenario Simulations:
