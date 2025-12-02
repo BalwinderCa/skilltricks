@@ -2617,9 +2617,13 @@ document.addEventListener('click', function (e) {
         
         // Check if brief already exists in DOM (from database)
         const existingBriefInDOM = document.querySelector('.leadership-alignment-brief');
-        if (existingBriefInDOM && existingBriefInDOM.textContent.trim().length > 0) {
-            window.briefGenerationCompleted = true;
-            return;
+        if (existingBriefInDOM) {
+            const briefContent = existingBriefInDOM.querySelector('.response-text');
+            if (briefContent && briefContent.textContent.trim().length > 0) {
+                console.log('✅ Leadership Alignment Brief found in DOM from database');
+                window.briefGenerationCompleted = true;
+                return;
+            }
         }
         
         const allResponseTexts = Array.from(document.querySelectorAll('.response-text'));
