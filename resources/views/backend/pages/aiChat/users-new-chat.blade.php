@@ -2680,6 +2680,26 @@ document.addEventListener('click', function (e) {
     window.briefGenerationInProgress = false;
     window.briefGenerationCompleted = false;
     
+    // Initialize window variables from existing chat data (for page reload)
+    @if(count($searchuserchatdata) > 0)
+        // Get the first question from the chat data
+        const firstChat = @json($searchuserchatdata[0]);
+        if (firstChat && firstChat.search) {
+            window.chatQuestion = firstChat.search;
+            console.log('📝 Loaded chatQuestion from database:', window.chatQuestion);
+        }
+        
+        // Get chat ID and user ID from hidden inputs
+        const chatIdInput = document.getElementById('chat_id');
+        const userIdInput = document.getElementById('user_id');
+        if (chatIdInput) {
+            window.chatChatId = chatIdInput.value;
+        }
+        if (userIdInput) {
+            window.chatUserId = userIdInput.value;
+        }
+    @endif
+    
     // Check if brief already exists from database (page load)
     console.log('🔍 CHECKING BRIEF FROM DATABASE...');
     console.log('📍 PHP Variable Check:');
