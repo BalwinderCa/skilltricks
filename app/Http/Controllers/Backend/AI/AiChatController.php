@@ -2562,7 +2562,18 @@ EOT;
                     $columns = DB::select("SHOW COLUMNS FROM search_user_chat LIKE 'leadership_brief'");
                     if (count($columns) == 0) {
                         \Log::info('Creating leadership_brief column');
-                        DB::statement("ALTER TABLE search_user_chat ADD COLUMN leadership_brief TEXT NULL AFTER selected_scenario");
+                        
+                        // Check if selected_scenario column exists to determine where to place the new column
+                        $scenarioColumns = DB::select("SHOW COLUMNS FROM search_user_chat LIKE 'selected_scenario'");
+                        if (count($scenarioColumns) > 0) {
+                            // selected_scenario exists, add after it
+                            DB::statement("ALTER TABLE search_user_chat ADD COLUMN leadership_brief TEXT NULL AFTER selected_scenario");
+                        } else {
+                            // selected_scenario doesn't exist, add at the end
+                            DB::statement("ALTER TABLE search_user_chat ADD COLUMN leadership_brief TEXT NULL");
+                        }
+                        
+                        \Log::info('leadership_brief column created successfully');
                     }
                     
                     // Verify chat record exists before updating
