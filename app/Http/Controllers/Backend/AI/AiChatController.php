@@ -2615,12 +2615,38 @@ EOT;
                         ->value('leadership_brief');
                     
                     if (empty($savedBrief)) {
-                        \Log::error('Brief was not saved to database - verification failed', [
+                        \Log::error('❌ Brief was not saved to database - verification failed', [
                             'chat_id' => $chatId,
                             'user_id' => $user->id,
                             'rows_updated' => $updated,
-                            'brief_length' => strlen($brief)
+                            'brief_length' => strlen($brief),
+                            'brief_preview' => substr($brief, 0, 200)
                         ]);
+                        
+                        // Try to save again without the AFTER clause as fallback
+                        try {
+                            DB::table('search_user_chat')
+                                ->where('id', $chatId)
+                                ->where('user_id', $user->id)
+                                ->update(['leadership_brief' => $brief]);
+                            
+                            $retrySavedBrief = DB::table('search_user_chat')
+                                ->where('id', $chatId)
+                                ->where('user_id', $user->id)
+                                ->value('leadership_brief');
+                            
+                            if (!empty($retrySavedBrief)) {
+                                \Log::info('✅ Brief saved on retry', [
+                                    'chat_id' => $chatId,
+                                    'brief_length' => strlen($retrySavedBrief)
+                                ]);
+                            }
+                        } catch (\Exception $retryException) {
+                            \Log::error('❌ Retry save also failed', [
+                                'chat_id' => $chatId,
+                                'error' => $retryException->getMessage()
+                            ]);
+                        }
                     } else {
                         \Log::info('✅ Leadership Brief successfully saved to database', [
                             'chat_id' => $chatId,
