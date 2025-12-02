@@ -2562,6 +2562,16 @@ document.addEventListener('click', function (e) {
             const cardContainer = roleGoalsSection.closest('.tt-template-carddads');
             if (!cardContainer) return;
             
+            // Don't add export button if this is the final message (contains Leadership Alignment Brief or Final Outcome only)
+            const hasLeadershipBrief = cardContainer.querySelector('.leadership-alignment-brief');
+            const hasOnlyFinalOutcome = cardContainer.textContent.includes('✅') && 
+                                       cardContainer.textContent.includes('Final Outcome') &&
+                                       !cardContainer.textContent.includes('👥');
+            
+            if (hasLeadershipBrief || hasOnlyFinalOutcome) {
+                return; // Don't add export button to final message
+            }
+            
             const existingExportBtn = cardContainer.querySelector('.export-role-goals-btn');
             if (!existingExportBtn) {
                 const exportBtn = document.createElement('button');
