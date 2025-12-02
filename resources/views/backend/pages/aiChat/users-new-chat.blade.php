@@ -2651,27 +2651,57 @@ document.addEventListener('click', function (e) {
         
         const existingExportBtn = cardContainer.querySelector('.export-role-goals-btn');
         if (!existingExportBtn) {
-            console.log('✅ Adding export button to Role Goals section');
+            console.log('✅ Adding export button after Role Goals section');
+            
+            // Find where the Role Goals section ends
+            // Look for the next section marker (📌, ✅, or 📋) or end of the response-text
+            const roleGoalsText = roleGoalsSection.textContent || roleGoalsSection.innerText;
+            const roleGoalsEndIndex = roleGoalsText.indexOf('📌');
+            const finalOutcomeIndex = roleGoalsText.indexOf('✅');
+            const briefIndex = roleGoalsText.indexOf('📋');
+            
+            // Find the earliest next section marker after Role Goals
+            let nextSectionIndex = -1;
+            if (roleGoalsEndIndex !== -1) nextSectionIndex = roleGoalsEndIndex;
+            if (finalOutcomeIndex !== -1 && (nextSectionIndex === -1 || finalOutcomeIndex < nextSectionIndex)) {
+                nextSectionIndex = finalOutcomeIndex;
+            }
+            if (briefIndex !== -1 && (nextSectionIndex === -1 || briefIndex < nextSectionIndex)) {
+                nextSectionIndex = briefIndex;
+            }
+            
+            // Extract just the Role Goals section (up to the next section marker)
+            let roleGoalsOnly = roleGoalsText;
+            if (nextSectionIndex !== -1) {
+                roleGoalsOnly = roleGoalsText.substring(0, nextSectionIndex).trim();
+            }
+            
             const exportBtn = document.createElement('button');
             exportBtn.type = 'button'; // Prevent form submission
-            exportBtn.className = 'btn btn-primary btn-sm export-role-goals-btn mt-2 me-2';
+            exportBtn.className = 'btn btn-primary btn-sm export-role-goals-btn mt-3 mb-3';
+            exportBtn.style.display = 'block';
             exportBtn.innerHTML = '<i class="bi bi-download me-1"></i>Export Role Goals to Spreadsheet';
             exportBtn.addEventListener('click', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
                 
-                // Extract role goals text from the specific section
-                const roleGoalsText = roleGoalsSection.textContent || roleGoalsSection.innerText;
+                // Extract role goals text (just the Role Goals section, not the entire response)
                 const goal = window.chatQuestion || '';
                 const scenario = window.selectedScenario || '';
                 const strategy = window.selectedStrategy || '';
                 
-                console.log('Exporting role goals:', { roleGoalsText: roleGoalsText.substring(0, 100), goal, scenario, strategy });
+                console.log('Exporting role goals:', { 
+                    roleGoalsText: roleGoalsOnly.substring(0, 100), 
+                    goal, 
+                    scenario, 
+                    strategy 
+                });
                 
-                window.exportRoleGoals(roleGoalsText, goal, scenario, strategy);
+                window.exportRoleGoals(roleGoalsOnly, goal, scenario, strategy);
             });
             
-            // Insert button after the response-text div, inside the card container
+            // Insert button after the response-text div containing Role Goals, inside the card container
+            // This places it right after the Role Goals section ends
             roleGoalsSection.insertAdjacentElement('afterend', exportBtn);
         }
     }
