@@ -918,8 +918,24 @@ class AiChatController extends Controller
                 $columns = DB::select("SHOW COLUMNS FROM search_user_chat LIKE 'leadership_brief'");
                 if (count($columns) > 0 && isset($chatRecord->leadership_brief) && !empty($chatRecord->leadership_brief)) {
                     $leadershipBriefFromDB = $chatRecord->leadership_brief;
+                    \Log::info('Leadership Brief retrieved from database', [
+                        'chat_id' => $id,
+                        'brief_length' => strlen($leadershipBriefFromDB),
+                        'brief_preview' => substr($leadershipBriefFromDB, 0, 200)
+                    ]);
+                } else {
+                    \Log::info('Leadership Brief column exists but is empty or not set', [
+                        'chat_id' => $id,
+                        'column_exists' => count($columns) > 0,
+                        'has_brief' => isset($chatRecord->leadership_brief),
+                        'brief_empty' => empty($chatRecord->leadership_brief ?? '')
+                    ]);
                 }
             } catch (\Exception $e) {
+                \Log::warning('Error checking leadership_brief column', [
+                    'chat_id' => $id,
+                    'error' => $e->getMessage()
+                ]);
                 // Column doesn't exist, that's okay
             }
         }
