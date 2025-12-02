@@ -2538,43 +2538,83 @@ document.addEventListener('click', function (e) {
                 // Mark as completed
                 window.briefGenerationCompleted = true;
                 
-                // Create brief section
-                const briefDiv = document.createElement('div');
-                briefDiv.className = 'leadership-alignment-brief mt-3';
-                briefDiv.innerHTML = `
-                    <div class="response-text">${marked.parse(data.brief)}</div>
-                `;
-                
-                // Insert after final outcome section, inside the same card container
-                console.log('📍 Inserting brief after final outcome section...');
-                console.log('📍 Final outcome section:', finalOutcomeSection);
-                console.log('📍 Card container:', cardContainer);
-                
-                finalOutcomeSection.insertAdjacentElement('afterend', briefDiv);
-                
-                // Verify insertion and scroll into view
-                setTimeout(() => {
-                    const insertedBrief = cardContainer.querySelector('.leadership-alignment-brief');
-                    if (insertedBrief) {
-                        console.log('✅ Brief successfully inserted and visible in DOM');
-                        console.log('📍 Brief element:', insertedBrief);
-                        console.log('📍 Brief content length:', insertedBrief.textContent.length);
-                        console.log('💾 IMPORTANT: Brief is now in DOM. After page reload, it should load from database.');
-                        console.log('💾 To verify: Reload the page and check console for "📋 BRIEF FROM DATABASE" logs');
-                        
-                        // Scroll the brief into view
-                        insertedBrief.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                        
-                        // Add a visual highlight to show the brief was added
-                        insertedBrief.style.transition = 'background-color 0.3s';
-                        insertedBrief.style.backgroundColor = 'rgba(0, 123, 255, 0.1)';
-                        setTimeout(() => {
-                            insertedBrief.style.backgroundColor = '';
-                        }, 2000);
-                    } else {
-                        console.error('❌ Brief insertion failed - not found in DOM after insertion');
+                // Check if marked is available
+                if (typeof marked === 'undefined') {
+                    console.error('❌ marked library is not loaded!');
+                    // Fallback: use plain text with basic formatting
+                    const briefText = data.brief.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                                                .replace(/\n/g, '<br>');
+                    const briefDiv = document.createElement('div');
+                    briefDiv.className = 'leadership-alignment-brief mt-3';
+                    briefDiv.innerHTML = `<div class="response-text">${briefText}</div>`;
+                    finalOutcomeSection.insertAdjacentElement('afterend', briefDiv);
+                } else {
+                    // Create brief section with markdown parsing
+                    console.log('📝 Parsing brief with marked library...');
+                    let parsedBrief;
+                    try {
+                        parsedBrief = marked.parse(data.brief);
+                        console.log('✅ Brief parsed successfully, HTML length:', parsedBrief.length);
+                    } catch (parseError) {
+                        console.error('❌ Error parsing brief with marked:', parseError);
+                        // Fallback to plain text
+                        parsedBrief = data.brief.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                                                .replace(/\n/g, '<br>');
                     }
-                }, 100);
+                    
+                    const briefDiv = document.createElement('div');
+                    briefDiv.className = 'leadership-alignment-brief mt-3';
+                    
+                    // Create response-text div
+                    const responseTextDiv = document.createElement('div');
+                    responseTextDiv.className = 'response-text';
+                    responseTextDiv.innerHTML = parsedBrief;
+                    
+                    briefDiv.appendChild(responseTextDiv);
+                    
+                    // Insert after final outcome section, inside the same card container
+                    console.log('📍 Inserting brief after final outcome section...');
+                    console.log('📍 Final outcome section:', finalOutcomeSection);
+                    console.log('📍 Card container:', cardContainer);
+                    console.log('📍 Brief div HTML length:', briefDiv.innerHTML.length);
+                    
+                    finalOutcomeSection.insertAdjacentElement('afterend', briefDiv);
+                    
+                    // Verify insertion and scroll into view
+                    setTimeout(() => {
+                        const insertedBrief = cardContainer.querySelector('.leadership-alignment-brief');
+                        if (insertedBrief) {
+                            const responseText = insertedBrief.querySelector('.response-text');
+                            console.log('✅ Brief successfully inserted and visible in DOM');
+                            console.log('📍 Brief element:', insertedBrief);
+                            console.log('📍 Response text element:', responseText);
+                            console.log('📍 Brief innerHTML length:', insertedBrief.innerHTML.length);
+                            console.log('📍 Brief textContent length:', insertedBrief.textContent.length);
+                            console.log('📍 Response text innerHTML length:', responseText ? responseText.innerHTML.length : 0);
+                            console.log('📍 Response text textContent length:', responseText ? responseText.textContent.length : 0);
+                            
+                            if (!responseText || responseText.innerHTML.trim().length === 0) {
+                                console.error('❌ Response text is empty! Re-inserting content...');
+                                responseText.innerHTML = parsedBrief;
+                            }
+                            
+                            console.log('💾 IMPORTANT: Brief is now in DOM. After page reload, it should load from database.');
+                            console.log('💾 To verify: Reload the page and check console for "📋 BRIEF FROM DATABASE" logs');
+                            
+                            // Scroll the brief into view
+                            insertedBrief.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                            
+                            // Add a visual highlight to show the brief was added
+                            insertedBrief.style.transition = 'background-color 0.3s';
+                            insertedBrief.style.backgroundColor = 'rgba(0, 123, 255, 0.1)';
+                            setTimeout(() => {
+                                insertedBrief.style.backgroundColor = '';
+                            }, 2000);
+                        } else {
+                            console.error('❌ Brief insertion failed - not found in DOM after insertion');
+                        }
+                    }, 100);
+                }
             } else {
                 // Mark as completed even on error to prevent retries
                 window.briefGenerationCompleted = true;
