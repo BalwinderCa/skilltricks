@@ -2005,20 +2005,28 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                                 window.scenarioSelectionInProgress = true;
                                 console.log('📌 Scenario selected:', scenarioValue.substring(0, 50));
                                 
-                                // Remove any existing loading indicators
-                                const existingLoaders = loadingDiv.querySelectorAll('.scenario-loading-indicator');
-                                existingLoaders.forEach(loader => loader.remove());
+                                window.selectedScenario = scenarioValue;
                                 
-                                // Add loading indicator
-                                const loadingIndicator = document.createElement('div');
-                                loadingIndicator.className = 'scenario-loading-indicator alert alert-info mt-2';
-                                loadingIndicator.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Loading scenario content...';
-                                const scenarioOptionsDiv = loadingDiv.querySelector('.scenario-options');
-                                if (scenarioOptionsDiv) {
-                                    scenarioOptionsDiv.insertAdjacentElement('afterend', loadingIndicator);
+                                // Check if scenario is already cached to avoid unnecessary loading indicator
+                                const strategyKey = window.selectedStrategy ? window.selectedStrategy.substring(0, 50) : 'no-strategy';
+                                const cacheKey = `${strategyKey}||${scenarioValue}`;
+                                const isCached = window.scenarioResponsesCache && window.scenarioResponsesCache[cacheKey];
+                                
+                                if (!isCached) {
+                                    // Remove any existing loading indicators
+                                    const existingLoaders = loadingDiv.querySelectorAll('.scenario-loading-indicator');
+                                    existingLoaders.forEach(loader => loader.remove());
+                                    
+                                    // Add loading indicator only if not cached
+                                    const loadingIndicator = document.createElement('div');
+                                    loadingIndicator.className = 'scenario-loading-indicator alert alert-info mt-2';
+                                    loadingIndicator.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Loading scenario content...';
+                                    const scenarioOptionsDiv = loadingDiv.querySelector('.scenario-options');
+                                    if (scenarioOptionsDiv) {
+                                        scenarioOptionsDiv.insertAdjacentElement('afterend', loadingIndicator);
+                                    }
                                 }
                                 
-                                window.selectedScenario = scenarioValue;
                                 fetchScenarioResponse(scenarioValue, true).then(() => {
                                     // Remove loading indicator after API call completes
                                     const loaders = loadingDiv.querySelectorAll('.scenario-loading-indicator');
@@ -2029,6 +2037,7 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                                     loaders.forEach(loader => loader.remove());
                                 }).finally(() => {
                                     window.scenarioSelectionInProgress = false;
+                                    // Re-render to show updated content
                                     renderStep();
                                     // Update Next button state after scenario selection
                                     updateNextButtonState();
