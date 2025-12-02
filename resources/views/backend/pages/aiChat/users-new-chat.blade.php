@@ -1645,11 +1645,15 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                     // Just show current status
                     
                     // Also load the active scenario if not cached (using strategy-specific key)
-                    if (activeScenario) {
+                    // Only load if not already loading to prevent duplicate calls
+                    if (activeScenario && !window.scenarioSelectionInProgress) {
                         const strategyKey = window.selectedStrategy ? window.selectedStrategy.substring(0, 50) : 'no-strategy';
                         const activeScenarioCacheKey = `${strategyKey}||${activeScenario}`;
                         if (!window.scenarioResponsesCache || !window.scenarioResponsesCache[activeScenarioCacheKey]) {
+                            console.log('🔄 Auto-loading active scenario:', activeScenario.substring(0, 50));
                             fetchScenarioResponse(activeScenario, false);
+                        } else {
+                            console.log('✅ Active scenario already cached');
                         }
                     }
                 } else {
