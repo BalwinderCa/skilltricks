@@ -2521,6 +2521,12 @@ document.addEventListener('click', function (e) {
                 console.log('💾 Brief should be saved to database with chat_id:', chatId);
                 console.log('💾 Brief preview (first 200 chars):', data.brief.substring(0, 200));
                 
+                // Check for warning about save failure
+                if (data.warning) {
+                    console.error('⚠️ WARNING:', data.warning);
+                    console.error('⚠️ Brief was generated but may not be saved to database!');
+                }
+                
                 // Check if brief already exists
                 const existingBrief = cardContainer.querySelector('.leadership-alignment-brief');
                 if (existingBrief) {
@@ -2798,6 +2804,28 @@ document.addEventListener('click', function (e) {
         const fullResponse = Array.from(document.querySelectorAll('.response-text'))
             .map(el => el.textContent || el.innerText)
             .join('\n\n');
+        
+        // Validate required data before calling API
+        if (!chatId) {
+            console.error('❌ Cannot generate brief: chat_id is missing');
+            console.log('📍 chat_id element value:', document.getElementById('chat_id')?.value);
+            console.log('📍 window.chatChatId:', window.chatChatId);
+            return;
+        }
+        
+        if (!originalQuestion) {
+            console.error('❌ Cannot generate brief: original question is missing');
+            console.log('📍 window.chatQuestion:', window.chatQuestion);
+            return;
+        }
+        
+        console.log('📋 Data validation passed:', {
+            chatId,
+            hasStrategy: !!selectedStrategy,
+            hasScenario: !!selectedScenario,
+            hasQuestion: !!originalQuestion,
+            responseLength: fullResponse.length
+        });
         
         // Generate brief automatically
         window.generateLeadershipAlignmentBrief(chatId, selectedStrategy, selectedScenario, originalQuestion, fullResponse);
