@@ -622,7 +622,7 @@
                 <!-- Chat Header -->
                 <div class="chat-header">
                     <div class="header-title">
-                    <span>ChatGPT</span>
+                    <span>StrategiStudio</span>
                     </div>
                     <div class="header-actions">
                     @if(isset($documentCount) && $documentCount > 0)
@@ -736,7 +736,7 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="button" class="btn btn-primary" id="submitContextBtn">
-                        <i class="bi bi-check-circle me-1"></i> Submit & Send to ChatGPT
+                        <i class="bi bi-check-circle me-1"></i> Submit & Send to StrategiStudio
                     </button>
                 </div>
             </div>
