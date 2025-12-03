@@ -2197,10 +2197,34 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                 `;
                 
                 // Add export button and auto-generate brief after final answer is rendered
+                // Use longer timeout to ensure DOM is fully updated
                 setTimeout(() => {
+                    console.log('🎯 renderFinalAnswer: Adding export button and generating brief...');
                     addExportButtonToRoleGoals();
+                    
+                    // Reset brief generation flags to allow regeneration
+                    window.briefGenerationInProgress = false;
+                    window.briefGenerationCompleted = false;
+                    
+                    // Find the final outcome section within the current loadingDiv
+                    const finalOutcomeInLoadingDiv = loadingDiv.querySelector('.response-text');
+                    if (finalOutcomeInLoadingDiv && finalOutcomeInLoadingDiv.textContent.includes('✅') && finalOutcomeInLoadingDiv.textContent.includes('Final Outcome')) {
+                        console.log('✅ Found Final Outcome section in loadingDiv');
+                    } else {
+                        // Search all response-text elements
+                        const allResponseTexts = Array.from(loadingDiv.querySelectorAll('.response-text'));
+                        const finalOutcomeSection = allResponseTexts.find(el => 
+                            el.textContent.includes('✅') && el.textContent.includes('Final Outcome')
+                        );
+                        if (finalOutcomeSection) {
+                            console.log('✅ Found Final Outcome section in response sections');
+                        } else {
+                            console.warn('⚠️ Final Outcome section not found in loadingDiv');
+                        }
+                    }
+                    
                     autoGenerateAlignmentBrief();
-                }, 100);
+                }, 500); // Increased to 500ms to ensure DOM is ready
             }
 
             renderStep();
@@ -2467,19 +2491,40 @@ document.addEventListener('click', function (e) {
     window.generateLeadershipAlignmentBrief = function(chatId, selectedStrategy, selectedScenario, originalQuestion, fullResponse) {
         // Find the loading indicator we created
         const loadingIndicator = document.querySelector('.leadership-alignment-brief-loading');
-        const finalOutcomeSection = Array.from(document.querySelectorAll('.response-text'))
-            .find(el => el.textContent.includes('✅') && el.textContent.includes('Final Outcome'));
+        
+        // Re-find final outcome section (DOM might have changed after renderFinalAnswer)
+        const allResponseTexts = Array.from(document.querySelectorAll('.response-text'));
+        console.log('🔍 generateLeadershipAlignmentBrief: Searching for Final Outcome section...');
+        console.log('📍 Total response-text elements:', allResponseTexts.length);
+        
+        const finalOutcomeSection = allResponseTexts.find(el => {
+            const text = el.textContent || el.innerText;
+            const hasCheckmark = text.includes('✅');
+            const hasFinalOutcome = text.includes('Final Outcome');
+            return hasCheckmark && hasFinalOutcome;
+        });
         
         if (!finalOutcomeSection) {
+            console.error('❌ Final Outcome section not found in generateLeadershipAlignmentBrief');
+            console.log('📍 Available response-text elements:', allResponseTexts.map(el => {
+                const text = el.textContent || el.innerText;
+                return text.substring(0, 80).replace(/\n/g, ' ');
+            }));
             if (loadingIndicator) loadingIndicator.remove();
             return;
         }
+        
+        console.log('✅ Final Outcome section found:', finalOutcomeSection);
+        console.log('📍 Final Outcome section text preview:', (finalOutcomeSection.textContent || finalOutcomeSection.innerText).substring(0, 100));
         
         const cardContainer = finalOutcomeSection.closest('.tt-template-carddads');
         if (!cardContainer) {
+            console.error('❌ Card container not found for Final Outcome section');
             if (loadingIndicator) loadingIndicator.remove();
             return;
         }
+        
+        console.log('✅ Card container found:', cardContainer);
 
         console.log('🔄 Calling API to generate Leadership Alignment Brief...', {
             chatId,
@@ -2832,8 +2877,11 @@ document.addEventListener('click', function (e) {
     function autoGenerateAlignmentBrief() {
         // Prevent multiple simultaneous calls
         if (window.briefGenerationInProgress || window.briefGenerationCompleted) {
+            console.log('⏭️ Skipping brief generation - already in progress or completed');
             return;
         }
+        
+        console.log('🔍 autoGenerateAlignmentBrief: Starting...');
         
         // Check if brief already exists in DOM (from database)
         const existingBriefInDOM = document.querySelector('.leadership-alignment-brief');
@@ -2851,14 +2899,32 @@ document.addEventListener('click', function (e) {
             console.log('🔍 No brief found in DOM, will check if it needs to be generated');
         }
         
+        // Search for Final Outcome section - check both in all documents and within specific card containers
         const allResponseTexts = Array.from(document.querySelectorAll('.response-text'));
-        const finalOutcomeSection = allResponseTexts.find(el => 
-            el.textContent.includes('✅') && el.textContent.includes('Final Outcome')
-        );
+        console.log('🔍 Searching for Final Outcome section...');
+        console.log('📍 Total response-text elements found:', allResponseTexts.length);
+        
+        const finalOutcomeSection = allResponseTexts.find(el => {
+            const text = el.textContent || el.innerText;
+            const hasCheckmark = text.includes('✅');
+            const hasFinalOutcome = text.includes('Final Outcome');
+            if (hasCheckmark && hasFinalOutcome) {
+                console.log('✅ Found Final Outcome section:', text.substring(0, 100));
+            }
+            return hasCheckmark && hasFinalOutcome;
+        });
         
         if (!finalOutcomeSection) {
+            console.warn('⚠️ Final Outcome section not found. Available sections:', 
+                allResponseTexts.map(el => {
+                    const text = el.textContent || el.innerText;
+                    return text.substring(0, 50).replace(/\n/g, ' ');
+                })
+            );
             return;
         }
+        
+        console.log('✅ Final Outcome section found:', finalOutcomeSection);
         
         // Find the parent card container
         const cardContainer = finalOutcomeSection.closest('.tt-template-carddads');
