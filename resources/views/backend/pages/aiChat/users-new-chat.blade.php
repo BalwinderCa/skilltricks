@@ -930,7 +930,7 @@ async function submitContextFromModal() {
         }).catch(err => console.error('Error saving context:', err));
     } catch (error) {
         console.error('Error saving context to database:', error);
-        // Continue anyway, context will still be sent to ChatGPT
+        // Continue anyway, context will still be sent to StrategiStudio
     }
 
     // Hide modal
@@ -1002,7 +1002,7 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                 <i class="bi bi-plus-circle me-1"></i> Add More Context
             </button>
             <button type="button" class="btn btn-primary btn-sm skip-context-btn">
-                <i class="bi bi-arrow-right me-1"></i> Continue to ChatGPT
+                <i class="bi bi-arrow-right me-1"></i> Continue to StrategiStudio
             </button>
         </div>
     `;
@@ -1020,7 +1020,7 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
     currentUserCard = userCard;
     currentContextOptionsDiv = contextOptionsDiv;
 
-    // Function to actually send the request to ChatGPT
+    // Function to actually send the request to StrategiStudio
     window.sendToChatGPT = async function(contextData = null) {
         // Validate required fields
         if (!currentQuestion || !currentQuestion.trim()) {
