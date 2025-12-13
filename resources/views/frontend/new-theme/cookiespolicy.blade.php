@@ -28,7 +28,7 @@
             <a href="{{ url('/products') }}">PRODUCT</a>
             <a href="{{ url('/contact') }}">CONTACT</a>
             @if(Auth::check())
-                <a class="btn btn-bordered" href="{{ route('writebot.dashboard') }}">StrategicStudio</a>
+                <a class="btn btn-bordered" href="{{ route('writebot.dashboard') }}">StrategiStudio</a>
             @else
                 <a class="btn btn-bordered" href="{{ url('/register') }}">Register</a>
                 <a class="btn btn-bordered" href="{{ url('/login') }}">Login</a>
@@ -43,7 +43,7 @@
         <a href="{{ url('/products') }}">PRODUCT</a>
         <a href="{{ url('/contact') }}">CONTACT</a>
         @if(Auth::check())
-                <a class="btn btn-bordered" href="{{ route('writebot.dashboard') }}">StrategicStudio</a>
+                <a class="btn btn-bordered" href="{{ route('writebot.dashboard') }}">StrategiStudio</a>
             @else
                 <a class="btn btn-bordered" href="{{ url('/register') }}">Register</a>
                 <a class="btn btn-bordered" href="{{ url('/login') }}">Login</a>
