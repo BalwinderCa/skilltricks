@@ -171,6 +171,16 @@ def extract_on_server():
             error = stderr.read().decode()
             print(f"⚠ Extraction warning: {error}")
         
+        # Clear Laravel caches
+        print(f"\n[2] Clearing Laravel caches...")
+        cache_cmd = f"cd {REMOTE_PATH} && php artisan view:clear 2>/dev/null && php artisan cache:clear 2>/dev/null && php artisan config:clear 2>/dev/null || echo 'Cache clear attempted'"
+        stdin, stdout, stderr = ssh.exec_command(cache_cmd)
+        cache_exit = stdout.channel.recv_exit_status()
+        if cache_exit == 0:
+            print("✓ Laravel caches cleared")
+        else:
+            print("⚠ Cache clear may have failed (this is usually OK)")
+        
         ssh.close()
         return True
         
