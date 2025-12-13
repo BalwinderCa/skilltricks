@@ -74,7 +74,9 @@ body {
 }
 .nav-desktop .btn.btn-bordered{text-transform: uppercase;border: 1px solid #36839B;padding: 0px 10px;
     border-radius: 5px;}
+.nav-desktop .btn.btn-bordered.btn-strategistudio{text-transform: none;}
 .nav-mobile a{text-transform: uppercase;}
+.nav-mobile a.btn.btn-bordered.btn-strategistudio{text-transform: none;}
 
 .logo {
     width: 75px;
