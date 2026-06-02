@@ -1452,36 +1452,33 @@ public function users_new_chat_ask(Request $request)
  
         // Send to OpenAI API with comprehensive error handling
         try {
-            Log::info('OpenAI API Request - First Chat', [
+            Log::info('Gemini API Request - First Chat', [
                 'user_id' => $user->id,
                 'chat_id' => $chatId,
                 'prompt_length' => strlen($prompt),
                 'system_message_length' => strlen($systemMessage),
                 'documents_count' => $documents->count(),
-                'has_api_key' => !empty(env('OPENAI_API_KEY')),
+                'has_api_key' => !empty(env('GEMINI_API_KEY')),
             ]);
 
-            $openAiResponse = Http::withToken(env('OPENAI_API_KEY'))
-                ->timeout(90) // Increase timeout to 90 seconds
-                ->connectTimeout(10) // Connection timeout
-                ->retry(2, 1000) // Retry 2 times with 1 second delay
-                ->post('https://api.openai.com/v1/chat/completions', [
-                    'model' => 'gpt-4-turbo',
-                    'temperature' => 0.7,
-                    'max_tokens' => 3000,
-                    'messages' => [
-                        [
-                            'role' => 'system',
-                            'content' => $systemMessage
-                        ],
-                        [
-                            'role' => 'user',
-                            'content' => $prompt
-                        ],
+            $openAiResponse = Http::withQueryParameters(['key' => env('GEMINI_API_KEY')])
+                ->timeout(90)
+                ->connectTimeout(10)
+                ->retry(2, 1000)
+                ->post('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent', [
+                    'system_instruction' => [
+                        'parts' => [['text' => $systemMessage]]
+                    ],
+                    'contents' => [
+                        ['role' => 'user', 'parts' => [['text' => $prompt]]]
+                    ],
+                    'generationConfig' => [
+                        'temperature' => 0.7,
+                        'maxOutputTokens' => 3000,
                     ],
                 ]);
 
-            Log::info('OpenAI API Response - First Chat', [
+            Log::info('Gemini API Response - First Chat', [
                 'user_id' => $user->id,
                 'chat_id' => $chatId,
                 'status' => $openAiResponse->status(),
@@ -1558,36 +1555,33 @@ public function users_new_chat_ask(Request $request)
 
         // Send to OpenAI API with comprehensive error handling
         try {
-            Log::info('OpenAI API Request - Follow-up Chat', [
+            Log::info('Gemini API Request - Follow-up Chat', [
                 'user_id' => $user->id,
                 'chat_id' => $chatId,
                 'question_length' => strlen($question),
                 'system_message_length' => strlen($systemMessage),
                 'documents_count' => $documents->count(),
-                'has_api_key' => !empty(env('OPENAI_API_KEY')),
+                'has_api_key' => !empty(env('GEMINI_API_KEY')),
             ]);
 
-            $openAiResponse = Http::withToken(env('OPENAI_API_KEY'))
-                ->timeout(90) // Increase timeout to 90 seconds
-                ->connectTimeout(10) // Connection timeout
-                ->retry(2, 1000) // Retry 2 times with 1 second delay
-                ->post('https://api.openai.com/v1/chat/completions', [
-                    'model' => 'gpt-4-turbo',
-                    'temperature' => 0.7,
-                    'max_tokens' => 3000,
-                    'messages' => [
-                        [
-                            'role' => 'system',
-                            'content' => $systemMessage
-                        ],
-                        [
-                            'role' => 'user',
-                            'content' => $question
-                        ],
+            $openAiResponse = Http::withQueryParameters(['key' => env('GEMINI_API_KEY')])
+                ->timeout(90)
+                ->connectTimeout(10)
+                ->retry(2, 1000)
+                ->post('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent', [
+                    'system_instruction' => [
+                        'parts' => [['text' => $systemMessage]]
+                    ],
+                    'contents' => [
+                        ['role' => 'user', 'parts' => [['text' => $question]]]
+                    ],
+                    'generationConfig' => [
+                        'temperature' => 0.7,
+                        'maxOutputTokens' => 3000,
                     ],
                 ]);
 
-            Log::info('OpenAI API Response - Follow-up Chat', [
+            Log::info('Gemini API Response - Follow-up Chat', [
                 'user_id' => $user->id,
                 'chat_id' => $chatId,
                 'status' => $openAiResponse->status(),
@@ -1677,7 +1671,7 @@ public function users_new_chat_ask(Request $request)
             ], 500);
         }
 
-        $responseContent = $openAiResponse->json('choices.0.message.content');
+        $responseContent = $openAiResponse->json('candidates.0.content.parts.0.text');
 
         // Save results to both main chat table and history
         $commonData = [
@@ -1822,30 +1816,27 @@ EOT;
                'prompt_length' => strlen($prompt),
                'system_message_length' => strlen($systemMessage),
                'selected_strategy' => $selectedStrategy,
-               'has_api_key' => !empty(env('OPENAI_API_KEY')),
+               'has_api_key' => !empty(env('GEMINI_API_KEY')),
            ]);
 
-           $openAiResponse = Http::withToken(env('OPENAI_API_KEY'))
-               ->timeout(90) // Increase timeout to 90 seconds
-               ->connectTimeout(10) // Connection timeout
-               ->retry(2, 1000) // Retry 2 times with 1 second delay
-               ->post('https://api.openai.com/v1/chat/completions', [
-                   'model' => 'gpt-4-turbo',
-                   'temperature' => 0.7,
-                   'max_tokens' => 3000,
-                   'messages' => [
-                       [
-                           'role' => 'system',
-                           'content' => $systemMessage
-                       ],
-                       [
-                           'role' => 'user',
-                           'content' => $prompt
-                       ],
+           $openAiResponse = Http::withQueryParameters(['key' => env('GEMINI_API_KEY')])
+               ->timeout(90)
+               ->connectTimeout(10)
+               ->retry(2, 1000)
+               ->post('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent', [
+                   'system_instruction' => [
+                       'parts' => [['text' => $systemMessage]]
+                   ],
+                   'contents' => [
+                       ['role' => 'user', 'parts' => [['text' => $prompt]]]
+                   ],
+                   'generationConfig' => [
+                       'temperature' => 0.7,
+                       'maxOutputTokens' => 3000,
                    ],
                ]);
 
-           Log::info('OpenAI API Response - Update Strategy', [
+           Log::info('Gemini API Response - Update Strategy', [
                'user_id' => $user->id,
                'chat_id' => $chatId,
                'status' => $openAiResponse->status(),
@@ -1930,7 +1921,7 @@ EOT;
            ], 500);
        }
 
-       $updatedSections = $openAiResponse->json('choices.0.message.content');
+       $updatedSections = $openAiResponse->json('candidates.0.content.parts.0.text');
 
        // Only update database if this is a user selection (not just eager loading)
        if ($isUserSelection) {
@@ -2091,30 +2082,27 @@ EOT;
                 'scenario' => $selectedScenario,
                 'strategy' => $selectedStrategy,
                 'prompt_length' => strlen($prompt),
-                'has_api_key' => !empty(env('OPENAI_API_KEY')),
+                'has_api_key' => !empty(env('GEMINI_API_KEY')),
             ]);
 
-            $openAiResponse = Http::withToken(env('OPENAI_API_KEY'))
+            $openAiResponse = Http::withQueryParameters(['key' => env('GEMINI_API_KEY')])
                 ->timeout(90)
                 ->connectTimeout(10)
                 ->retry(2, 1000)
-                ->post('https://api.openai.com/v1/chat/completions', [
-                    'model' => 'gpt-4-turbo',
-                    'temperature' => 0.7,
-                    'max_tokens' => 2500,
-                    'messages' => [
-                        [
-                            'role' => 'system',
-                            'content' => $systemMessage
-                        ],
-                        [
-                            'role' => 'user',
-                            'content' => $prompt
-                        ],
+                ->post('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent', [
+                    'system_instruction' => [
+                        'parts' => [['text' => $systemMessage]]
+                    ],
+                    'contents' => [
+                        ['role' => 'user', 'parts' => [['text' => $prompt]]]
+                    ],
+                    'generationConfig' => [
+                        'temperature' => 0.7,
+                        'maxOutputTokens' => 2500,
                     ],
                 ]);
 
-            Log::info('OpenAI API Response - Update Scenario', [
+            Log::info('Gemini API Response - Update Scenario', [
                 'user_id' => $user->id,
                 'chat_id' => $chatId,
                 'status' => $openAiResponse->status(),
@@ -2198,7 +2186,7 @@ EOT;
             ], 500);
         }
 
-        $updatedSections = $openAiResponse->json('choices.0.message.content');
+        $updatedSections = $openAiResponse->json('candidates.0.content.parts.0.text');
 
         if ($isUserSelection) {
             try {
@@ -2533,28 +2521,25 @@ Format:
 EOT;
 
         try {
-            $openAiResponse = Http::withToken(env('OPENAI_API_KEY'))
+            $openAiResponse = Http::withQueryParameters(['key' => env('GEMINI_API_KEY')])
                 ->timeout(90)
                 ->connectTimeout(10)
                 ->retry(2, 1000)
-                ->post('https://api.openai.com/v1/chat/completions', [
-                    'model' => 'gpt-4-turbo',
-                    'temperature' => 0.7,
-                    'max_tokens' => 2000,
-                    'messages' => [
-                        [
-                            'role' => 'system',
-                            'content' => $systemMessage
-                        ],
-                        [
-                            'role' => 'user',
-                            'content' => $prompt
-                        ],
+                ->post('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent', [
+                    'system_instruction' => [
+                        'parts' => [['text' => $systemMessage]]
+                    ],
+                    'contents' => [
+                        ['role' => 'user', 'parts' => [['text' => $prompt]]]
+                    ],
+                    'generationConfig' => [
+                        'temperature' => 0.7,
+                        'maxOutputTokens' => 2000,
                     ],
                 ]);
 
             if ($openAiResponse->successful()) {
-                $brief = $openAiResponse->json('choices.0.message.content');
+                $brief = $openAiResponse->json('candidates.0.content.parts.0.text');
                 
                 // Save brief to database
                 try {
