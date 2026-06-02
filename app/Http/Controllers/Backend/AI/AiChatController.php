@@ -72,6 +72,49 @@ class AiChatController extends Controller
 
     }
 
+    # Gemini generate: primary gemini-3.1-flash-lite, fallback gemini-3.1-pro-preview
+    private function geminiGenerate($systemMessage, $userText, $maxOutputTokens = 3000, $temperature = 0.7)
+    {
+        $models = ['gemini-3.1-flash-lite', 'gemini-3.1-pro-preview'];
+
+        $payload = [
+            'systemInstruction' => [
+                'parts' => [['text' => $systemMessage]]
+            ],
+            'contents' => [
+                [
+                    'role' => 'user',
+                    'parts' => [['text' => $userText]]
+                ]
+            ],
+            'generationConfig' => [
+                'temperature' => $temperature,
+                'maxOutputTokens' => $maxOutputTokens,
+            ]
+        ];
+
+        $response = null;
+
+        foreach ($models as $model) {
+            $response = Http::withHeaders(['x-goog-api-key' => env('GEMINI_API_KEY')])
+                ->timeout(90)
+                ->connectTimeout(10)
+                ->retry(2, 1000)
+                ->post("https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent", $payload);
+
+            if ($response->successful()) {
+                return $response;
+            }
+
+            Log::warning('Gemini model failed, trying fallback', [
+                'model'  => $model,
+                'status' => $response->status(),
+            ]);
+        }
+
+        return $response; // last failed response
+    }
+
 
 
     # chat index
@@ -986,7 +1029,7 @@ class AiChatController extends Controller
     //                 ],
     //             ]);
 
-    //         $answer = $response->json('choices.0.message.content');
+    //         $answer = $response->json('candidates.0.content.parts.0.text');
 
     //         // Save to DB
 
@@ -1085,7 +1128,7 @@ class AiChatController extends Controller
 //             ], 500);
 //         }
 
-//         $answer = $response->json('choices.0.message.content');
+//         $answer = $response->json('candidates.0.content.parts.0.text');
 //     // dd($answer);
 //        /* $responseData = preg_replace('/\/\/.*$/', '', $answer);
          
@@ -1165,7 +1208,7 @@ class AiChatController extends Controller
 //         ], 500);
 //     }
 
-//     $answer = $response->json('choices.0.message.content');
+//     $answer = $response->json('candidates.0.content.parts.0.text');
 
 //     // Save response to DB
 //     DB::table('search_user_chat')->where('id', $chatId)->update([
@@ -1450,7 +1493,7 @@ public function users_new_chat_ask(Request $request)
 
     EOT;
  
-        // Send to OpenAI API with comprehensive error handling
+        // Send to Gemini API with comprehensive error handling
         try {
             Log::info('Gemini API Request - First Chat', [
                 'user_id' => $user->id,
@@ -1461,22 +1504,7 @@ public function users_new_chat_ask(Request $request)
                 'has_api_key' => !empty(env('GEMINI_API_KEY')),
             ]);
 
-            $openAiResponse = Http::withQueryParameters(['key' => env('GEMINI_API_KEY')])
-                ->timeout(90)
-                ->connectTimeout(10)
-                ->retry(2, 1000)
-                ->post('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent', [
-                    'system_instruction' => [
-                        'parts' => [['text' => $systemMessage]]
-                    ],
-                    'contents' => [
-                        ['role' => 'user', 'parts' => [['text' => $prompt]]]
-                    ],
-                    'generationConfig' => [
-                        'temperature' => 0.7,
-                        'maxOutputTokens' => 3000,
-                    ],
-                ]);
+            $openAiResponse = $this->geminiGenerate($systemMessage, $prompt, 3000);
 
             Log::info('Gemini API Response - First Chat', [
                 'user_id' => $user->id,
@@ -1490,7 +1518,7 @@ public function users_new_chat_ask(Request $request)
             DB::table('search_user_chat')->where('id', $chatId)->update(['status1' => 1]);
 
         } catch (\Illuminate\Http\Client\ConnectionException $e) {
-            Log::error('OpenAI API Connection Exception - First Chat', [
+            Log::error('Gemini API Connection Exception - First Chat', [
                 'user_id' => $user->id,
                 'chat_id' => $chatId,
                 'error_message' => $e->getMessage(),
@@ -1501,16 +1529,16 @@ public function users_new_chat_ask(Request $request)
             ]);
 
             return response()->json([
-                'error' => 'OpenAI API connection timeout. The request took too long to complete.',
+                'error' => 'Gemini API connection timeout. The request took too long to complete.',
                 'details' => [
                     'message' => $e->getMessage(),
                     'type' => 'ConnectionException',
-                    'suggestion' => 'Please try again. If the issue persists, the OpenAI API may be experiencing high load.',
+                    'suggestion' => 'Please try again. If the issue persists, the Gemini API may be experiencing high load.',
                 ]
             ], 504);
 
         } catch (\Illuminate\Http\Client\RequestException $e) {
-            Log::error('OpenAI API Request Exception - First Chat', [
+            Log::error('Gemini API Request Exception - First Chat', [
                 'user_id' => $user->id,
                 'chat_id' => $chatId,
                 'error_message' => $e->getMessage(),
@@ -1522,7 +1550,7 @@ public function users_new_chat_ask(Request $request)
             ]);
 
             return response()->json([
-                'error' => 'OpenAI API request failed.',
+                'error' => 'Gemini API request failed.',
                 'details' => [
                     'message' => $e->getMessage(),
                     'type' => 'RequestException',
@@ -1531,7 +1559,7 @@ public function users_new_chat_ask(Request $request)
             ], 500);
 
         } catch (\Exception $e) {
-            Log::error('OpenAI API General Exception - First Chat', [
+            Log::error('Gemini API General Exception - First Chat', [
                 'user_id' => $user->id,
                 'chat_id' => $chatId,
                 'error_message' => $e->getMessage(),
@@ -1553,7 +1581,7 @@ public function users_new_chat_ask(Request $request)
 
     }else{
 
-        // Send to OpenAI API with comprehensive error handling
+        // Send to Gemini API with comprehensive error handling
         try {
             Log::info('Gemini API Request - Follow-up Chat', [
                 'user_id' => $user->id,
@@ -1564,22 +1592,7 @@ public function users_new_chat_ask(Request $request)
                 'has_api_key' => !empty(env('GEMINI_API_KEY')),
             ]);
 
-            $openAiResponse = Http::withQueryParameters(['key' => env('GEMINI_API_KEY')])
-                ->timeout(90)
-                ->connectTimeout(10)
-                ->retry(2, 1000)
-                ->post('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent', [
-                    'system_instruction' => [
-                        'parts' => [['text' => $systemMessage]]
-                    ],
-                    'contents' => [
-                        ['role' => 'user', 'parts' => [['text' => $question]]]
-                    ],
-                    'generationConfig' => [
-                        'temperature' => 0.7,
-                        'maxOutputTokens' => 3000,
-                    ],
-                ]);
+            $openAiResponse = $this->geminiGenerate($systemMessage, $question, 3000);
 
             Log::info('Gemini API Response - Follow-up Chat', [
                 'user_id' => $user->id,
@@ -1593,7 +1606,7 @@ public function users_new_chat_ask(Request $request)
             DB::table('search_user_chat')->where('id', $chatId)->update(['status2' => 1]);
 
         } catch (\Illuminate\Http\Client\ConnectionException $e) {
-            Log::error('OpenAI API Connection Exception - Follow-up Chat', [
+            Log::error('Gemini API Connection Exception - Follow-up Chat', [
                 'user_id' => $user->id,
                 'chat_id' => $chatId,
                 'error_message' => $e->getMessage(),
@@ -1604,16 +1617,16 @@ public function users_new_chat_ask(Request $request)
             ]);
 
             return response()->json([
-                'error' => 'OpenAI API connection timeout. The request took too long to complete.',
+                'error' => 'Gemini API connection timeout. The request took too long to complete.',
                 'details' => [
                     'message' => $e->getMessage(),
                     'type' => 'ConnectionException',
-                    'suggestion' => 'Please try again. If the issue persists, the OpenAI API may be experiencing high load.',
+                    'suggestion' => 'Please try again. If the issue persists, the Gemini API may be experiencing high load.',
                 ]
             ], 504);
 
         } catch (\Illuminate\Http\Client\RequestException $e) {
-            Log::error('OpenAI API Request Exception - Follow-up Chat', [
+            Log::error('Gemini API Request Exception - Follow-up Chat', [
                 'user_id' => $user->id,
                 'chat_id' => $chatId,
                 'error_message' => $e->getMessage(),
@@ -1625,7 +1638,7 @@ public function users_new_chat_ask(Request $request)
             ]);
 
             return response()->json([
-                'error' => 'OpenAI API request failed.',
+                'error' => 'Gemini API request failed.',
                 'details' => [
                     'message' => $e->getMessage(),
                     'type' => 'RequestException',
@@ -1634,7 +1647,7 @@ public function users_new_chat_ask(Request $request)
             ], 500);
 
         } catch (\Exception $e) {
-            Log::error('OpenAI API General Exception - Follow-up Chat', [
+            Log::error('Gemini API General Exception - Follow-up Chat', [
                 'user_id' => $user->id,
                 'chat_id' => $chatId,
                 'error_message' => $e->getMessage(),
@@ -1658,17 +1671,19 @@ public function users_new_chat_ask(Request $request)
 
         // Handle API errors (non-exception cases)
         if (!$openAiResponse->successful()) {
-            Log::error('OpenAI API Unsuccessful Response', [
+            Log::error('Gemini API Unsuccessful Response', [
                 'user_id' => $user->id,
                 'chat_id' => $chatId,
                 'status' => $openAiResponse->status(),
                 'response_body' => $openAiResponse->body(),
             ]);
 
+            $statusCode = $openAiResponse->status();
+            $clientError = $statusCode === 429 ? 'Gemini API quota exceeded. Check your billing or reduce request rate.' : 'Gemini API request failed.';
             return response()->json([
-                'error' => 'OpenAI API request failed.',
-                'details' => $openAiResponse->body()
-            ], 500);
+                'error' => $clientError,
+                'details' => $openAiResponse->json() ?? $openAiResponse->body()
+            ], $statusCode >= 400 && $statusCode < 500 ? $statusCode : 500);
         }
 
         $responseContent = $openAiResponse->json('candidates.0.content.parts.0.text');
@@ -1808,9 +1823,9 @@ Generate these 4 sections concisely:
 
 EOT;
 
-       // Send to OpenAI API with comprehensive error handling
+       // Send to Gemini API with comprehensive error handling
        try {
-           Log::info('OpenAI API Request - Update Strategy', [
+           Log::info('Gemini API Request - Update Strategy', [
                'user_id' => $user->id,
                'chat_id' => $chatId,
                'prompt_length' => strlen($prompt),
@@ -1819,22 +1834,7 @@ EOT;
                'has_api_key' => !empty(env('GEMINI_API_KEY')),
            ]);
 
-           $openAiResponse = Http::withQueryParameters(['key' => env('GEMINI_API_KEY')])
-               ->timeout(90)
-               ->connectTimeout(10)
-               ->retry(2, 1000)
-               ->post('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent', [
-                   'system_instruction' => [
-                       'parts' => [['text' => $systemMessage]]
-                   ],
-                   'contents' => [
-                       ['role' => 'user', 'parts' => [['text' => $prompt]]]
-                   ],
-                   'generationConfig' => [
-                       'temperature' => 0.7,
-                       'maxOutputTokens' => 3000,
-                   ],
-               ]);
+           $openAiResponse = $this->geminiGenerate($systemMessage, $prompt, 3000);
 
            Log::info('Gemini API Response - Update Strategy', [
                'user_id' => $user->id,
@@ -1845,7 +1845,7 @@ EOT;
            ]);
 
        } catch (ConnectionException $e) {
-           Log::error('OpenAI API Connection Exception - Update Strategy', [
+           Log::error('Gemini API Connection Exception - Update Strategy', [
                'user_id' => $user->id,
                'chat_id' => $chatId,
                'error_message' => $e->getMessage(),
@@ -1856,16 +1856,16 @@ EOT;
            ]);
 
            return response()->json([
-               'error' => 'OpenAI API connection timeout. The request took too long to complete.',
+               'error' => 'Gemini API connection timeout. The request took too long to complete.',
                'details' => [
                    'message' => $e->getMessage(),
                    'type' => 'ConnectionException',
-                   'suggestion' => 'Please try again. If the issue persists, the OpenAI API may be experiencing high load.',
+                   'suggestion' => 'Please try again. If the issue persists, the Gemini API may be experiencing high load.',
                ]
            ], 504);
 
        } catch (RequestException $e) {
-           Log::error('OpenAI API Request Exception - Update Strategy', [
+           Log::error('Gemini API Request Exception - Update Strategy', [
                'user_id' => $user->id,
                'chat_id' => $chatId,
                'error_message' => $e->getMessage(),
@@ -1877,7 +1877,7 @@ EOT;
            ]);
 
            return response()->json([
-               'error' => 'OpenAI API request failed.',
+               'error' => 'Gemini API request failed.',
                'details' => [
                    'message' => $e->getMessage(),
                    'type' => 'RequestException',
@@ -1886,7 +1886,7 @@ EOT;
            ], 500);
 
        } catch (\Exception $e) {
-           Log::error('OpenAI API General Exception - Update Strategy', [
+           Log::error('Gemini API General Exception - Update Strategy', [
                'user_id' => $user->id,
                'chat_id' => $chatId,
                'error_message' => $e->getMessage(),
@@ -1908,7 +1908,7 @@ EOT;
 
        // Handle API errors (non-exception cases)
        if (!$openAiResponse->successful()) {
-           Log::error('OpenAI API Unsuccessful Response - Update Strategy', [
+           Log::error('Gemini API Unsuccessful Response - Update Strategy', [
                'user_id' => $user->id,
                'chat_id' => $chatId,
                'status' => $openAiResponse->status(),
@@ -1916,7 +1916,7 @@ EOT;
            ]);
 
            return response()->json([
-               'error' => 'OpenAI API request failed.',
+               'error' => 'Gemini API request failed.',
                'details' => $openAiResponse->body()
            ], 500);
        }
@@ -2076,7 +2076,7 @@ Keep the same emojis and section headers exactly as shown above. Use the scenari
 EOT;
 
         try {
-            Log::info('OpenAI API Request - Update Scenario', [
+            Log::info('Gemini API Request - Update Scenario', [
                 'user_id' => $user->id,
                 'chat_id' => $chatId,
                 'scenario' => $selectedScenario,
@@ -2085,22 +2085,7 @@ EOT;
                 'has_api_key' => !empty(env('GEMINI_API_KEY')),
             ]);
 
-            $openAiResponse = Http::withQueryParameters(['key' => env('GEMINI_API_KEY')])
-                ->timeout(90)
-                ->connectTimeout(10)
-                ->retry(2, 1000)
-                ->post('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent', [
-                    'system_instruction' => [
-                        'parts' => [['text' => $systemMessage]]
-                    ],
-                    'contents' => [
-                        ['role' => 'user', 'parts' => [['text' => $prompt]]]
-                    ],
-                    'generationConfig' => [
-                        'temperature' => 0.7,
-                        'maxOutputTokens' => 2500,
-                    ],
-                ]);
+            $openAiResponse = $this->geminiGenerate($systemMessage, $prompt, 2500);
 
             Log::info('Gemini API Response - Update Scenario', [
                 'user_id' => $user->id,
@@ -2111,7 +2096,7 @@ EOT;
             ]);
 
         } catch (ConnectionException $e) {
-            Log::error('OpenAI API Connection Exception - Update Scenario', [
+            Log::error('Gemini API Connection Exception - Update Scenario', [
                 'user_id' => $user->id,
                 'chat_id' => $chatId,
                 'error_message' => $e->getMessage(),
@@ -2122,16 +2107,16 @@ EOT;
             ]);
 
             return response()->json([
-                'error' => 'OpenAI API connection timeout. The request took too long to complete.',
+                'error' => 'Gemini API connection timeout. The request took too long to complete.',
                 'details' => [
                     'message' => $e->getMessage(),
                     'type' => 'ConnectionException',
-                    'suggestion' => 'Please try again. If the issue persists, the OpenAI API may be experiencing high load.',
+                    'suggestion' => 'Please try again. If the issue persists, the Gemini API may be experiencing high load.',
                 ]
             ], 504);
 
         } catch (RequestException $e) {
-            Log::error('OpenAI API Request Exception - Update Scenario', [
+            Log::error('Gemini API Request Exception - Update Scenario', [
                 'user_id' => $user->id,
                 'chat_id' => $chatId,
                 'error_message' => $e->getMessage(),
@@ -2143,7 +2128,7 @@ EOT;
             ]);
 
             return response()->json([
-                'error' => 'OpenAI API request failed.',
+                'error' => 'Gemini API request failed.',
                 'details' => [
                     'message' => $e->getMessage(),
                     'type' => 'RequestException',
@@ -2152,7 +2137,7 @@ EOT;
             ], 500);
 
         } catch (\Exception $e) {
-            Log::error('OpenAI API General Exception - Update Scenario', [
+            Log::error('Gemini API General Exception - Update Scenario', [
                 'user_id' => $user->id,
                 'chat_id' => $chatId,
                 'error_message' => $e->getMessage(),
@@ -2173,17 +2158,19 @@ EOT;
         }
 
         if (!$openAiResponse->successful()) {
-            Log::error('OpenAI API Unsuccessful Response - Update Scenario', [
+            Log::error('Gemini API Unsuccessful Response - Update Scenario', [
                 'user_id' => $user->id,
                 'chat_id' => $chatId,
                 'status' => $openAiResponse->status(),
                 'response_body' => $openAiResponse->body(),
             ]);
 
+            $statusCode = $openAiResponse->status();
+            $clientError = $statusCode === 429 ? 'Gemini API quota exceeded. Check your billing or reduce request rate.' : 'Gemini API request failed.';
             return response()->json([
-                'error' => 'OpenAI API request failed.',
-                'details' => $openAiResponse->body()
-            ], 500);
+                'error' => $clientError,
+                'details' => $openAiResponse->json() ?? $openAiResponse->body()
+            ], $statusCode >= 400 && $statusCode < 500 ? $statusCode : 500);
         }
 
         $updatedSections = $openAiResponse->json('candidates.0.content.parts.0.text');
@@ -2521,22 +2508,7 @@ Format:
 EOT;
 
         try {
-            $openAiResponse = Http::withQueryParameters(['key' => env('GEMINI_API_KEY')])
-                ->timeout(90)
-                ->connectTimeout(10)
-                ->retry(2, 1000)
-                ->post('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent', [
-                    'system_instruction' => [
-                        'parts' => [['text' => $systemMessage]]
-                    ],
-                    'contents' => [
-                        ['role' => 'user', 'parts' => [['text' => $prompt]]]
-                    ],
-                    'generationConfig' => [
-                        'temperature' => 0.7,
-                        'maxOutputTokens' => 2000,
-                    ],
-                ]);
+            $openAiResponse = $this->geminiGenerate($systemMessage, $prompt, 2000);
 
             if ($openAiResponse->successful()) {
                 $brief = $openAiResponse->json('candidates.0.content.parts.0.text');
