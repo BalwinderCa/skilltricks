@@ -858,6 +858,173 @@
         renderStoredMarkdown();
     }
 </script>
+
+<script>
+    // ============================================================
+    // GoalSync structured renderer (JSON contract → HTML).
+    // Single source of truth for rendering an answer. Emojis live in
+    // the templates here, NOT as delimiters in the model output.
+    //
+    // Contract (see AiChatController GoalSync JSON prompt):
+    //   { acknowledgement, documentInsights[], goalAssessment,
+    //     scoring[{label,value}], strategyMap[{id,name,rationale,teams,
+    //     tradeoffs,risk}], scenarios[{id,label,text}],
+    //     rolesGoals[{role,goal,action}], complementaryGoals[],
+    //     finalOutcome, selectedStrategyId, selectedScenarioId }
+    //
+    // NOTE: defined now (Phase 1); the live/reload pipelines are switched
+    // onto it in later phases. Not called yet — no behavior change.
+    // ============================================================
+    (function () {
+        function esc(v) {
+            return String(v == null ? '' : v)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function sectionAcknowledgement(d) {
+            if (!d.acknowledgement) return '';
+            return `<div class="gs-section gs-ack">
+                <h5>🧩 Chat Acknowledgement</h5>
+                <p>${esc(d.acknowledgement)}</p>
+            </div>`;
+        }
+
+        function sectionDocInsights(d) {
+            if (!Array.isArray(d.documentInsights) || !d.documentInsights.length) return '';
+            const items = d.documentInsights.map(i => `<li>${esc(i)}</li>`).join('');
+            return `<div class="gs-section gs-doc-insights">
+                <h5>📁 Document Insights</h5>
+                <ul>${items}</ul>
+            </div>`;
+        }
+
+        function sectionGoalAssessment(d) {
+            if (!d.goalAssessment) return '';
+            return `<div class="gs-section gs-goal-assessment">
+                <h5>📊 Goal Assessment Summary</h5>
+                <p>${esc(d.goalAssessment)}</p>
+            </div>`;
+        }
+
+        function sectionScoring(d) {
+            if (!Array.isArray(d.scoring) || !d.scoring.length) return '';
+            const items = d.scoring.map(s =>
+                `<li><strong>${esc(s.label)}:</strong> ${esc(s.value)}</li>`).join('');
+            return `<div class="gs-section gs-scoring">
+                <h5>📈 Scoring</h5>
+                <ul>${items}</ul>
+            </div>`;
+        }
+
+        function sectionStrategyMap(d, opts) {
+            if (!Array.isArray(d.strategyMap) || !d.strategyMap.length) return '';
+            const interactive = opts && opts.interactive;
+            const selId = d.selectedStrategyId;
+            const rows = d.strategyMap.map(s => {
+                const sel = s.id === selId;
+                const input = interactive
+                    ? `<input type="radio" name="gs-strategy" value="${esc(s.id)}" class="strategy-radio me-2" ${sel ? 'checked' : ''}>`
+                    : '';
+                const badge = sel ? '<span class="badge bg-primary ms-auto">Selected</span>' : '';
+                return `<div class="strategy-option mb-2 ${sel ? 'strategy-loaded strategy-selected' : ''}" data-strategy-id="${esc(s.id)}">
+                    <div class="strategy-label">
+                        ${input}<strong>${esc(s.name)}:</strong> ${esc(s.rationale)}
+                        ${s.teams ? ` | Teams: ${esc(s.teams)}` : ''}${s.tradeoffs ? ` | Trade-offs: ${esc(s.tradeoffs)}` : ''}${s.risk ? ` | Risk: ${esc(s.risk)}` : ''}
+                        ${badge}
+                    </div>
+                </div>`;
+            }).join('');
+            return `<div class="gs-section gs-strategy-map">
+                <h5>🗺️ Strategy Map (Decision Paths)</h5>
+                <div class="strategy-options mt-3">${rows}</div>
+            </div>`;
+        }
+
+        function sectionScenarios(d, opts) {
+            if (!Array.isArray(d.scenarios) || !d.scenarios.length) return '';
+            const interactive = opts && opts.interactive;
+            const selId = d.selectedScenarioId;
+            const rows = d.scenarios.map((s, idx) => {
+                const sel = s.id ? s.id === selId : idx === 0;
+                const input = interactive
+                    ? `<input type="radio" name="gs-scenario" value="${esc(s.id)}" class="scenario-radio me-2" ${sel ? 'checked' : ''}>`
+                    : '';
+                const badge = sel ? '<span class="badge bg-primary ms-auto">Selected</span>' : '';
+                return `<div class="scenario-option ${sel ? 'scenario-selected' : ''}" data-scenario-id="${esc(s.id)}">
+                    <span class="scenario-label">${input}<strong>${esc(s.label)}:</strong> ${esc(s.text)}</span>
+                    ${badge}
+                </div>`;
+            }).join('');
+            return `<div class="gs-section gs-scenarios">
+                <h5>🔮 Scenario Simulations</h5>
+                <div class="scenario-options mt-3">${rows}</div>
+            </div>`;
+        }
+
+        function sectionRolesGoals(d) {
+            if (!Array.isArray(d.rolesGoals) || !d.rolesGoals.length) return '';
+            const blocks = d.rolesGoals.map(r => `<div class="gs-role-block mb-2">
+                <div class="gs-role-title"><strong>${esc(r.role)}</strong></div>
+                <div class="gs-role-goal"><strong>Goal:</strong> ${esc(r.goal)}</div>
+                <div class="gs-role-action"><strong>Actions:</strong> ${esc(r.action)}</div>
+            </div>`).join('');
+            return `<div class="gs-section gs-roles-goals">
+                <h5>👥 Rephrased Goals by Role</h5>
+                ${blocks}
+            </div>`;
+        }
+
+        function sectionComplementary(d) {
+            if (!Array.isArray(d.complementaryGoals) || !d.complementaryGoals.length) return '';
+            const items = d.complementaryGoals.map(g => `<li>${esc(g)}</li>`).join('');
+            return `<div class="gs-section gs-complementary">
+                <h5>📌 Complementary Goals</h5>
+                <ul>${items}</ul>
+            </div>`;
+        }
+
+        function sectionFinalOutcome(d) {
+            if (!d.finalOutcome) return '';
+            return `<div class="gs-section gs-final-outcome">
+                <h5>✅ Final Outcome Summary</h5>
+                <p>${esc(d.finalOutcome)}</p>
+            </div>`;
+        }
+
+        // Render a full answer object to HTML. opts.interactive => radios for
+        // strategy/scenario selection (live flow); otherwise read-only (reload).
+        window.renderAnswer = function (data, opts) {
+            if (!data || typeof data !== 'object') return '';
+            opts = opts || {};
+            return [
+                sectionAcknowledgement(data),
+                sectionDocInsights(data),
+                sectionGoalAssessment(data),
+                sectionScoring(data),
+                sectionStrategyMap(data, opts),
+                sectionScenarios(data, opts),
+                sectionRolesGoals(data),
+                sectionComplementary(data),
+                sectionFinalOutcome(data),
+            ].filter(Boolean).join('\n');
+        };
+
+        // Detect whether a stored response is the new JSON contract or legacy
+        // markdown, so the reload path can pick the right renderer (Phase 4).
+        window.parseAnswerJson = function (raw) {
+            if (!raw) return null;
+            const t = String(raw).trim();
+            if (t[0] !== '{' && t[0] !== '[') return null; // legacy markdown
+            try {
+                const d = JSON.parse(t);
+                return (d && typeof d === 'object') ? d : null;
+            } catch (e) {
+                return null;
+            }
+        };
+    })();
+</script>
 <script>
     // document.getElementById('ask-form').addEventListener('submit', async function (e) {
     //     e.preventDefault();
