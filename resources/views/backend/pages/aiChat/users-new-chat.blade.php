@@ -873,7 +873,14 @@
                 if (parsed && typeof window.renderAnswer === 'function') {
                     el.innerHTML = window.renderAnswer(parsed, { interactive: false });
                 } else {
-                    el.innerHTML = marked.parse(raw);
+                    // Legacy markdown: strip the machine-only %%%BUNDLES_JSON%%%
+                    // data block (and any stray markers) before rendering so it
+                    // never shows as raw text on reload.
+                    var md = String(raw)
+                        .replace(/%%%BUNDLES_JSON%%%[\s\S]*?%%%END_BUNDLES_JSON%%%/g, '')
+                        .replace(/%%%(?:END_)?BUNDLES_JSON%%%/g, '')
+                        .trim();
+                    el.innerHTML = marked.parse(md);
                 }
             } catch (e) {
                 console.error('Markdown render failed:', e);
