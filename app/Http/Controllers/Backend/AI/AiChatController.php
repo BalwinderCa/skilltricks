@@ -1374,7 +1374,8 @@ Rules:
 - "strategyMap": 3 decision paths, each with a UNIQUE id (s1, s2, s3) and a descriptive name (never "Path A/1").
 - "strategyVariants": one key for EACH strategy id in strategyMap.
 - Each variant has 3 "scenarios" (ids sc1, sc2, sc3) and a "scenarioVariants" object with one key for EACH of that variant's scenario ids.
-- Each scenarioVariant's "rolesGoals": 5 to 7 roles, using ONLY role titles found in the documents. "action" is EXACTLY one sentence (no lists, no line breaks).
+- "acknowledgement" must be a non-empty 1-2 sentence string.
+- Each scenarioVariant's "rolesGoals": 5 to 7 DISTINCT roles (never repeat a role title within the same list), using ONLY exact role titles found in the documents (do not prefix or invent titles). "action" is EXACTLY one sentence (no lists, no line breaks).
 - "selectedStrategyId" = first strategy id. Each variant's "selectedScenarioId" = its first scenario id.
 - Keep every string concise to fit the response in one valid JSON object.
 - Output VALID JSON only: double-quoted keys/strings, no trailing commas, no comments, no markdown.
