@@ -387,6 +387,18 @@
         opacity: 0.8;
     }
 
+    /* Selected strategy in the final answer — match the selected scenario look */
+    .strategy-option.strategy-selected {
+        border-color: #6f42c1;
+        background-color: #f1e8ff;
+        box-shadow: 0 2px 6px rgba(111, 66, 193, 0.2);
+    }
+
+    [data-bs-theme="dark"] .strategy-option.strategy-selected {
+        border-color: #a07cf0;
+        background-color: #1e1b2a;
+    }
+
     /* Spinning animation for loading */
     @keyframes spin {
         from { transform: rotate(0deg); }
@@ -521,6 +533,59 @@
         background-color: #242424;
         border-color: #454545;
         color: #fff;
+    }
+
+    /* GoalSync structured (JSON) renderer */
+    .gs-section { margin-bottom: 18px; }
+    .gs-section > h5 {
+        font-size: 1rem;
+        font-weight: 700;
+        margin-bottom: 8px;
+    }
+    .gs-section ul { margin-bottom: 0; padding-left: 1.2rem; }
+    .gs-role-block {
+        padding: 8px 10px;
+        border-left: 3px solid #6f42c1;
+        background: #faf8ff;
+        border-radius: 4px;
+    }
+    .gs-role-block .gs-role-title { margin-bottom: 2px; }
+    [data-bs-theme="dark"] .gs-role-block {
+        background: #1f1b2a;
+        border-left-color: #a07cf0;
+    }
+
+    /* Recommended Action Table suggestion */
+    .action-table-suggestion-box {
+        border: 1px dashed #b9c6e0;
+        background: #f5f8ff;
+        border-radius: 8px;
+        padding: 12px 14px;
+    }
+    .action-table-suggestion-box .ats-title {
+        font-weight: 600;
+        font-size: 0.95rem;
+        color: #2c3e66;
+    }
+    .recommended-action-table th,
+    .recommended-action-table td {
+        vertical-align: top;
+        font-size: 0.9rem;
+    }
+    .recommended-action-table th:nth-child(3),
+    .recommended-action-table td:nth-child(3) {
+        white-space: nowrap;
+        width: 1%;
+    }
+    .recommended-action-table .form-check {
+        margin-bottom: 2px;
+    }
+    [data-bs-theme="dark"] .action-table-suggestion-box {
+        background: #1f2633;
+        border-color: #3a455c;
+    }
+    [data-bs-theme="dark"] .action-table-suggestion-box .ats-title {
+        color: #cdd8f0;
     }
 </style>
 
@@ -801,7 +866,52 @@
         document.querySelectorAll('[data-md]').forEach(function (el) {
             try {
                 var raw = decodeURIComponent(escape(atob(el.dataset.md)));
-                el.innerHTML = marked.parse(raw);
+                // New JSON-contract answers render read-only via renderAnswer;
+                // legacy markdown answers fall back to marked.parse.
+                var parsed = (typeof window.parseAnswerJson === 'function')
+                    ? window.parseAnswerJson(raw) : null;
+                if (parsed && typeof window.renderAnswer === 'function') {
+                    el.innerHTML = window.renderAnswer(parsed, { interactive: false });
+                } else {
+                    // Legacy markdown. The live final showed the COLLAPSED 3-line
+                    // scenarios from the strategy bundle, but the stored response
+                    // keeps the verbose 🔮 section. Pull the collapsed scenarios
+                    // from the bundle (first strategy) so reload matches live.
+                    var collapsedScenario = null;
+                    var bundleMatch = String(raw).match(/%%%BUNDLES_JSON%%%([\s\S]*?)%%%END_BUNDLES_JSON%%%/);
+                    if (bundleMatch) {
+                        try {
+                            var bj = JSON.parse(bundleMatch[1].trim());
+                            var firstKey = Object.keys(bj)[0];
+                            var sm = firstKey && String(bj[firstKey]).match(/🔮[\s\S]*?(?=👥|📌|✅|$)/);
+                            if (sm) collapsedScenario = sm[0].trim();
+                        } catch (e) { /* keep verbose section on parse failure */ }
+                    }
+
+                    // Strip the machine-only data block (and stray markers).
+                    var md = String(raw)
+                        .replace(/%%%BUNDLES_JSON%%%[\s\S]*?%%%END_BUNDLES_JSON%%%/g, '')
+                        .replace(/%%%(?:END_)?BUNDLES_JSON%%%/g, '')
+                        .trim();
+
+                    // Swap the verbose 🔮 section for the collapsed one.
+                    if (collapsedScenario) {
+                        md = md.replace(/🔮[\s\S]*?(?=👥|📌|✅|$)/, collapsedScenario + '\n\n');
+                    }
+                    // Split into per-section .response-text blocks (like the live
+                    // final answer) so the Export-role-goals button can sit right
+                    // after the 👥 roles section instead of after the whole blob.
+                    var parts = md.split(/(?=🧩|📁|📊|📈|🗺️|🔮|👥|📌|✅|📋)/)
+                        .filter(function (p) { return p.trim() !== ''; });
+                    if (parts.length > 1) {
+                        el.classList.remove('response-text');
+                        el.innerHTML = parts.map(function (p) {
+                            return '<div class="response-text">' + marked.parse(p) + '</div>';
+                        }).join('');
+                    } else {
+                        el.innerHTML = marked.parse(md);
+                    }
+                }
             } catch (e) {
                 console.error('Markdown render failed:', e);
             }
@@ -812,6 +922,375 @@
     } else {
         renderStoredMarkdown();
     }
+</script>
+
+<script>
+    // ============================================================
+    // GoalSync structured renderer (JSON contract → HTML).
+    // Single source of truth for rendering an answer. Emojis live in
+    // the templates here, NOT as delimiters in the model output.
+    //
+    // Contract (see AiChatController GoalSync JSON prompt):
+    //   { acknowledgement, documentInsights[], goalAssessment,
+    //     scoring[{label,value}], strategyMap[{id,name,rationale,teams,
+    //     tradeoffs,risk}], scenarios[{id,label,text}],
+    //     rolesGoals[{role,goal,action}], complementaryGoals[],
+    //     finalOutcome, selectedStrategyId, selectedScenarioId }
+    //
+    // NOTE: defined now (Phase 1); the live/reload pipelines are switched
+    // onto it in later phases. Not called yet — no behavior change.
+    // ============================================================
+    (function () {
+        function esc(v) {
+            return String(v == null ? '' : v)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function nonEmpty(v) { return v != null && String(v).trim() !== ''; }
+
+        // Remove GoalSync section-header emojis the model sometimes leaks into
+        // text/list items (e.g. a stray "📊" bullet inside Document Insights).
+        function stripMarkers(s) {
+            return String(s == null ? '' : s)
+                .replace(/[🧩📁📊📈🗺️🔮👥📌✅📋]/g, '')
+                .replace(/️/g, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+
+        // Clean a list of strings: strip markers and drop empties.
+        function cleanList(arr) {
+            if (!Array.isArray(arr)) return [];
+            return arr.map(stripMarkers).filter(x => x !== '');
+        }
+
+        function sectionAcknowledgement(d) {
+            if (!nonEmpty(d.acknowledgement)) return '';
+            return `<div class="gs-section gs-ack">
+                <h5>🧩 Chat Acknowledgement</h5>
+                <p>${esc(d.acknowledgement)}</p>
+            </div>`;
+        }
+
+        function sectionDocInsights(d) {
+            const list = cleanList(d.documentInsights);
+            if (!list.length) return '';
+            const items = list.map(i => `<li>${esc(i)}</li>`).join('');
+            return `<div class="gs-section gs-doc-insights">
+                <h5>📁 Document Insights</h5>
+                <ul>${items}</ul>
+            </div>`;
+        }
+
+        function sectionGoalAssessment(d) {
+            if (!nonEmpty(d.goalAssessment)) return '';
+            return `<div class="gs-section gs-goal-assessment">
+                <h5>📊 Goal Assessment Summary</h5>
+                <p>${esc(d.goalAssessment)}</p>
+            </div>`;
+        }
+
+        function sectionScoring(d) {
+            if (!Array.isArray(d.scoring) || !d.scoring.length) return '';
+            const items = d.scoring.map(s =>
+                `<li><strong>${esc(s.label)}:</strong> ${esc(s.value)}</li>`).join('');
+            return `<div class="gs-section gs-scoring">
+                <h5>📈 Scoring</h5>
+                <ul>${items}</ul>
+            </div>`;
+        }
+
+        function sectionStrategyMap(d, opts) {
+            if (!Array.isArray(d.strategyMap) || !d.strategyMap.length) return '';
+            const interactive = opts && opts.interactive;
+            const selId = d.selectedStrategyId;
+            const rows = d.strategyMap.map(s => {
+                const sel = s.id === selId;
+                const input = interactive
+                    ? `<input type="radio" name="gs-strategy" value="${esc(s.id)}" class="strategy-radio me-2" ${sel ? 'checked' : ''}>`
+                    : '';
+                const badge = sel ? '<span class="badge bg-primary ms-auto">Selected</span>' : '';
+                return `<div class="strategy-option mb-2 ${sel ? 'strategy-loaded strategy-selected' : ''}" data-strategy-id="${esc(s.id)}">
+                    <div class="strategy-label">
+                        ${input}<strong>${esc(s.name)}:</strong> ${esc(s.rationale)}
+                        ${s.teams ? ` | Teams: ${esc(s.teams)}` : ''}${s.tradeoffs ? ` | Trade-offs: ${esc(s.tradeoffs)}` : ''}${s.risk ? ` | Risk: ${esc(s.risk)}` : ''}
+                        ${badge}
+                    </div>
+                </div>`;
+            }).join('');
+            return `<div class="gs-section gs-strategy-map">
+                <h5>🗺️ Strategy Map (Decision Paths)</h5>
+                <div class="strategy-options mt-3">${rows}</div>
+            </div>`;
+        }
+
+        function sectionScenarios(d, opts) {
+            if (!Array.isArray(d.scenarios) || !d.scenarios.length) return '';
+            const interactive = opts && opts.interactive;
+            const selId = d.selectedScenarioId;
+            const rows = d.scenarios.map((s, idx) => {
+                const sel = s.id ? s.id === selId : idx === 0;
+                const input = interactive
+                    ? `<input type="radio" name="gs-scenario" value="${esc(s.id)}" class="scenario-radio me-2" ${sel ? 'checked' : ''}>`
+                    : '';
+                const badge = sel ? '<span class="badge bg-primary ms-auto">Selected</span>' : '';
+                return `<div class="scenario-option ${sel ? 'scenario-selected' : ''}" data-scenario-id="${esc(s.id)}">
+                    <span class="scenario-label">${input}<strong>${esc(s.label)}:</strong> ${esc(s.text)}</span>
+                    ${badge}
+                </div>`;
+            }).join('');
+            return `<div class="gs-section gs-scenarios">
+                <h5>🔮 Scenario Simulations</h5>
+                <div class="scenario-options mt-3">${rows}</div>
+            </div>`;
+        }
+
+        function sectionRolesGoals(d) {
+            if (!Array.isArray(d.rolesGoals) || !d.rolesGoals.length) return '';
+            // Dedupe roles the model sometimes repeats (keep first occurrence,
+            // match case-insensitively on a normalized role title).
+            const seen = new Set();
+            const roles = d.rolesGoals.filter(r => {
+                const key = String(r && r.role || '').trim().toLowerCase().replace(/\s+/g, ' ');
+                if (!key || seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+            if (!roles.length) return '';
+            const blocks = roles.map(r => `<div class="gs-role-block mb-2">
+                <div class="gs-role-title"><strong>${esc(r.role)}</strong></div>
+                <div class="gs-role-goal"><strong>Goal:</strong> ${esc(r.goal)}</div>
+                <div class="gs-role-action"><strong>Actions:</strong> ${esc(r.action)}</div>
+            </div>`).join('');
+            return `<div class="gs-section gs-roles-goals">
+                <h5>👥 Rephrased Goals by Role</h5>
+                ${blocks}
+            </div>`;
+        }
+
+        function sectionComplementary(d) {
+            const list = cleanList(d.complementaryGoals);
+            if (!list.length) return '';
+            const items = list.map(g => `<li>${esc(g)}</li>`).join('');
+            return `<div class="gs-section gs-complementary">
+                <h5>📌 Complementary Goals</h5>
+                <ul>${items}</ul>
+            </div>`;
+        }
+
+        function sectionFinalOutcome(d) {
+            if (!nonEmpty(d.finalOutcome)) return '';
+            return `<div class="gs-section gs-final-outcome">
+                <h5>✅ Final Outcome Summary</h5>
+                <p>${esc(d.finalOutcome)}</p>
+            </div>`;
+        }
+
+        // Flatten the nested contract (top-level sections + per-strategy /
+        // per-scenario variants) into the flat shape the section renderers
+        // expect, resolving the given (or default) strategy + scenario.
+        window.flattenContract = function (data, selStrategy, selScenario) {
+            if (!data || typeof data !== 'object') return data;
+            const sid = selStrategy || data.selectedStrategyId
+                || ((data.strategyMap || [])[0] || {}).id;
+            const v = (data.strategyVariants && data.strategyVariants[sid]) || {};
+            const scid = selScenario || v.selectedScenarioId
+                || ((v.scenarios || [])[0] || {}).id;
+            const sv = (v.scenarioVariants && v.scenarioVariants[scid]) || {};
+            // Prefer scenario-level content, but fall back to strategy-variant
+            // or top-level if the model placed these fields higher up.
+            return {
+                acknowledgement: data.acknowledgement,
+                documentInsights: data.documentInsights,
+                goalAssessment: data.goalAssessment,
+                scoring: data.scoring,
+                strategyMap: data.strategyMap,
+                selectedStrategyId: sid,
+                scenarios: v.scenarios || [],
+                selectedScenarioId: scid,
+                rolesGoals: sv.rolesGoals || v.rolesGoals || data.rolesGoals || [],
+                complementaryGoals: sv.complementaryGoals || v.complementaryGoals || data.complementaryGoals || [],
+                finalOutcome: sv.finalOutcome || v.finalOutcome || data.finalOutcome
+            };
+        };
+
+        // Render a full answer object to HTML. opts.interactive => radios for
+        // strategy/scenario selection (live flow); otherwise read-only (reload).
+        // Accepts either the flat view shape or the nested contract.
+        window.renderAnswer = function (data, opts) {
+            if (!data || typeof data !== 'object') return '';
+            opts = opts || {};
+            // Auto-flatten a nested contract (e.g. stored response on reload).
+            if (data.strategyVariants) data = window.flattenContract(data);
+            return [
+                sectionAcknowledgement(data),
+                sectionDocInsights(data),
+                sectionGoalAssessment(data),
+                sectionScoring(data),
+                sectionStrategyMap(data, opts),
+                sectionScenarios(data, opts),
+                sectionRolesGoals(data),
+                sectionComplementary(data),
+                sectionFinalOutcome(data),
+            ].filter(Boolean).join('\n');
+        };
+
+        // Detect whether a stored response is the new JSON contract or legacy
+        // markdown, so the reload path can pick the right renderer (Phase 4).
+        window.parseAnswerJson = function (raw) {
+            if (!raw) return null;
+            const t = String(raw).trim();
+            if (t[0] !== '{' && t[0] !== '[') return null; // legacy markdown
+            try {
+                const d = JSON.parse(t);
+                return (d && typeof d === 'object') ? d : null;
+            } catch (e) {
+                return null;
+            }
+        };
+
+        // ----------------------------------------------------------------
+        // Step-by-step wizard driven entirely by the JSON contract.
+        // Strategy + scenario selection swap pre-generated variants
+        // client-side (no extra AI calls). On Finish it renders the full
+        // answer and triggers the action-table + alignment-brief extras.
+        // ----------------------------------------------------------------
+        window.renderJsonWizard = function (loadingDiv, data) {
+            let selStrategy = data.selectedStrategyId
+                || ((data.strategyMap || [])[0] || {}).id;
+
+            const variant = () => (data.strategyVariants && data.strategyVariants[selStrategy]) || {};
+            const scenarioList = () => variant().scenarios || [];
+            let selScenario = variant().selectedScenarioId || (scenarioList()[0] || {}).id;
+
+            // Flatten the active strategy/scenario into the shape the section
+            // renderers (and window.renderAnswer) expect.
+            function viewData() {
+                return window.flattenContract(data, selStrategy, selScenario);
+            }
+
+            const allStepFns = [
+                d => sectionAcknowledgement(d),
+                d => sectionDocInsights(d),
+                d => sectionGoalAssessment(d),
+                d => sectionScoring(d),
+                d => sectionStrategyMap(d, { interactive: true }),
+                d => sectionScenarios(d, { interactive: true }),
+                d => sectionRolesGoals(d),
+                d => sectionComplementary(d),
+                d => sectionFinalOutcome(d),
+            ];
+
+            // Recompute visible (non-empty) steps each render, so switching
+            // strategy/scenario re-evaluates which sections have content
+            // (e.g. a scenario that does have a Final Outcome).
+            function visibleSteps() {
+                const d = viewData();
+                return allStepFns.filter(fn => fn(d).trim() !== '');
+            }
+
+            let step = 0;
+            let inFinal = false;
+
+            function strategyName() {
+                const s = (data.strategyMap || []).find(x => x.id === selStrategy);
+                return s ? s.name : '';
+            }
+            function scenarioLabel() {
+                const sc = scenarioList().find(x => x.id === selScenario);
+                return sc ? sc.label : '';
+            }
+
+            function wireSelection() {
+                loadingDiv.querySelectorAll('input[name="gs-strategy"]').forEach(r => {
+                    r.addEventListener('change', function () {
+                        selStrategy = this.value;
+                        selScenario = variant().selectedScenarioId || (scenarioList()[0] || {}).id;
+                        inFinal ? renderFinal() : renderStep();
+                    });
+                });
+                loadingDiv.querySelectorAll('input[name="gs-scenario"]').forEach(r => {
+                    r.addEventListener('change', function () {
+                        selScenario = this.value;
+                        inFinal ? renderFinal() : renderStep();
+                    });
+                });
+            }
+
+            function renderStep() {
+                inFinal = false;
+                const d = viewData();
+                const s = visibleSteps();
+                if (step > s.length - 1) step = s.length - 1;
+                if (step < 0) step = 0;
+                const isLast = step === s.length - 1;
+                loadingDiv.innerHTML = `
+                    <div class="response-text">${s[step](d)}</div>
+                    <div class="mt-2 gs-wizard-nav">
+                        ${step > 0 ? '<button type="button" class="btn btn-secondary btn-sm gs-prev">Previous</button>' : ''}
+                        <button type="button" class="btn btn-primary btn-sm gs-next">${isLast ? 'Finish' : 'Next'}</button>
+                    </div>`;
+                wireSelection();
+            }
+
+            function renderFinal() {
+                inFinal = true;
+                const d = viewData();
+                window.selectedStrategy = strategyName();
+                window.selectedScenario = scenarioLabel();
+                loadingDiv.innerHTML = `
+                    <div class="response-text">${window.renderAnswer(d, { interactive: true })}</div>
+                    <div class="mt-2">
+                        <button type="button" class="btn btn-sm text-success copy-btn" data-bs-toggle="tooltip" title="Copy Answer"><i class="bi bi-copy"></i></button>
+                    </div>`;
+                wireSelection();
+                setTimeout(() => {
+                    // The brief may have been generated already during the final
+                    // step; Finish rebuilds the DOM, so re-insert the cached copy
+                    // instead of making a second API call. Otherwise generate it.
+                    const card = loadingDiv.closest('.tt-template-carddads') || loadingDiv;
+                    if (window.briefGenerationCompleted && window.generatedBriefHtml
+                        && !card.querySelector('.leadership-alignment-brief')) {
+                        const finalSec = Array.from(card.querySelectorAll('.response-text')).find(el =>
+                            el.textContent.includes('✅') && el.textContent.includes('Final Outcome'));
+                        const briefDiv = document.createElement('div');
+                        briefDiv.className = 'leadership-alignment-brief mt-3';
+                        const rt = document.createElement('div');
+                        rt.className = 'response-text';
+                        rt.innerHTML = window.generatedBriefHtml;
+                        briefDiv.appendChild(rt);
+                        (finalSec || loadingDiv).insertAdjacentElement('afterend', briefDiv);
+                    } else if (typeof autoGenerateAlignmentBrief === 'function') {
+                        autoGenerateAlignmentBrief();
+                    }
+                    if (typeof addActionTableSuggestion === 'function') addActionTableSuggestion();
+                }, 300);
+            }
+
+            loadingDiv.addEventListener('click', function (e) {
+                const next = e.target.closest('.gs-next');
+                const prev = e.target.closest('.gs-prev');
+                if (next) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (step >= visibleSteps().length - 1) renderFinal();
+                    else { step++; renderStep(); }
+                } else if (prev) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (step > 0) { step--; renderStep(); }
+                }
+            });
+
+            renderStep();
+        };
+    })();
+
+    // Re-run the stored-answer renderer now that renderAnswer/parseAnswerJson
+    // exist (this script runs after the one that first calls it), so stored
+    // JSON answers render structured instead of falling back to raw markdown.
+    if (typeof renderStoredMarkdown === 'function') renderStoredMarkdown();
 </script>
 <script>
     // document.getElementById('ask-form').addEventListener('submit', async function (e) {
@@ -1125,9 +1604,118 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
             }
 
             const data = await res.json();
+
+            // JSON contract path (Phase 2): render via the structured wizard
+            // instead of the markdown split/collapse pipeline. Falls through to
+            // markdown if the payload isn't valid JSON.
+            if (data.format === 'json') {
+                const parsedAnswer = window.parseAnswerJson(data.answer);
+                if (parsedAnswer) {
+                    if (data.chat_id) {
+                        window.chatChatId = data.chat_id;
+                        const ci = document.getElementById('chat_id');
+                        if (ci) ci.value = data.chat_id;
+                    }
+                    window.chatUserId = window.chatUserId || currentUser_id;
+                    window.chatQuestion = window.chatQuestion || currentQuestion;
+                    window.renderJsonWizard(loadingDiv, parsedAnswer);
+                    return;
+                }
+                // not parseable -> continue with markdown rendering below
+            }
+
             let fullAnswer = data.answer || 'No answer returned.';
             const previousContext = data.previousContext || {};
             const chectdata = data.chectdata || {};
+
+            // Force each role's "Actions:" onto a single line — but ONLY inside the
+            // 👥 Rephrased Goals by Role section, never anywhere else. Model often
+            // returns multi-line actions even when told not to.
+            window.collapseActions = function (md) {
+                if (!md) return md;
+                const startIdx = md.indexOf('👥');
+                if (startIdx === -1) return md;
+                // roles section ends at the next major section marker
+                let endIdx = md.length;
+                ['📌', '✅', '🔮'].forEach(em => {
+                    const p = md.indexOf(em, startIdx + 1);
+                    if (p !== -1 && p < endIdx) endIdx = p;
+                });
+                const before = md.slice(0, startIdx);
+                const section = md.slice(startIdx, endIdx);
+                const after = md.slice(endIdx);
+
+                const lines = section.split('\n');
+                const out = [];
+                for (let i = 0; i < lines.length; i++) {
+                    // "Actions:" line — collapse any multi-line actions into one,
+                    // bold the label so it always renders as its own visible line.
+                    const m = lines[i].match(/^(\s*)Actions:\s*(.*)$/i);
+                    if (m) {
+                        const parts = [];
+                        if (m[2].trim()) parts.push(m[2].trim().replace(/^[-•*]\s*/, ''));
+                        let j = i + 1;
+                        for (; j < lines.length; j++) {
+                            const t = lines[j].trim();
+                            if (t === '') break;
+                            if (/^\d+[.)]\s/.test(t)) break;             // next numbered role
+                            if (/^[🔮👥📌✅📁📊📈🗺️🧩]/.test(t)) break;     // next section
+                            if (/^Goal:/i.test(t)) break;
+                            // lookahead: a role title line is followed by a "Goal:" line
+                            let k = j + 1;
+                            while (k < lines.length && lines[k].trim() === '') k++;
+                            if (k < lines.length && /^Goal:/i.test(lines[k].trim())) break;
+                            parts.push(t.replace(/^[-•*]\s*/, ''));
+                        }
+                        out.push(`${m[1]}**Actions:** ${parts.join(' ').replace(/\s+/g, ' ').trim()}  `);
+                        i = j - 1;
+                        continue;
+                    }
+
+                    // "Goal:" line — bold the label and force a hard line break
+                    // (two trailing spaces) so the following "Actions:" line renders
+                    // on its own line instead of being soft-joined by markdown.
+                    // Also split an inline "... Actions: ..." that the model put on
+                    // the SAME line as the goal into its own Actions line.
+                    const g = lines[i].match(/^(\s*)Goal:\s*(.*)$/i);
+                    if (g) {
+                        const indent = g[1];
+                        let goalText = g[2].trim();
+                        const aIdx = goalText.search(/\bActions:/i);
+                        if (aIdx !== -1) {
+                            const actionText = goalText.slice(aIdx).replace(/^Actions:\s*/i, '').trim();
+                            goalText = goalText.slice(0, aIdx).trim();
+                            out.push(`${indent}**Goal:** ${goalText}  `);
+                            out.push(`${indent}**Actions:** ${actionText}  `);
+                        } else {
+                            out.push(`${indent}**Goal:** ${goalText}  `);
+                        }
+                        continue;
+                    }
+
+                    // Role title line (non-empty, not a bullet/section header) that is
+                    // followed by a "Goal:" line — bold it and add a hard break.
+                    const raw = lines[i];
+                    const trimmed = raw.trim();
+                    if (trimmed && !/^[-•*]/.test(trimmed) && !/^[🔮👥📌✅📁📊📈🗺️🧩]/.test(trimmed)) {
+                        let k = i + 1;
+                        while (k < lines.length && lines[k].trim() === '') k++;
+                        if (k < lines.length && /^Goal:/i.test(lines[k].trim())) {
+                            const title = trimmed.replace(/\*\*/g, '').replace(/^(\d+[.)]\s*)/, '');
+                            // Blank line before the title forces a paragraph break so
+                            // the first role never soft-joins with the 👥 header line.
+                            if (out.length && out[out.length - 1].trim() !== '') {
+                                out.push('');
+                            }
+                            out.push(`**${title}**  `);
+                            continue;
+                        }
+                    }
+
+                    out.push(raw);
+                }
+                return before + out.join('\n') + after;
+            };
 
             // Phase 1: extract per-strategy JSON bundles emitted by the first call.
             // These let strategy/scenario selection render client-side with no extra
@@ -1140,12 +1728,19 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                     fullAnswer = fullAnswer.replace(bundleMatch[0], '').trim();
                     let raw = bundleMatch[1].trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
                     window.strategyBundles = JSON.parse(raw);
+                    // Collapse Actions inside every bundle value too
+                    Object.keys(window.strategyBundles).forEach(k => {
+                        window.strategyBundles[k] = window.collapseActions(window.strategyBundles[k]);
+                    });
                     console.log('✅ Parsed strategy bundles:', Object.keys(window.strategyBundles));
                 }
             } catch (e) {
                 window.strategyBundles = null;
                 console.warn('⚠️ Could not parse strategy bundles, falling back to per-selection AI calls:', e);
             }
+
+            // Collapse Actions in the visible first-response text
+            fullAnswer = window.collapseActions(fullAnswer);
             
             // Update chat_id if a new one was created
             if (data.chat_id && data.chat_id !== currentChat_id) {
@@ -1268,6 +1863,25 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
 
             if (scenarioIndex !== -1) {
                 scenarioSection = sections[scenarioIndex];
+
+                // Defensive: the model sometimes leaks role "Goal:"/"Actions:" lines
+                // into the 🔮 Scenario Simulations section (before the 👥 header).
+                // Cut the section at the first such line so raw-markdown render paths
+                // never show role goals/actions under Scenario Simulations.
+                const rawScenarioLines = scenarioSection.split('\n');
+                let scenarioCutAt = rawScenarioLines.length;
+                for (let i = 1; i < rawScenarioLines.length; i++) {
+                    const t = rawScenarioLines[i].trim().replace(/^[-•*]\s*/, '').replace(/\*/g, '');
+                    if (/^Goal:/i.test(t) || /^Actions:/i.test(t) || rawScenarioLines[i].includes('👥')) {
+                        scenarioCutAt = i;
+                        break;
+                    }
+                }
+                scenarioSection = rawScenarioLines.slice(0, scenarioCutAt).join('\n').trim();
+                // Keep the sections array in sync so the raw-markdown fallback
+                // render path (marked.parse(step)) also shows the cleaned section.
+                sections[scenarioIndex] = scenarioSection;
+
                 const scenarioLines = scenarioSection.split('\n');
                 let foundScenarioHeader = false;
                 const scenarioItems = [];
@@ -1557,7 +2171,7 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
 
                     if (scenarioRes.ok) {
                         const updateData = await scenarioRes.json();
-                        const response = updateData.updated_sections || '';
+                        const response = window.collapseActions(updateData.updated_sections || '');
                         if (!window.scenarioResponsesCache) {
                             window.scenarioResponsesCache = {};
                         }
@@ -2214,10 +2828,10 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                         }
                         const isSelected = window.selectedStrategy === point || (window.selectedStrategy && window.selectedStrategy.includes(point.substring(0, 30)));
                         html += `
-                            <div class="strategy-option mb-2 ${isSelected ? 'strategy-loaded' : ''}">
+                            <div class="strategy-option mb-2 ${isSelected ? 'strategy-loaded strategy-selected' : ''}">
                                 <div class="strategy-label">
                                     ${displayPoint}
-                                    ${isSelected ? '<span class="badge bg-success ms-auto">Selected</span>' : ''}
+                                    ${isSelected ? '<span class="badge bg-primary ms-auto">Selected</span>' : ''}
                                 </div>
                             </div>
                         `;
@@ -2923,6 +3537,136 @@ document.addEventListener('click', function (e) {
         }
     }
 
+    // Small HTML escaper for table cell content
+    function escapeActionHtml(str) {
+        return String(str == null ? '' : str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    // Build the Recommended Action Table HTML with a 3-option decision column.
+    // No option is pre-selected ("do nothing for now" is the default state).
+    window.renderRecommendedActionTable = function(rows, container) {
+        const choices = ['Act on it', 'Review in detail', 'Not viable for us'];
+        let html = '<div class="response-text"><div class="table-responsive">'
+            + '<table class="table table-bordered recommended-action-table">'
+            + '<thead><tr>'
+            + '<th>Role</th><th>Recommended Action</th><th>Choice / Decision</th>'
+            + '</tr></thead><tbody>';
+
+        rows.forEach((r, i) => {
+            const role = escapeActionHtml(r.role);
+            const action = escapeActionHtml(r.action);
+            let opts = '';
+            choices.forEach((c, j) => {
+                const id = `action_choice_${i}_${j}`;
+                opts += `<div class="form-check">
+                    <input class="form-check-input action-choice-input" type="radio" name="action_choice_${i}" id="${id}" value="${escapeActionHtml(c)}" data-role="${role}">
+                    <label class="form-check-label" for="${id}">${c}</label>
+                </div>`;
+            });
+            html += `<tr>
+                <td><strong>${role}</strong></td>
+                <td>${action}</td>
+                <td>${opts}</td>
+            </tr>`;
+        });
+
+        html += '</tbody></table></div></div>';
+        container.innerHTML = html;
+    };
+
+    // Call backend to generate the table from existing chat/scenario/role data
+    function generateRecommendedActionTable(roleGoalsSection, genBtn, resultDiv) {
+        genBtn.disabled = true;
+        resultDiv.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split me-2"></i>Generating recommended action table...</div>';
+
+        // Role goals text from this card (already collapsed to one-line actions)
+        const roleGoalsText = (roleGoalsSection.textContent || roleGoalsSection.innerText || '').trim();
+
+        // Whole card text as broader context
+        const cardContainer = roleGoalsSection.closest('.tt-template-carddads');
+        const fullResponse = cardContainer
+            ? Array.from(cardContainer.querySelectorAll('.response-text')).map(el => el.textContent.trim()).filter(Boolean).join('\n\n')
+            : roleGoalsText;
+
+        fetch('{{ route("users-new-chat-generate-action-table.index") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+            body: JSON.stringify({
+                chat_id: window.chatChatId || (document.getElementById('chat_id') ? document.getElementById('chat_id').value : ''),
+                original_question: window.chatQuestion || '',
+                selected_strategy: window.selectedStrategy || '',
+                selected_scenario: window.selectedScenario || '',
+                role_goals_text: roleGoalsText,
+                full_response: fullResponse
+            })
+        })
+        .then(r => r.json())
+        .then(data => {
+            genBtn.disabled = false;
+            if (data.success && Array.isArray(data.rows) && data.rows.length) {
+                window.renderRecommendedActionTable(data.rows, resultDiv);
+            } else {
+                resultDiv.innerHTML = '<div class="alert alert-warning"><i class="bi bi-exclamation-triangle me-2"></i>Could not generate table: ' + (data.error || 'no rows returned') + '</div>';
+            }
+        })
+        .catch(err => {
+            genBtn.disabled = false;
+            resultDiv.innerHTML = '<div class="alert alert-danger">Error generating table: ' + err.message + '</div>';
+        });
+    }
+
+    // Inject the "Refining the Workflow Output" suggestion + button into every
+    // card that has a Role Goals section (but only once per card).
+    function addActionTableSuggestion() {
+        const roleGoalsSections = Array.from(document.querySelectorAll('.response-text')).filter(el =>
+            el.textContent.includes('👥') &&
+            (el.textContent.includes('Rephrased Goals') || el.textContent.includes('Goals by Role'))
+        );
+
+        roleGoalsSections.forEach(roleGoalsSection => {
+            const cardContainer = roleGoalsSection.closest('.tt-template-carddads');
+            if (!cardContainer) return;
+            // Only show on the FINAL answer. While stepping through the wizard a
+            // "Next/Finish" button is still present in the card — skip until the
+            // user clicks Finish (final render removes the step buttons).
+            // (.next-step-btn = markdown wizard, .gs-next = JSON wizard)
+            if (cardContainer.querySelector('.next-step-btn') || cardContainer.querySelector('.gs-next')) return;
+
+            // Place at the very end of everything: after the Leadership Alignment
+            // Brief if it exists (it may be its own card on reload), otherwise at
+            // the end of the answer card.
+            const briefEl = document.querySelector('.leadership-alignment-brief');
+            const targetCard = (briefEl && briefEl.closest('.tt-template-carddads')) || cardContainer;
+            if (targetCard.querySelector('.action-table-suggestion')) return; // already added
+
+            const wrap = document.createElement('div');
+            wrap.className = 'action-table-suggestion mt-3';
+            wrap.innerHTML = `
+                <div class="action-table-suggestion-box">
+                    <div class="ats-title"><i class="bi bi-lightbulb me-1"></i>Refining the Workflow Output</div>
+                    <button type="button" class="btn btn-primary btn-sm generate-action-table-btn mt-2">
+                        <i class="bi bi-table me-1"></i>Generate Recommended Action Table
+                    </button>
+                </div>
+                <div class="action-table-result mt-3"></div>
+            `;
+
+            targetCard.appendChild(wrap);
+
+            const genBtn = wrap.querySelector('.generate-action-table-btn');
+            const resultDiv = wrap.querySelector('.action-table-result');
+            genBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                generateRecommendedActionTable(roleGoalsSection, genBtn, resultDiv);
+            });
+        });
+    }
+
     // Track if brief generation is in progress or completed
     window.briefGenerationInProgress = false;
     window.briefGenerationCompleted = false;
@@ -3083,7 +3827,11 @@ document.addEventListener('click', function (e) {
         // Find the parent card container
         const cardContainer = finalOutcomeSection.closest('.tt-template-carddads');
         if (!cardContainer) return;
-        
+
+        // Note: the brief intentionally self-gates by requiring a visible
+        // "✅ Final Outcome" section, so it generates as soon as that section
+        // appears (the final wizard step) and persists into the final message.
+
         // Check if brief already exists in this card container
         const existingBriefInCard = cardContainer.querySelector('.leadership-alignment-brief');
         if (existingBriefInCard) {
@@ -3149,6 +3897,7 @@ document.addEventListener('click', function (e) {
         clearTimeout(observerTimeout);
         observerTimeout = setTimeout(() => {
             addExportButtonToRoleGoals();
+            addActionTableSuggestion();
             // Only call autoGenerateAlignmentBrief if not already in progress or completed
             if (!window.briefGenerationInProgress && !window.briefGenerationCompleted) {
                 autoGenerateAlignmentBrief();
@@ -3164,6 +3913,7 @@ document.addEventListener('click', function (e) {
     // Initial check (with delay to ensure DOM is ready)
     setTimeout(() => {
         addExportButtonToRoleGoals();
+        addActionTableSuggestion();
         if (!window.briefGenerationInProgress && !window.briefGenerationCompleted) {
             autoGenerateAlignmentBrief();
         }

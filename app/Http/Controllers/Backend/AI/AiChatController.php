@@ -73,9 +73,19 @@ class AiChatController extends Controller
     }
 
     # Gemini generate: primary gemini-3.1-pro-preview, fallback gemini-3.5-flash-lite
-    private function geminiGenerate($systemMessage, $userText, $maxOutputTokens = 3000, $temperature = 0.7)
+    private function geminiGenerate($systemMessage, $userText, $maxOutputTokens = 3000, $temperature = 0.7, $jsonMode = false)
     {
         $models = ['gemini-3.1-pro-preview', 'gemini-3.5-flash-lite'];
+
+        $generationConfig = [
+            'temperature' => $temperature,
+            'maxOutputTokens' => $maxOutputTokens,
+        ];
+
+        // Ask Gemini for a raw JSON object (no markdown fences) when requested.
+        if ($jsonMode) {
+            $generationConfig['responseMimeType'] = 'application/json';
+        }
 
         $payload = [
             'systemInstruction' => [
@@ -87,10 +97,7 @@ class AiChatController extends Controller
                     'parts' => [['text' => $userText]]
                 ]
             ],
-            'generationConfig' => [
-                'temperature' => $temperature,
-                'maxOutputTokens' => $maxOutputTokens,
-            ]
+            'generationConfig' => $generationConfig,
         ];
 
         $response = null;
@@ -118,20 +125,20 @@ class AiChatController extends Controller
     # AI provider dispatcher. Choose model via .env:
     #   AI_PROVIDER="gemini"  -> gemini-3.5-flash-lite (geminiGenerate)
     #   AI_PROVIDER="openai"  -> OPENAI_MODEL (default gpt-4-turbo)
-    private function aiGenerate($systemMessage, $userText, $maxOutputTokens = 3000, $temperature = 0.7)
+    private function aiGenerate($systemMessage, $userText, $maxOutputTokens = 3000, $temperature = 0.7, $jsonMode = false)
     {
         $provider = strtolower(env('AI_PROVIDER', 'gemini'));
 
         if ($provider === 'openai' || $provider === 'chatgpt') {
-            return $this->openAiGenerate($systemMessage, $userText, $maxOutputTokens, $temperature);
+            return $this->openAiGenerate($systemMessage, $userText, $maxOutputTokens, $temperature, $jsonMode);
         }
 
-        return $this->geminiGenerate($systemMessage, $userText, $maxOutputTokens, $temperature);
+        return $this->geminiGenerate($systemMessage, $userText, $maxOutputTokens, $temperature, $jsonMode);
     }
 
     # OpenAI generate. Returns a Response normalized to Gemini's JSON shape
     # (candidates.0.content.parts.0.text) so all callers stay unchanged.
-    private function openAiGenerate($systemMessage, $userText, $maxOutputTokens = 3000, $temperature = 0.7)
+    private function openAiGenerate($systemMessage, $userText, $maxOutputTokens = 3000, $temperature = 0.7, $jsonMode = false)
     {
         $model = env('OPENAI_MODEL', 'gpt-4-turbo');
 
@@ -139,19 +146,26 @@ class AiChatController extends Controller
         // budgets (e.g. 8000) don't 400 when running on OpenAI.
         $maxOutputTokens = min((int) $maxOutputTokens, (int) env('OPENAI_MAX_TOKENS', 4096));
 
+        $payload = [
+            'model'       => $model,
+            'messages'    => [
+                ['role' => 'system', 'content' => $systemMessage],
+                ['role' => 'user',   'content' => $userText],
+            ],
+            'temperature' => $temperature,
+            'max_tokens'  => $maxOutputTokens,
+        ];
+
+        // Force a valid JSON object response when requested (OpenAI JSON mode).
+        if ($jsonMode) {
+            $payload['response_format'] = ['type' => 'json_object'];
+        }
+
         $response = Http::withToken(env('OPENAI_API_KEY'))
             ->timeout(90)
             ->connectTimeout(10)
             ->retry(2, 1000)
-            ->post('https://api.openai.com/v1/chat/completions', [
-                'model'       => $model,
-                'messages'    => [
-                    ['role' => 'system', 'content' => $systemMessage],
-                    ['role' => 'user',   'content' => $userText],
-                ],
-                'temperature' => $temperature,
-                'max_tokens'  => $maxOutputTokens,
-            ]);
+            ->post('https://api.openai.com/v1/chat/completions', $payload);
 
         if ($response->successful()) {
             $text = $response->json('choices.0.message.content', '');
@@ -1302,8 +1316,71 @@ class AiChatController extends Controller
 
 // kishan
 
+    /**
+     * Build the GoalSync first-message prompt that asks the model for the
+     * structured JSON contract (instead of an emoji-delimited markdown blob).
+     * This is the single source of truth consumed by window.renderAnswer().
+     *
+     * Schema mirrors the old BUNDLES_JSON: top-level strategy-independent
+     * sections + per-strategy variants (scenarios + roles for the selected
+     * scenario). Scenario switching is handled later by a JSON update call.
+     */
+    private function goalSyncJsonPrompt($question, $documentNamesList)
+    {
+        return <<<EOT
+You are an executive strategy assistant trained in the GoalSync 7-step framework.
 
+User Goal: "$question"
+{$documentNamesList}
 
+Return a SINGLE valid JSON object (no markdown, no code fences, no commentary) with EXACTLY this shape:
+
+{
+  "acknowledgement": "1-2 warm sentences acknowledging the goal",
+  "documentInsights": ["3-5 insights; at least one MUST reference a specific document by name"],
+  "goalAssessment": "2-3 sentences assessing alignment of the goal with the company",
+  "scoring": [
+    {"label": "Alignment with Company Goals", "value": "High"},
+    {"label": "Feasibility", "value": "Medium"},
+    {"label": "Impact on Operations", "value": "High"},
+    {"label": "Risk Level", "value": "Medium"}
+  ],
+  "strategyMap": [
+    {"id": "s1", "name": "Descriptive Strategy Name", "rationale": "one sentence", "teams": "IT, Operations", "tradeoffs": "what is gained vs lost", "risk": "Low|Medium|High"}
+  ],
+  "selectedStrategyId": "s1",
+  "strategyVariants": {
+    "s1": {
+      "scenarios": [
+        {"id": "sc1", "label": "Best Case", "text": "one sentence"},
+        {"id": "sc2", "label": "Expected", "text": "one sentence"},
+        {"id": "sc3", "label": "Risk", "text": "one sentence"}
+      ],
+      "selectedScenarioId": "sc1",
+      "scenarioVariants": {
+        "sc1": {
+          "rolesGoals": [
+            {"role": "Role title from documents", "goal": "1-2 sentences", "action": "EXACTLY one sentence"}
+          ],
+          "complementaryGoals": ["goal one", "goal two"],
+          "finalOutcome": "two sentences for this strategy + scenario"
+        }
+      }
+    }
+  }
+}
+
+Rules:
+- "strategyMap": 3 decision paths, each with a UNIQUE id (s1, s2, s3) and a descriptive name (never "Path A/1").
+- "strategyVariants": one key for EACH strategy id in strategyMap.
+- Each variant has 3 "scenarios" (ids sc1, sc2, sc3) and a "scenarioVariants" object with one key for EACH of that variant's scenario ids.
+- "acknowledgement" must be a non-empty 1-2 sentence string.
+- Each scenarioVariant's "rolesGoals": 5 to 7 DISTINCT roles (never repeat a role title within the same list), using ONLY exact role titles found in the documents (do not prefix or invent titles). "action" is EXACTLY one sentence (no lists, no line breaks).
+- "selectedStrategyId" = first strategy id. Each variant's "selectedScenarioId" = its first scenario id.
+- Keep every string concise to fit the response in one valid JSON object.
+- Output VALID JSON only: double-quoted keys/strings, no trailing commas, no comments, no markdown.
+EOT;
+    }
 
 public function users_new_chat_ask(Request $request)
 {
@@ -1461,6 +1538,11 @@ public function users_new_chat_ask(Request $request)
         $systemMessage .= $contextFromDB;
     }
 
+ // Tracks how the stored/returned answer is encoded ('markdown' | 'json').
+ // Flipped to 'json' for the first GoalSync answer when GOALSYNC_JSON_MODE is on.
+ $responseFormat = 'markdown';
+ $useJson = filter_var(env('GOALSYNC_JSON_MODE', false), FILTER_VALIDATE_BOOLEAN);
+
  if(($previousContext && ($previousContext->status1 == '0' || $previousContext->status1 == 0)) || ($chectdata->status1 == '0' || $chectdata->status1 == 0)){
     // Build prompt to return GOALSYNC output in natural ChatGPT-style format
     // Build document names list for prompt
@@ -1535,14 +1617,19 @@ public function users_new_chat_ask(Request $request)
     - Role friction points (where conflicts may arise)
     - Operational consequences (practical impacts)
     - Keep it structured with bullet points, not long paragraphs
+    - CRITICAL: This section must contain ONLY scenario content. NEVER include "Goal:" lines, "Actions:" lines, or role titles here - those belong exclusively under "👥 Rephrased Goals by Role".
 
     👥 Rephrased Goals by Role:
+    - For EACH role output three lines in this exact order:
+      * Line 1: the role title
+      * Line 2: "Goal:" followed by a role-specific goal (1-2 sentences)
+      * Line 3: "Actions:" followed by EXACTLY ONE sentence on the SAME line. Never use bullet points, dashes, line breaks, or multiple sentences for Actions. One sentence only, just like Goal.
     - Translate the goal into role-specific directions referencing:
       * The scenario chosen
       * That role's core responsibilities
       * Dependencies identified earlier
     - Avoid OKR phrasing - use leadership-alignment language
-    - Directions must vary per role
+    - Directions and actions must vary per role
     - Reference scenario impacts
     - Reference at least one dependency per role
     - No template-style outputs - make each unique
@@ -1556,7 +1643,7 @@ public function users_new_chat_ask(Request $request)
     %%%END_BUNDLES_JSON%%%
 
     The JSON object maps each strategy name to that strategy's fully-written sections. Schema of each value (a single string):
-      "🔮 Scenario Simulations\\n- **Best Case:** <real sentence>\\n- **Expected:** <real sentence>\\n- **Risk:** <real sentence>\\n\\n👥 Rephrased Goals by Role\\n1. <real role title>\\nGoal: <real sentence>\\n2. <real role title>\\nGoal: <real sentence>\\n\\n📌 Complementary Goals\\n- <real goal>\\n- <real goal>\\n\\n✅ Final Outcome Summary\\n<two real sentences>"
+      "🔮 Scenario Simulations\\n- **Best Case:** <real sentence>\\n- **Expected:** <real sentence>\\n- **Risk:** <real sentence>\\n\\n👥 Rephrased Goals by Role\\n1. <real role title>\\nGoal: <real sentence>\\nActions: <one real action sentence>\\n2. <real role title>\\nGoal: <real sentence>\\nActions: <one real action sentence>\\n\\n📌 Complementary Goals\\n- <real goal>\\n- <real goal>\\n\\n✅ Final Outcome Summary\\n<two real sentences>"
 
     CRITICAL rules:
     - This is a SCHEMA, not literal text. NEVER output the placeholder tokens like "...", "<real sentence>", "<real role title>", "Strategy Name 1". Replace every placeholder with concrete, specific content written for THIS user's goal.
@@ -1577,8 +1664,15 @@ public function users_new_chat_ask(Request $request)
                 'has_api_key' => !empty(env('GEMINI_API_KEY')),
             ]);
 
-            // Larger budget: response now also carries per-strategy JSON bundles
-            $openAiResponse = $this->aiGenerate($systemMessage, $prompt, 8000);
+            // JSON-contract path (Phase 2): swap the markdown prompt for the
+            // structured JSON prompt and request native JSON from the provider.
+            if ($useJson) {
+                $prompt = $this->goalSyncJsonPrompt($question, $documentNamesList);
+                $responseFormat = 'json';
+            }
+
+            // Larger budget: response also carries per-strategy variants/bundles
+            $openAiResponse = $this->aiGenerate($systemMessage, $prompt, 8000, 0.7, $useJson);
 
             Log::info('Gemini API Response - First Chat', [
                 'user_id' => $user->id,
@@ -1775,6 +1869,19 @@ EOT;
 
         $responseContent = $openAiResponse->json('candidates.0.content.parts.0.text');
 
+        // For the JSON path, verify the model returned a parseable object.
+        // If not, fall back to the markdown renderer so the UI never breaks.
+        if ($responseFormat === 'json') {
+            if ($this->extractJson($responseContent) === null) {
+                Log::warning('GoalSync JSON parse failed - falling back to markdown render', [
+                    'user_id' => $user->id,
+                    'chat_id' => $chatId,
+                    'preview' => substr((string) $responseContent, 0, 300),
+                ]);
+                $responseFormat = 'markdown';
+            }
+        }
+
         // Save results to both main chat table and history
         $commonData = [
             'user_id' => $user->id,
@@ -1797,6 +1904,7 @@ EOT;
         return response()->json([
             'question' => $question,
             'answer' => $responseContent,
+            'format' => $responseFormat, // 'json' (structured contract) | 'markdown'
             'chat_id' => $chatId, // Include chat_id in case it was created
             'previousContext' => $previousContext ? (object)[
                 'status1' => $previousContext->status1 ?? null,
@@ -1898,9 +2006,9 @@ Generate these 4 sections concisely:
     👥 Rephrased Goals by Role  
     - Study the uploaded org/company documents in context.  
     - Choose the sections/roles that are most relevant to the user’s goal.  
-    - Output 5 to 10 roles only, numbered in order.  
-    - For each role, write the role name on one line, then a second line starting with “Goal:” followed by 1–2 sentences.  
-    - Only use role titles that actually appear in the company documents.  
+    - Output 5 to 10 roles only, numbered in order.
+    - For each role: role name on one line, then "Goal:" line (1–2 sentences), then "Actions:" line with EXACTLY ONE sentence on the same line (no bullets, no dashes, no line breaks, no multiple sentences).
+    - Only use role titles that actually appear in the company documents.
 
 📌 Complementary Goals
 2 goals, 1 sentence each.
@@ -2142,7 +2250,7 @@ Regenerate these sections tailored to the selected scenario (and strategy if pro
 - Study the uploaded org/company documents in context.
 - Select the sections/roles most relevant to this scenario (and strategy, if provided).
 - Output 5 to 10 roles only, numbered in order (1., 2., 3., ...).
-- For each role, write the role name on one line, then a second line starting with "Goal:" followed by 1–2 sentences.
+- For each role: role name on one line, then "Goal:" line (1–2 sentences), then "Actions:" line with EXACTLY ONE sentence on the same line (no bullets, no dashes, no line breaks, no multiple sentences).
 - Only use role titles that exist in the documents.
 - Translate the goal into role-specific directions referencing:
   * The scenario chosen ("{$selectedScenario}")
@@ -2741,6 +2849,157 @@ EOT;
     }
 
     /**
+     * Generate a Recommended Action Table (Role -> one recommended action)
+     * from the existing chat context, scenario, strategy and role goals.
+     * Returns structured rows so the frontend can render the decision column.
+     */
+    public function generate_recommended_action_table(Request $request)
+    {
+        $user = auth()->user();
+        $chatId = $request->input('chat_id');
+        $selectedStrategy = $request->input('selected_strategy');
+        $selectedScenario = $request->input('selected_scenario');
+        $originalQuestion = $request->input('original_question');
+        $fullResponse = $request->input('full_response');
+        $roleGoalsText = $request->input('role_goals_text');
+
+        if (!$chatId || !$originalQuestion) {
+            return response()->json(['error' => 'Chat ID and original question are required.'], 400);
+        }
+
+        // Company documents context (same source the brief uses)
+        $documents = Document::where('user_id', $user->id)
+            ->whereNotNull('parsed_text')
+            ->where('parse_status', 'completed')
+            ->latest()
+            ->get();
+
+        $documentContext = '';
+        if ($documents->count() > 0) {
+            $documentContext = "\n\n--- COMPANY DOCUMENTS CONTEXT ---\n";
+            foreach ($documents as $doc) {
+                $documentContext .= "--- Document: {$doc->name} (Type: {$doc->file_type}) ---\n";
+                $documentContext .= $doc->parsed_text . "\n\n";
+            }
+            $documentContext .= "--- END COMPANY DOCUMENTS CONTEXT ---\n";
+        }
+
+        $systemMessage = 'You are an executive strategy assistant. Return ONLY valid JSON. No markdown, no code fences, no commentary.';
+        if (!empty($documentContext)) {
+            $systemMessage .= $documentContext;
+        }
+
+        $prompt = <<<EOT
+Based on the strategy work below, produce a Recommended Action Table.
+
+Context:
+- Strategy / Decision: "{$selectedStrategy}"
+- Scenario: "{$selectedScenario}"
+- Goal: "{$originalQuestion}"
+
+Roles and goals already defined:
+{$roleGoalsText}
+
+Full analysis context:
+{$fullResponse}
+
+Output a JSON object with EXACTLY this shape:
+{"rows":[{"role":"<role title>","action":"<one concrete recommended action sentence>"}]}
+
+Rules:
+- 5 to 8 rows.
+- Use only roles that appear in the role goals / documents above.
+- "action" = exactly ONE specific, decision-ready sentence (no bullets, no line breaks, no numbering).
+- Tailor each action to the chosen scenario and strategy.
+- Return ONLY the JSON object, nothing else.
+EOT;
+
+        try {
+            $aiResponse = $this->aiGenerate($systemMessage, $prompt, 1500, 0.7, true);
+
+            if ($aiResponse->successful()) {
+                $text = $aiResponse->json('candidates.0.content.parts.0.text');
+                $rows = $this->parseRecommendedActionRows($text);
+
+                if (empty($rows)) {
+                    return response()->json([
+                        'error' => 'No rows could be parsed from the AI response.',
+                        'raw' => $text,
+                    ], 500);
+                }
+
+                return response()->json(['success' => true, 'rows' => $rows]);
+            }
+
+            return response()->json([
+                'error' => 'Failed to generate recommended action table.',
+                'details' => $aiResponse->body(),
+            ], 500);
+        } catch (\Exception $e) {
+            Log::error('Recommended Action Table Generation Failed', [
+                'user_id' => $user->id,
+                'chat_id' => $chatId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'error' => 'An error occurred while generating the recommended action table.',
+                'details' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Tolerant JSON object extractor. Strips ``` fences and any prose the model
+     * may add around the object, then decodes. Returns an associative array or
+     * null. Shared by all JSON-mode generation endpoints.
+     */
+    private function extractJson($text)
+    {
+        if (!$text) {
+            return null;
+        }
+
+        $clean = trim($text);
+        $clean = preg_replace('/^```(?:json)?/i', '', $clean);
+        $clean = preg_replace('/```$/', '', $clean);
+        $clean = trim($clean);
+
+        // Isolate the outermost JSON object if the model added prose around it.
+        $start = strpos($clean, '{');
+        $end = strrpos($clean, '}');
+        if ($start !== false && $end !== false && $end > $start) {
+            $clean = substr($clean, $start, $end - $start + 1);
+        }
+
+        $data = json_decode($clean, true);
+
+        return is_array($data) ? $data : null;
+    }
+
+    /**
+     * Parse the {"rows":[{"role","action"}]} JSON the model returns,
+     * tolerating code fences or stray text around the JSON object.
+     */
+    private function parseRecommendedActionRows($text)
+    {
+        $data = $this->extractJson($text);
+
+        $rows = [];
+        if (is_array($data) && isset($data['rows']) && is_array($data['rows'])) {
+            foreach ($data['rows'] as $r) {
+                $role = isset($r['role']) ? trim($r['role']) : '';
+                $action = isset($r['action']) ? trim(preg_replace('/\s+/', ' ', $r['action'])) : '';
+                if ($role !== '' && $action !== '') {
+                    $rows[] = ['role' => $role, 'action' => $action];
+                }
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
      * Export Role-Based Goals to Spreadsheet
      */
     public function export_role_goals(Request $request)
@@ -2787,54 +3046,76 @@ EOT;
     {
         $roleGoals = [];
         $lines = explode("\n", $text);
-        
+
         $currentRole = null;
-        $currentGoal = null;
-        
+        $currentGoal = '';
+        $currentActions = [];
+        $mode = null; // 'goal' | 'actions' | 'role'
+
+        $flush = function () use (&$roleGoals, &$currentRole, &$currentGoal, &$currentActions) {
+            if ($currentRole && (trim($currentGoal) !== '' || !empty($currentActions))) {
+                $roleGoals[] = [
+                    'role'    => $currentRole,
+                    'goal'    => trim($currentGoal),
+                    'actions' => implode("\n", $currentActions),
+                    'notes'   => '',
+                ];
+            }
+        };
+
         foreach ($lines as $line) {
             $line = trim($line);
-            
+
             // Skip empty lines and section headers
-            if (empty($line) || strpos($line, '👥') !== false || strpos($line, 'Rephrased Goals') !== false) {
+            if (empty($line) || strpos($line, '👥') !== false || stripos($line, 'Rephrased Goals') !== false) {
                 continue;
             }
-            
-            // Check if line is a role (usually numbered: 1., 2., etc. or starts with a role name)
-            if (preg_match('/^(\d+\.?\s*)?([A-Z][^:]+?):?\s*$/i', $line, $matches)) {
-                // Save previous role if exists
-                if ($currentRole && $currentGoal) {
-                    $roleGoals[] = [
-                        'role' => $currentRole,
-                        'goal' => $currentGoal,
-                        'notes' => ''
-                    ];
+
+            // "Goal:" line
+            if (preg_match('/^Goal:\s*(.+)$/i', $line, $m)) {
+                $currentGoal = trim($m[1]);
+                $mode = 'goal';
+                continue;
+            }
+            // "Actions:" header (may carry inline text)
+            if (preg_match('/^Actions:\s*(.*)$/i', $line, $m)) {
+                $mode = 'actions';
+                if (trim($m[1]) !== '') {
+                    $currentActions[] = trim($m[1]);
                 }
-                $currentRole = trim($matches[2]);
+                continue;
+            }
+            // Bullet line -> action or goal continuation depending on mode
+            if (preg_match('/^[-•*]\s*(.+)$/', $line, $m)) {
+                if ($mode === 'actions') {
+                    $currentActions[] = trim($m[1]);
+                } elseif ($mode === 'goal') {
+                    $currentGoal .= ' ' . trim($m[1]);
+                }
+                continue;
+            }
+            // Role line (numbered or Title-case). Checked AFTER Goal/Actions/bullets.
+            if (preg_match('/^(\d+\.?\s*)?([A-Z][^:]+?):?\s*$/', $line, $m)) {
+                $flush();
+                $currentRole = trim($m[2]);
                 $currentGoal = '';
+                $currentActions = [];
+                $mode = 'role';
+                continue;
             }
-            // Check if line starts with "Goal:"
-            elseif (preg_match('/^Goal:\s*(.+)$/i', $line, $matches)) {
-                $currentGoal = trim($matches[1]);
-            }
-            // If we have a role but no goal yet, this might be the goal
-            elseif ($currentRole && empty($currentGoal) && !empty($line)) {
-                $currentGoal = $line;
-            }
-            // Additional goal text
-            elseif ($currentRole && !empty($currentGoal) && !empty($line)) {
-                $currentGoal .= ' ' . $line;
+            // Continuation text
+            if ($currentRole) {
+                if ($mode === 'actions') {
+                    $currentActions[] = $line;
+                } else {
+                    $currentGoal = trim(($currentGoal !== '' ? $currentGoal . ' ' : '') . $line);
+                    $mode = 'goal';
+                }
             }
         }
-        
-        // Save last role
-        if ($currentRole && $currentGoal) {
-            $roleGoals[] = [
-                'role' => $currentRole,
-                'goal' => $currentGoal,
-                'notes' => ''
-            ];
-        }
-        
+
+        $flush();
+
         return $roleGoals;
     }
 }
