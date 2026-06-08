@@ -387,6 +387,18 @@
         opacity: 0.8;
     }
 
+    /* Selected strategy in the final answer — match the selected scenario look */
+    .strategy-option.strategy-selected {
+        border-color: #6f42c1;
+        background-color: #f1e8ff;
+        box-shadow: 0 2px 6px rgba(111, 66, 193, 0.2);
+    }
+
+    [data-bs-theme="dark"] .strategy-option.strategy-selected {
+        border-color: #a07cf0;
+        background-color: #1e1b2a;
+    }
+
     /* Spinning animation for loading */
     @keyframes spin {
         from { transform: rotate(0deg); }
@@ -521,6 +533,39 @@
         background-color: #242424;
         border-color: #454545;
         color: #fff;
+    }
+
+    /* Recommended Action Table suggestion */
+    .action-table-suggestion-box {
+        border: 1px dashed #b9c6e0;
+        background: #f5f8ff;
+        border-radius: 8px;
+        padding: 12px 14px;
+    }
+    .action-table-suggestion-box .ats-title {
+        font-weight: 600;
+        font-size: 0.95rem;
+        color: #2c3e66;
+    }
+    .recommended-action-table th,
+    .recommended-action-table td {
+        vertical-align: top;
+        font-size: 0.9rem;
+    }
+    .recommended-action-table th:nth-child(3),
+    .recommended-action-table td:nth-child(3) {
+        white-space: nowrap;
+        width: 1%;
+    }
+    .recommended-action-table .form-check {
+        margin-bottom: 2px;
+    }
+    [data-bs-theme="dark"] .action-table-suggestion-box {
+        background: #1f2633;
+        border-color: #3a455c;
+    }
+    [data-bs-theme="dark"] .action-table-suggestion-box .ats-title {
+        color: #cdd8f0;
     }
 </style>
 
@@ -1129,6 +1174,95 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
             const previousContext = data.previousContext || {};
             const chectdata = data.chectdata || {};
 
+            // Force each role's "Actions:" onto a single line — but ONLY inside the
+            // 👥 Rephrased Goals by Role section, never anywhere else. Model often
+            // returns multi-line actions even when told not to.
+            window.collapseActions = function (md) {
+                if (!md) return md;
+                const startIdx = md.indexOf('👥');
+                if (startIdx === -1) return md;
+                // roles section ends at the next major section marker
+                let endIdx = md.length;
+                ['📌', '✅', '🔮'].forEach(em => {
+                    const p = md.indexOf(em, startIdx + 1);
+                    if (p !== -1 && p < endIdx) endIdx = p;
+                });
+                const before = md.slice(0, startIdx);
+                const section = md.slice(startIdx, endIdx);
+                const after = md.slice(endIdx);
+
+                const lines = section.split('\n');
+                const out = [];
+                for (let i = 0; i < lines.length; i++) {
+                    // "Actions:" line — collapse any multi-line actions into one,
+                    // bold the label so it always renders as its own visible line.
+                    const m = lines[i].match(/^(\s*)Actions:\s*(.*)$/i);
+                    if (m) {
+                        const parts = [];
+                        if (m[2].trim()) parts.push(m[2].trim().replace(/^[-•*]\s*/, ''));
+                        let j = i + 1;
+                        for (; j < lines.length; j++) {
+                            const t = lines[j].trim();
+                            if (t === '') break;
+                            if (/^\d+[.)]\s/.test(t)) break;             // next numbered role
+                            if (/^[🔮👥📌✅📁📊📈🗺️🧩]/.test(t)) break;     // next section
+                            if (/^Goal:/i.test(t)) break;
+                            // lookahead: a role title line is followed by a "Goal:" line
+                            let k = j + 1;
+                            while (k < lines.length && lines[k].trim() === '') k++;
+                            if (k < lines.length && /^Goal:/i.test(lines[k].trim())) break;
+                            parts.push(t.replace(/^[-•*]\s*/, ''));
+                        }
+                        out.push(`${m[1]}**Actions:** ${parts.join(' ').replace(/\s+/g, ' ').trim()}  `);
+                        i = j - 1;
+                        continue;
+                    }
+
+                    // "Goal:" line — bold the label and force a hard line break
+                    // (two trailing spaces) so the following "Actions:" line renders
+                    // on its own line instead of being soft-joined by markdown.
+                    // Also split an inline "... Actions: ..." that the model put on
+                    // the SAME line as the goal into its own Actions line.
+                    const g = lines[i].match(/^(\s*)Goal:\s*(.*)$/i);
+                    if (g) {
+                        const indent = g[1];
+                        let goalText = g[2].trim();
+                        const aIdx = goalText.search(/\bActions:/i);
+                        if (aIdx !== -1) {
+                            const actionText = goalText.slice(aIdx).replace(/^Actions:\s*/i, '').trim();
+                            goalText = goalText.slice(0, aIdx).trim();
+                            out.push(`${indent}**Goal:** ${goalText}  `);
+                            out.push(`${indent}**Actions:** ${actionText}  `);
+                        } else {
+                            out.push(`${indent}**Goal:** ${goalText}  `);
+                        }
+                        continue;
+                    }
+
+                    // Role title line (non-empty, not a bullet/section header) that is
+                    // followed by a "Goal:" line — bold it and add a hard break.
+                    const raw = lines[i];
+                    const trimmed = raw.trim();
+                    if (trimmed && !/^[-•*]/.test(trimmed) && !/^[🔮👥📌✅📁📊📈🗺️🧩]/.test(trimmed)) {
+                        let k = i + 1;
+                        while (k < lines.length && lines[k].trim() === '') k++;
+                        if (k < lines.length && /^Goal:/i.test(lines[k].trim())) {
+                            const title = trimmed.replace(/\*\*/g, '').replace(/^(\d+[.)]\s*)/, '');
+                            // Blank line before the title forces a paragraph break so
+                            // the first role never soft-joins with the 👥 header line.
+                            if (out.length && out[out.length - 1].trim() !== '') {
+                                out.push('');
+                            }
+                            out.push(`**${title}**  `);
+                            continue;
+                        }
+                    }
+
+                    out.push(raw);
+                }
+                return before + out.join('\n') + after;
+            };
+
             // Phase 1: extract per-strategy JSON bundles emitted by the first call.
             // These let strategy/scenario selection render client-side with no extra
             // AI calls. If parsing fails we strip nothing and fall back to fetches.
@@ -1140,12 +1274,19 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                     fullAnswer = fullAnswer.replace(bundleMatch[0], '').trim();
                     let raw = bundleMatch[1].trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
                     window.strategyBundles = JSON.parse(raw);
+                    // Collapse Actions inside every bundle value too
+                    Object.keys(window.strategyBundles).forEach(k => {
+                        window.strategyBundles[k] = window.collapseActions(window.strategyBundles[k]);
+                    });
                     console.log('✅ Parsed strategy bundles:', Object.keys(window.strategyBundles));
                 }
             } catch (e) {
                 window.strategyBundles = null;
                 console.warn('⚠️ Could not parse strategy bundles, falling back to per-selection AI calls:', e);
             }
+
+            // Collapse Actions in the visible first-response text
+            fullAnswer = window.collapseActions(fullAnswer);
             
             // Update chat_id if a new one was created
             if (data.chat_id && data.chat_id !== currentChat_id) {
@@ -1268,6 +1409,25 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
 
             if (scenarioIndex !== -1) {
                 scenarioSection = sections[scenarioIndex];
+
+                // Defensive: the model sometimes leaks role "Goal:"/"Actions:" lines
+                // into the 🔮 Scenario Simulations section (before the 👥 header).
+                // Cut the section at the first such line so raw-markdown render paths
+                // never show role goals/actions under Scenario Simulations.
+                const rawScenarioLines = scenarioSection.split('\n');
+                let scenarioCutAt = rawScenarioLines.length;
+                for (let i = 1; i < rawScenarioLines.length; i++) {
+                    const t = rawScenarioLines[i].trim().replace(/^[-•*]\s*/, '').replace(/\*/g, '');
+                    if (/^Goal:/i.test(t) || /^Actions:/i.test(t) || rawScenarioLines[i].includes('👥')) {
+                        scenarioCutAt = i;
+                        break;
+                    }
+                }
+                scenarioSection = rawScenarioLines.slice(0, scenarioCutAt).join('\n').trim();
+                // Keep the sections array in sync so the raw-markdown fallback
+                // render path (marked.parse(step)) also shows the cleaned section.
+                sections[scenarioIndex] = scenarioSection;
+
                 const scenarioLines = scenarioSection.split('\n');
                 let foundScenarioHeader = false;
                 const scenarioItems = [];
@@ -1557,7 +1717,7 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
 
                     if (scenarioRes.ok) {
                         const updateData = await scenarioRes.json();
-                        const response = updateData.updated_sections || '';
+                        const response = window.collapseActions(updateData.updated_sections || '');
                         if (!window.scenarioResponsesCache) {
                             window.scenarioResponsesCache = {};
                         }
@@ -2214,10 +2374,10 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                         }
                         const isSelected = window.selectedStrategy === point || (window.selectedStrategy && window.selectedStrategy.includes(point.substring(0, 30)));
                         html += `
-                            <div class="strategy-option mb-2 ${isSelected ? 'strategy-loaded' : ''}">
+                            <div class="strategy-option mb-2 ${isSelected ? 'strategy-loaded strategy-selected' : ''}">
                                 <div class="strategy-label">
                                     ${displayPoint}
-                                    ${isSelected ? '<span class="badge bg-success ms-auto">Selected</span>' : ''}
+                                    ${isSelected ? '<span class="badge bg-primary ms-auto">Selected</span>' : ''}
                                 </div>
                             </div>
                         `;
@@ -2923,6 +3083,132 @@ document.addEventListener('click', function (e) {
         }
     }
 
+    // Small HTML escaper for table cell content
+    function escapeActionHtml(str) {
+        return String(str == null ? '' : str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    // Build the Recommended Action Table HTML with a 3-option decision column.
+    // No option is pre-selected ("do nothing for now" is the default state).
+    window.renderRecommendedActionTable = function(rows, container) {
+        const choices = ['Act on it', 'Review in detail', 'Not viable for us'];
+        let html = '<div class="response-text"><div class="table-responsive">'
+            + '<table class="table table-bordered recommended-action-table">'
+            + '<thead><tr>'
+            + '<th>Role</th><th>Recommended Action</th><th>Choice / Decision</th>'
+            + '</tr></thead><tbody>';
+
+        rows.forEach((r, i) => {
+            const role = escapeActionHtml(r.role);
+            const action = escapeActionHtml(r.action);
+            let opts = '';
+            choices.forEach((c, j) => {
+                const id = `action_choice_${i}_${j}`;
+                opts += `<div class="form-check">
+                    <input class="form-check-input action-choice-input" type="radio" name="action_choice_${i}" id="${id}" value="${escapeActionHtml(c)}" data-role="${role}">
+                    <label class="form-check-label" for="${id}">${c}</label>
+                </div>`;
+            });
+            html += `<tr>
+                <td><strong>${role}</strong></td>
+                <td>${action}</td>
+                <td>${opts}</td>
+            </tr>`;
+        });
+
+        html += '</tbody></table></div></div>';
+        container.innerHTML = html;
+    };
+
+    // Call backend to generate the table from existing chat/scenario/role data
+    function generateRecommendedActionTable(roleGoalsSection, genBtn, resultDiv) {
+        genBtn.disabled = true;
+        resultDiv.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split me-2"></i>Generating recommended action table...</div>';
+
+        // Role goals text from this card (already collapsed to one-line actions)
+        const roleGoalsText = (roleGoalsSection.textContent || roleGoalsSection.innerText || '').trim();
+
+        // Whole card text as broader context
+        const cardContainer = roleGoalsSection.closest('.tt-template-carddads');
+        const fullResponse = cardContainer
+            ? Array.from(cardContainer.querySelectorAll('.response-text')).map(el => el.textContent.trim()).filter(Boolean).join('\n\n')
+            : roleGoalsText;
+
+        fetch('{{ route("users-new-chat-generate-action-table.index") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+            body: JSON.stringify({
+                chat_id: window.chatChatId || (document.getElementById('chat_id') ? document.getElementById('chat_id').value : ''),
+                original_question: window.chatQuestion || '',
+                selected_strategy: window.selectedStrategy || '',
+                selected_scenario: window.selectedScenario || '',
+                role_goals_text: roleGoalsText,
+                full_response: fullResponse
+            })
+        })
+        .then(r => r.json())
+        .then(data => {
+            genBtn.disabled = false;
+            if (data.success && Array.isArray(data.rows) && data.rows.length) {
+                window.renderRecommendedActionTable(data.rows, resultDiv);
+            } else {
+                resultDiv.innerHTML = '<div class="alert alert-warning"><i class="bi bi-exclamation-triangle me-2"></i>Could not generate table: ' + (data.error || 'no rows returned') + '</div>';
+            }
+        })
+        .catch(err => {
+            genBtn.disabled = false;
+            resultDiv.innerHTML = '<div class="alert alert-danger">Error generating table: ' + err.message + '</div>';
+        });
+    }
+
+    // Inject the "Refining the Workflow Output" suggestion + button into every
+    // card that has a Role Goals section (but only once per card).
+    function addActionTableSuggestion() {
+        const roleGoalsSections = Array.from(document.querySelectorAll('.response-text')).filter(el =>
+            el.textContent.includes('👥') &&
+            (el.textContent.includes('Rephrased Goals') || el.textContent.includes('Goals by Role'))
+        );
+
+        roleGoalsSections.forEach(roleGoalsSection => {
+            const cardContainer = roleGoalsSection.closest('.tt-template-carddads');
+            if (!cardContainer) return;
+            if (cardContainer.querySelector('.action-table-suggestion')) return; // already added
+            // Only show on the FINAL answer. While stepping through the wizard a
+            // "Next/Finish" button is still present in the card — skip until the
+            // user clicks Finish (final render removes the step buttons).
+            if (cardContainer.querySelector('.next-step-btn')) return;
+
+            const wrap = document.createElement('div');
+            wrap.className = 'action-table-suggestion mt-3';
+            wrap.innerHTML = `
+                <div class="action-table-suggestion-box">
+                    <div class="ats-title"><i class="bi bi-lightbulb me-1"></i>Refining the Workflow Output</div>
+                    <button type="button" class="btn btn-primary btn-sm generate-action-table-btn mt-2">
+                        <i class="bi bi-table me-1"></i>Generate Recommended Action Table
+                    </button>
+                </div>
+                <div class="action-table-result mt-3"></div>
+            `;
+
+            // Place at the very end of the answer (after ✅ Final Outcome Summary
+            // and the Leadership Alignment Brief), never right after the roles.
+            // Appending to the card end avoids races with the async brief insert.
+            cardContainer.appendChild(wrap);
+
+            const genBtn = wrap.querySelector('.generate-action-table-btn');
+            const resultDiv = wrap.querySelector('.action-table-result');
+            genBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                generateRecommendedActionTable(roleGoalsSection, genBtn, resultDiv);
+            });
+        });
+    }
+
     // Track if brief generation is in progress or completed
     window.briefGenerationInProgress = false;
     window.briefGenerationCompleted = false;
@@ -3149,6 +3435,7 @@ document.addEventListener('click', function (e) {
         clearTimeout(observerTimeout);
         observerTimeout = setTimeout(() => {
             addExportButtonToRoleGoals();
+            addActionTableSuggestion();
             // Only call autoGenerateAlignmentBrief if not already in progress or completed
             if (!window.briefGenerationInProgress && !window.briefGenerationCompleted) {
                 autoGenerateAlignmentBrief();
@@ -3164,6 +3451,7 @@ document.addEventListener('click', function (e) {
     // Initial check (with delay to ensure DOM is ready)
     setTimeout(() => {
         addExportButtonToRoleGoals();
+        addActionTableSuggestion();
         if (!window.briefGenerationInProgress && !window.briefGenerationCompleted) {
             autoGenerateAlignmentBrief();
         }
