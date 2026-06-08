@@ -912,6 +912,22 @@
 
         function nonEmpty(v) { return v != null && String(v).trim() !== ''; }
 
+        // Remove GoalSync section-header emojis the model sometimes leaks into
+        // text/list items (e.g. a stray "📊" bullet inside Document Insights).
+        function stripMarkers(s) {
+            return String(s == null ? '' : s)
+                .replace(/[🧩📁📊📈🗺️🔮👥📌✅📋]/g, '')
+                .replace(/️/g, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+
+        // Clean a list of strings: strip markers and drop empties.
+        function cleanList(arr) {
+            if (!Array.isArray(arr)) return [];
+            return arr.map(stripMarkers).filter(x => x !== '');
+        }
+
         function sectionAcknowledgement(d) {
             if (!nonEmpty(d.acknowledgement)) return '';
             return `<div class="gs-section gs-ack">
@@ -921,8 +937,9 @@
         }
 
         function sectionDocInsights(d) {
-            if (!Array.isArray(d.documentInsights) || !d.documentInsights.length) return '';
-            const items = d.documentInsights.map(i => `<li>${esc(i)}</li>`).join('');
+            const list = cleanList(d.documentInsights);
+            if (!list.length) return '';
+            const items = list.map(i => `<li>${esc(i)}</li>`).join('');
             return `<div class="gs-section gs-doc-insights">
                 <h5>📁 Document Insights</h5>
                 <ul>${items}</ul>
@@ -1016,8 +1033,9 @@
         }
 
         function sectionComplementary(d) {
-            if (!Array.isArray(d.complementaryGoals) || !d.complementaryGoals.length) return '';
-            const items = d.complementaryGoals.map(g => `<li>${esc(g)}</li>`).join('');
+            const list = cleanList(d.complementaryGoals);
+            if (!list.length) return '';
+            const items = list.map(g => `<li>${esc(g)}</li>`).join('');
             return `<div class="gs-section gs-complementary">
                 <h5>📌 Complementary Goals</h5>
                 <ul>${items}</ul>
