@@ -135,6 +135,10 @@ class AiChatController extends Controller
     {
         $model = env('OPENAI_MODEL', 'gpt-4-turbo');
 
+        // gpt-4-turbo caps completion at 4096 tokens; clamp so larger Gemini
+        // budgets (e.g. 8000) don't 400 when running on OpenAI.
+        $maxOutputTokens = min((int) $maxOutputTokens, (int) env('OPENAI_MAX_TOKENS', 4096));
+
         $response = Http::withToken(env('OPENAI_API_KEY'))
             ->timeout(90)
             ->connectTimeout(10)
@@ -1543,8 +1547,25 @@ public function users_new_chat_ask(Request $request)
     - Reference at least one dependency per role
     - No template-style outputs - make each unique
 
+    ---
+
+    AFTER all the human-readable sections above, append a REQUIRED machine-readable data block for the app, wrapped EXACTLY in these markers:
+
+    %%%BUNDLES_JSON%%%
+    (valid JSON object here)
+    %%%END_BUNDLES_JSON%%%
+
+    The JSON object maps each strategy name to that strategy's fully-written sections. Schema of each value (a single string):
+      "🔮 Scenario Simulations\\n- **Best Case:** <real sentence>\\n- **Expected:** <real sentence>\\n- **Risk:** <real sentence>\\n\\n👥 Rephrased Goals by Role\\n1. <real role title>\\nGoal: <real sentence>\\n2. <real role title>\\nGoal: <real sentence>\\n\\n📌 Complementary Goals\\n- <real goal>\\n- <real goal>\\n\\n✅ Final Outcome Summary\\n<two real sentences>"
+
+    CRITICAL rules:
+    - This is a SCHEMA, not literal text. NEVER output the placeholder tokens like "...", "<real sentence>", "<real role title>", "Strategy Name 1". Replace every placeholder with concrete, specific content written for THIS user's goal.
+    - One key for EACH Decision Path in the 🗺️ Strategy Map, using that path's EXACT strategy name as the key.
+    - Each value fully tailored to that strategy: 3-4 real scenarios, 5-10 real roles (only roles found in the documents), 2 real complementary goals, a 2-sentence real outcome.
+    - Output VALID JSON only between the markers: escape every newline as \\n, escape double quotes, no trailing commas, no markdown code fences.
+
     EOT;
- 
+
         // Send to Gemini API with comprehensive error handling
         try {
             Log::info('Gemini API Request - First Chat', [
@@ -1556,7 +1577,8 @@ public function users_new_chat_ask(Request $request)
                 'has_api_key' => !empty(env('GEMINI_API_KEY')),
             ]);
 
-            $openAiResponse = $this->aiGenerate($systemMessage, $prompt, 3000);
+            // Larger budget: response now also carries per-strategy JSON bundles
+            $openAiResponse = $this->aiGenerate($systemMessage, $prompt, 8000);
 
             Log::info('Gemini API Response - First Chat', [
                 'user_id' => $user->id,
@@ -1633,6 +1655,19 @@ public function users_new_chat_ask(Request $request)
 
     }else{
 
+        // Concise follow-up prompt: keep replies short and scannable.
+        $followUpPrompt = <<<EOT
+User message: "$question"
+
+Respond using the GoalSync method, but keep it SHORT and scannable:
+- No preamble or filler (do NOT start with phrases like "To guide you effectively...").
+- Use brief emoji section headers only where useful.
+- Bullet points, one line each, max ~12 words per bullet.
+- No long paragraphs. No restating the question.
+- Be specific to the user's company context.
+- Keep the whole reply under ~120 words.
+EOT;
+
         // Send to Gemini API with comprehensive error handling
         try {
             Log::info('Gemini API Request - Follow-up Chat', [
@@ -1644,7 +1679,7 @@ public function users_new_chat_ask(Request $request)
                 'has_api_key' => !empty(env('GEMINI_API_KEY')),
             ]);
 
-            $openAiResponse = $this->aiGenerate($systemMessage, $question, 3000);
+            $openAiResponse = $this->aiGenerate($systemMessage, $followUpPrompt, 1200);
 
             Log::info('Gemini API Response - Follow-up Chat', [
                 'user_id' => $user->id,
