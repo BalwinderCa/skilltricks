@@ -72,10 +72,10 @@ class AiChatController extends Controller
 
     }
 
-    # Gemini generate: primary gemini-3.5-flash, fallback gemini-3.1-pro-preview
+    # Gemini generate: primary gemini-3.1-pro-preview, fallback gemini-3.5-flash-lite
     private function geminiGenerate($systemMessage, $userText, $maxOutputTokens = 3000, $temperature = 0.7)
     {
-        $models = ['gemini-3.5-flash-lite', 'gemini-3.1-pro-preview'];
+        $models = ['gemini-3.1-pro-preview', 'gemini-3.5-flash-lite'];
 
         $payload = [
             'systemInstruction' => [
