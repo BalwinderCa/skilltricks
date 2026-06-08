@@ -1191,8 +1191,25 @@
                     </div>`;
                 wireSelection();
                 setTimeout(() => {
+                    // The brief may have been generated already during the final
+                    // step; Finish rebuilds the DOM, so re-insert the cached copy
+                    // instead of making a second API call. Otherwise generate it.
+                    const card = loadingDiv.closest('.tt-template-carddads') || loadingDiv;
+                    if (window.briefGenerationCompleted && window.generatedBriefHtml
+                        && !card.querySelector('.leadership-alignment-brief')) {
+                        const finalSec = Array.from(card.querySelectorAll('.response-text')).find(el =>
+                            el.textContent.includes('✅') && el.textContent.includes('Final Outcome'));
+                        const briefDiv = document.createElement('div');
+                        briefDiv.className = 'leadership-alignment-brief mt-3';
+                        const rt = document.createElement('div');
+                        rt.className = 'response-text';
+                        rt.innerHTML = window.generatedBriefHtml;
+                        briefDiv.appendChild(rt);
+                        (finalSec || loadingDiv).insertAdjacentElement('afterend', briefDiv);
+                    } else if (typeof autoGenerateAlignmentBrief === 'function') {
+                        autoGenerateAlignmentBrief();
+                    }
                     if (typeof addActionTableSuggestion === 'function') addActionTableSuggestion();
-                    if (typeof autoGenerateAlignmentBrief === 'function') autoGenerateAlignmentBrief();
                 }, 300);
             }
 
@@ -3753,8 +3770,9 @@ document.addEventListener('click', function (e) {
         const cardContainer = finalOutcomeSection.closest('.tt-template-carddads');
         if (!cardContainer) return;
 
-        // Skip while the JSON/markdown wizard is still stepping (Finish not clicked).
-        if (cardContainer.querySelector('.gs-next') || cardContainer.querySelector('.next-step-btn')) return;
+        // Note: the brief intentionally self-gates by requiring a visible
+        // "✅ Final Outcome" section, so it generates as soon as that section
+        // appears (the final wizard step) and persists into the final message.
 
         // Check if brief already exists in this card container
         const existingBriefInCard = cardContainer.querySelector('.leadership-alignment-brief');
