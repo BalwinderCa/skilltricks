@@ -1043,6 +1043,8 @@
             const scid = selScenario || v.selectedScenarioId
                 || ((v.scenarios || [])[0] || {}).id;
             const sv = (v.scenarioVariants && v.scenarioVariants[scid]) || {};
+            // Prefer scenario-level content, but fall back to strategy-variant
+            // or top-level if the model placed these fields higher up.
             return {
                 acknowledgement: data.acknowledgement,
                 documentInsights: data.documentInsights,
@@ -1052,9 +1054,9 @@
                 selectedStrategyId: sid,
                 scenarios: v.scenarios || [],
                 selectedScenarioId: scid,
-                rolesGoals: sv.rolesGoals || [],
-                complementaryGoals: sv.complementaryGoals || [],
-                finalOutcome: sv.finalOutcome
+                rolesGoals: sv.rolesGoals || v.rolesGoals || data.rolesGoals || [],
+                complementaryGoals: sv.complementaryGoals || v.complementaryGoals || data.complementaryGoals || [],
+                finalOutcome: sv.finalOutcome || v.finalOutcome || data.finalOutcome
             };
         };
 
@@ -1113,7 +1115,7 @@
                 return window.flattenContract(data, selStrategy, selScenario);
             }
 
-            const stepDefs = [
+            const allStepFns = [
                 d => sectionAcknowledgement(d),
                 d => sectionDocInsights(d),
                 d => sectionGoalAssessment(d),
@@ -1123,7 +1125,15 @@
                 d => sectionRolesGoals(d),
                 d => sectionComplementary(d),
                 d => sectionFinalOutcome(d),
-            ].filter(fn => fn(viewData()).trim() !== '');
+            ];
+
+            // Recompute visible (non-empty) steps each render, so switching
+            // strategy/scenario re-evaluates which sections have content
+            // (e.g. a scenario that does have a Final Outcome).
+            function visibleSteps() {
+                const d = viewData();
+                return allStepFns.filter(fn => fn(d).trim() !== '');
+            }
 
             let step = 0;
             let inFinal = false;
@@ -1156,9 +1166,12 @@
             function renderStep() {
                 inFinal = false;
                 const d = viewData();
-                const isLast = step === stepDefs.length - 1;
+                const s = visibleSteps();
+                if (step > s.length - 1) step = s.length - 1;
+                if (step < 0) step = 0;
+                const isLast = step === s.length - 1;
                 loadingDiv.innerHTML = `
-                    <div class="response-text">${stepDefs[step](d)}</div>
+                    <div class="response-text">${s[step](d)}</div>
                     <div class="mt-2 gs-wizard-nav">
                         ${step > 0 ? '<button type="button" class="btn btn-secondary btn-sm gs-prev">Previous</button>' : ''}
                         <button type="button" class="btn btn-primary btn-sm gs-next">${isLast ? 'Finish' : 'Next'}</button>
@@ -1189,7 +1202,7 @@
                 if (next) {
                     e.preventDefault();
                     e.stopPropagation();
-                    if (step === stepDefs.length - 1) renderFinal();
+                    if (step >= visibleSteps().length - 1) renderFinal();
                     else { step++; renderStep(); }
                 } else if (prev) {
                     e.preventDefault();
