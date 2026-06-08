@@ -73,9 +73,19 @@ class AiChatController extends Controller
     }
 
     # Gemini generate: primary gemini-3.1-pro-preview, fallback gemini-3.5-flash-lite
-    private function geminiGenerate($systemMessage, $userText, $maxOutputTokens = 3000, $temperature = 0.7)
+    private function geminiGenerate($systemMessage, $userText, $maxOutputTokens = 3000, $temperature = 0.7, $jsonMode = false)
     {
         $models = ['gemini-3.1-pro-preview', 'gemini-3.5-flash-lite'];
+
+        $generationConfig = [
+            'temperature' => $temperature,
+            'maxOutputTokens' => $maxOutputTokens,
+        ];
+
+        // Ask Gemini for a raw JSON object (no markdown fences) when requested.
+        if ($jsonMode) {
+            $generationConfig['responseMimeType'] = 'application/json';
+        }
 
         $payload = [
             'systemInstruction' => [
@@ -87,10 +97,7 @@ class AiChatController extends Controller
                     'parts' => [['text' => $userText]]
                 ]
             ],
-            'generationConfig' => [
-                'temperature' => $temperature,
-                'maxOutputTokens' => $maxOutputTokens,
-            ]
+            'generationConfig' => $generationConfig,
         ];
 
         $response = null;
@@ -118,20 +125,20 @@ class AiChatController extends Controller
     # AI provider dispatcher. Choose model via .env:
     #   AI_PROVIDER="gemini"  -> gemini-3.5-flash-lite (geminiGenerate)
     #   AI_PROVIDER="openai"  -> OPENAI_MODEL (default gpt-4-turbo)
-    private function aiGenerate($systemMessage, $userText, $maxOutputTokens = 3000, $temperature = 0.7)
+    private function aiGenerate($systemMessage, $userText, $maxOutputTokens = 3000, $temperature = 0.7, $jsonMode = false)
     {
         $provider = strtolower(env('AI_PROVIDER', 'gemini'));
 
         if ($provider === 'openai' || $provider === 'chatgpt') {
-            return $this->openAiGenerate($systemMessage, $userText, $maxOutputTokens, $temperature);
+            return $this->openAiGenerate($systemMessage, $userText, $maxOutputTokens, $temperature, $jsonMode);
         }
 
-        return $this->geminiGenerate($systemMessage, $userText, $maxOutputTokens, $temperature);
+        return $this->geminiGenerate($systemMessage, $userText, $maxOutputTokens, $temperature, $jsonMode);
     }
 
     # OpenAI generate. Returns a Response normalized to Gemini's JSON shape
     # (candidates.0.content.parts.0.text) so all callers stay unchanged.
-    private function openAiGenerate($systemMessage, $userText, $maxOutputTokens = 3000, $temperature = 0.7)
+    private function openAiGenerate($systemMessage, $userText, $maxOutputTokens = 3000, $temperature = 0.7, $jsonMode = false)
     {
         $model = env('OPENAI_MODEL', 'gpt-4-turbo');
 
@@ -139,19 +146,26 @@ class AiChatController extends Controller
         // budgets (e.g. 8000) don't 400 when running on OpenAI.
         $maxOutputTokens = min((int) $maxOutputTokens, (int) env('OPENAI_MAX_TOKENS', 4096));
 
+        $payload = [
+            'model'       => $model,
+            'messages'    => [
+                ['role' => 'system', 'content' => $systemMessage],
+                ['role' => 'user',   'content' => $userText],
+            ],
+            'temperature' => $temperature,
+            'max_tokens'  => $maxOutputTokens,
+        ];
+
+        // Force a valid JSON object response when requested (OpenAI JSON mode).
+        if ($jsonMode) {
+            $payload['response_format'] = ['type' => 'json_object'];
+        }
+
         $response = Http::withToken(env('OPENAI_API_KEY'))
             ->timeout(90)
             ->connectTimeout(10)
             ->retry(2, 1000)
-            ->post('https://api.openai.com/v1/chat/completions', [
-                'model'       => $model,
-                'messages'    => [
-                    ['role' => 'system', 'content' => $systemMessage],
-                    ['role' => 'user',   'content' => $userText],
-                ],
-                'temperature' => $temperature,
-                'max_tokens'  => $maxOutputTokens,
-            ]);
+            ->post('https://api.openai.com/v1/chat/completions', $payload);
 
         if ($response->successful()) {
             $text = $response->json('choices.0.message.content', '');
@@ -2812,7 +2826,7 @@ Rules:
 EOT;
 
         try {
-            $aiResponse = $this->aiGenerate($systemMessage, $prompt, 1500);
+            $aiResponse = $this->aiGenerate($systemMessage, $prompt, 1500, 0.7, true);
 
             if ($aiResponse->successful()) {
                 $text = $aiResponse->json('candidates.0.content.parts.0.text');
@@ -2847,13 +2861,14 @@ EOT;
     }
 
     /**
-     * Parse the {"rows":[{"role","action"}]} JSON the model returns,
-     * tolerating code fences or stray text around the JSON object.
+     * Tolerant JSON object extractor. Strips ``` fences and any prose the model
+     * may add around the object, then decodes. Returns an associative array or
+     * null. Shared by all JSON-mode generation endpoints.
      */
-    private function parseRecommendedActionRows($text)
+    private function extractJson($text)
     {
         if (!$text) {
-            return [];
+            return null;
         }
 
         $clean = trim($text);
@@ -2869,6 +2884,17 @@ EOT;
         }
 
         $data = json_decode($clean, true);
+
+        return is_array($data) ? $data : null;
+    }
+
+    /**
+     * Parse the {"rows":[{"role","action"}]} JSON the model returns,
+     * tolerating code fences or stray text around the JSON object.
+     */
+    private function parseRecommendedActionRows($text)
+    {
+        $data = $this->extractJson($text);
 
         $rows = [];
         if (is_array($data) && isset($data['rows']) && is_array($data['rows'])) {
