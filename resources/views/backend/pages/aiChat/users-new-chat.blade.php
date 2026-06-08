@@ -873,13 +873,31 @@
                 if (parsed && typeof window.renderAnswer === 'function') {
                     el.innerHTML = window.renderAnswer(parsed, { interactive: false });
                 } else {
-                    // Legacy markdown: strip the machine-only %%%BUNDLES_JSON%%%
-                    // data block (and any stray markers) before rendering so it
-                    // never shows as raw text on reload.
+                    // Legacy markdown. The live final showed the COLLAPSED 3-line
+                    // scenarios from the strategy bundle, but the stored response
+                    // keeps the verbose 🔮 section. Pull the collapsed scenarios
+                    // from the bundle (first strategy) so reload matches live.
+                    var collapsedScenario = null;
+                    var bundleMatch = String(raw).match(/%%%BUNDLES_JSON%%%([\s\S]*?)%%%END_BUNDLES_JSON%%%/);
+                    if (bundleMatch) {
+                        try {
+                            var bj = JSON.parse(bundleMatch[1].trim());
+                            var firstKey = Object.keys(bj)[0];
+                            var sm = firstKey && String(bj[firstKey]).match(/🔮[\s\S]*?(?=👥|📌|✅|$)/);
+                            if (sm) collapsedScenario = sm[0].trim();
+                        } catch (e) { /* keep verbose section on parse failure */ }
+                    }
+
+                    // Strip the machine-only data block (and stray markers).
                     var md = String(raw)
                         .replace(/%%%BUNDLES_JSON%%%[\s\S]*?%%%END_BUNDLES_JSON%%%/g, '')
                         .replace(/%%%(?:END_)?BUNDLES_JSON%%%/g, '')
                         .trim();
+
+                    // Swap the verbose 🔮 section for the collapsed one.
+                    if (collapsedScenario) {
+                        md = md.replace(/🔮[\s\S]*?(?=👥|📌|✅|$)/, collapsedScenario + '\n\n');
+                    }
                     // Split into per-section .response-text blocks (like the live
                     // final answer) so the Export-role-goals button can sit right
                     // after the 👥 roles section instead of after the whole blob.
