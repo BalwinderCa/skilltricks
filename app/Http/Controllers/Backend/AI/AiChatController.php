@@ -1538,10 +1538,9 @@ public function users_new_chat_ask(Request $request)
         $systemMessage .= $contextFromDB;
     }
 
- // Tracks how the stored/returned answer is encoded ('markdown' | 'json').
- // Flipped to 'json' for the first GoalSync answer when GOALSYNC_JSON_MODE is on.
+ // How the stored/returned answer is encoded ('markdown' | 'json').
+ // First GoalSync answer is always JSON; follow-ups stay markdown.
  $responseFormat = 'markdown';
- $useJson = filter_var(env('GOALSYNC_JSON_MODE', false), FILTER_VALIDATE_BOOLEAN);
 
  if(($previousContext && ($previousContext->status1 == '0' || $previousContext->status1 == 0)) || ($chectdata->status1 == '0' || $chectdata->status1 == 0)){
     // Build prompt to return GOALSYNC output in natural ChatGPT-style format
@@ -1554,104 +1553,9 @@ public function users_new_chat_ask(Request $request)
         }
     }
 
-    $prompt = <<<EOT
-    You are an executive strategy assistant trained in the GoalSync 7-step framework.
-
-    Respond to this goal using full natural text formatting (like ChatGPT), following this structure with emojis and section headers:
-
-    🧩 Chat Acknowledgement  
-    📁 Document Insights  
-    📊 Goal Assessment Summary  
-    📈 Scoring  
-    🗺️ Strategy Map (Decision Paths)  
-    🔮 Scenario Simulations  
-    👥 Rephrased Goals by Role  
-    📌 Complementary Goals  
-    ✅ Final Outcome Summary  
-
-    User Goal: "$question"
-    {$documentNamesList}
-
-    Format:
-    - Write in paragraphs, not JSON
-    - Use bold for key decisions
-    - Use bullet points and tables where helpful
-    - DO NOT include JSON, markdown, or meta instructions
-    - Return only the content in clean GoalSync format
-    
-    CRITICAL REQUIREMENTS FOR EACH SECTION:
-
-    📁 Document Insights:
-    - Extract EXACTLY 3-5 insights relevant to the user's goal and situation
-    - Explicitly reference document names/types (e.g., "Based on [Document Name]...")
-    - At least 1 insight MUST reference a specific document
-    - Highlight: dependencies, conflicting priorities, strategic anchors, misalignment risks
-    - No generic outputs - be specific and actionable
-    - Format each insight as a bullet point with document reference
-
-    🗺️ Strategy Map (Decision Paths):
-    - Provide EXACTLY 3-4 decision paths grounded in:
-      * The user's situation
-      * Insights from documents
-      * Team dependencies
-      * Strategic tensions identified
-    - Each path MUST include:
-      * Rationale (why this path)
-      * Teams impacted (list specific teams/roles)
-      * Trade-offs (what's gained vs. lost)
-      * Risk level (Low/Med/High)
-    - Format: "- Strategy Name: [Rationale] | Teams: [list] | Trade-offs: [description] | Risk: [Low/Med/High]"
-    - DO NOT use "Path A", "Path B", "Path 1", "Path 2" or similar prefixes - use descriptive strategy names only (e.g., "Aggressive Expansion:", "Innovation Leadership:", "Market Penetration:")
-    - Each path must feel customized, not generic
-
-    🔮 Scenario Simulations:
-    Based on the chosen Decision Path, generate 3 scenarios:
-    1. Acceleration Scenario (best case)
-    2. Expected Scenario (most likely)
-    3. Risk Scenario (worst case)
-    
-    For EACH scenario, include:
-    - Key risks (bullet points, not paragraphs)
-    - Cross-team dependencies (specific teams/roles)
-    - Timeline impact (how it affects schedule)
-    - Role friction points (where conflicts may arise)
-    - Operational consequences (practical impacts)
-    - Keep it structured with bullet points, not long paragraphs
-    - CRITICAL: This section must contain ONLY scenario content. NEVER include "Goal:" lines, "Actions:" lines, or role titles here - those belong exclusively under "👥 Rephrased Goals by Role".
-
-    👥 Rephrased Goals by Role:
-    - For EACH role output three lines in this exact order:
-      * Line 1: the role title
-      * Line 2: "Goal:" followed by a role-specific goal (1-2 sentences)
-      * Line 3: "Actions:" followed by EXACTLY ONE sentence on the SAME line. Never use bullet points, dashes, line breaks, or multiple sentences for Actions. One sentence only, just like Goal.
-    - Translate the goal into role-specific directions referencing:
-      * The scenario chosen
-      * That role's core responsibilities
-      * Dependencies identified earlier
-    - Avoid OKR phrasing - use leadership-alignment language
-    - Directions and actions must vary per role
-    - Reference scenario impacts
-    - Reference at least one dependency per role
-    - No template-style outputs - make each unique
-
-    ---
-
-    AFTER all the human-readable sections above, append a REQUIRED machine-readable data block for the app, wrapped EXACTLY in these markers:
-
-    %%%BUNDLES_JSON%%%
-    (valid JSON object here)
-    %%%END_BUNDLES_JSON%%%
-
-    The JSON object maps each strategy name to that strategy's fully-written sections. Schema of each value (a single string):
-      "🔮 Scenario Simulations\\n- **Best Case:** <real sentence>\\n- **Expected:** <real sentence>\\n- **Risk:** <real sentence>\\n\\n👥 Rephrased Goals by Role\\n1. <real role title>\\nGoal: <real sentence>\\nActions: <one real action sentence>\\n2. <real role title>\\nGoal: <real sentence>\\nActions: <one real action sentence>\\n\\n📌 Complementary Goals\\n- <real goal>\\n- <real goal>\\n\\n✅ Final Outcome Summary\\n<two real sentences>"
-
-    CRITICAL rules:
-    - This is a SCHEMA, not literal text. NEVER output the placeholder tokens like "...", "<real sentence>", "<real role title>", "Strategy Name 1". Replace every placeholder with concrete, specific content written for THIS user's goal.
-    - One key for EACH Decision Path in the 🗺️ Strategy Map, using that path's EXACT strategy name as the key.
-    - Each value fully tailored to that strategy: 3-4 real scenarios, 5-10 real roles (only roles found in the documents), 2 real complementary goals, a 2-sentence real outcome.
-    - Output VALID JSON only between the markers: escape every newline as \\n, escape double quotes, no trailing commas, no markdown code fences.
-
-    EOT;
+    // Structured GoalSync JSON contract (rendered client-side by renderAnswer).
+    $prompt = $this->goalSyncJsonPrompt($question, $documentNamesList);
+    $responseFormat = 'json';
 
         // Send to Gemini API with comprehensive error handling
         try {
@@ -1664,15 +1568,8 @@ public function users_new_chat_ask(Request $request)
                 'has_api_key' => !empty(env('GEMINI_API_KEY')),
             ]);
 
-            // JSON-contract path (Phase 2): swap the markdown prompt for the
-            // structured JSON prompt and request native JSON from the provider.
-            if ($useJson) {
-                $prompt = $this->goalSyncJsonPrompt($question, $documentNamesList);
-                $responseFormat = 'json';
-            }
-
-            // Larger budget: response also carries per-strategy variants/bundles
-            $openAiResponse = $this->aiGenerate($systemMessage, $prompt, 8000, 0.7, $useJson);
+            // Always request the structured GoalSync JSON contract.
+            $openAiResponse = $this->aiGenerate($systemMessage, $prompt, 8000, 0.7, true);
 
             Log::info('Gemini API Response - First Chat', [
                 'user_id' => $user->id,
