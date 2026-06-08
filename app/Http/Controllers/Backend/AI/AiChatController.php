@@ -75,7 +75,7 @@ class AiChatController extends Controller
     # Gemini generate: primary gemini-3.5-flash, fallback gemini-3.1-pro-preview
     private function geminiGenerate($systemMessage, $userText, $maxOutputTokens = 3000, $temperature = 0.7)
     {
-        $models = ['gemini-3.5-flash', 'gemini-3.1-pro-preview'];
+        $models = ['gemini-3.5-flash-lite', 'gemini-3.1-pro-preview'];
 
         $payload = [
             'systemInstruction' => [
@@ -113,6 +113,58 @@ class AiChatController extends Controller
         }
 
         return $response; // last failed response
+    }
+
+    # AI provider dispatcher. Choose model via .env:
+    #   AI_PROVIDER="gemini"  -> gemini-3.5-flash-lite (geminiGenerate)
+    #   AI_PROVIDER="openai"  -> OPENAI_MODEL (default gpt-4-turbo)
+    private function aiGenerate($systemMessage, $userText, $maxOutputTokens = 3000, $temperature = 0.7)
+    {
+        $provider = strtolower(env('AI_PROVIDER', 'gemini'));
+
+        if ($provider === 'openai' || $provider === 'chatgpt') {
+            return $this->openAiGenerate($systemMessage, $userText, $maxOutputTokens, $temperature);
+        }
+
+        return $this->geminiGenerate($systemMessage, $userText, $maxOutputTokens, $temperature);
+    }
+
+    # OpenAI generate. Returns a Response normalized to Gemini's JSON shape
+    # (candidates.0.content.parts.0.text) so all callers stay unchanged.
+    private function openAiGenerate($systemMessage, $userText, $maxOutputTokens = 3000, $temperature = 0.7)
+    {
+        $model = env('OPENAI_MODEL', 'gpt-4-turbo');
+
+        $response = Http::withToken(env('OPENAI_API_KEY'))
+            ->timeout(90)
+            ->connectTimeout(10)
+            ->retry(2, 1000)
+            ->post('https://api.openai.com/v1/chat/completions', [
+                'model'       => $model,
+                'messages'    => [
+                    ['role' => 'system', 'content' => $systemMessage],
+                    ['role' => 'user',   'content' => $userText],
+                ],
+                'temperature' => $temperature,
+                'max_tokens'  => $maxOutputTokens,
+            ]);
+
+        if ($response->successful()) {
+            $text = $response->json('choices.0.message.content', '');
+            $normalized = ['candidates' => [['content' => ['parts' => [['text' => $text]]]]]];
+
+            return new \Illuminate\Http\Client\Response(
+                new \GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/json'], json_encode($normalized))
+            );
+        }
+
+        Log::warning('OpenAI model failed', [
+            'model'  => $model,
+            'status' => $response->status(),
+            'body'   => $response->body(),
+        ]);
+
+        return $response; // failed response, callers handle status
     }
 
 
@@ -1504,7 +1556,7 @@ public function users_new_chat_ask(Request $request)
                 'has_api_key' => !empty(env('GEMINI_API_KEY')),
             ]);
 
-            $openAiResponse = $this->geminiGenerate($systemMessage, $prompt, 3000);
+            $openAiResponse = $this->aiGenerate($systemMessage, $prompt, 3000);
 
             Log::info('Gemini API Response - First Chat', [
                 'user_id' => $user->id,
@@ -1592,7 +1644,7 @@ public function users_new_chat_ask(Request $request)
                 'has_api_key' => !empty(env('GEMINI_API_KEY')),
             ]);
 
-            $openAiResponse = $this->geminiGenerate($systemMessage, $question, 3000);
+            $openAiResponse = $this->aiGenerate($systemMessage, $question, 3000);
 
             Log::info('Gemini API Response - Follow-up Chat', [
                 'user_id' => $user->id,
@@ -1834,7 +1886,7 @@ EOT;
                'has_api_key' => !empty(env('GEMINI_API_KEY')),
            ]);
 
-           $openAiResponse = $this->geminiGenerate($systemMessage, $prompt, 3000);
+           $openAiResponse = $this->aiGenerate($systemMessage, $prompt, 3000);
 
            Log::info('Gemini API Response - Update Strategy', [
                'user_id' => $user->id,
@@ -2085,7 +2137,7 @@ EOT;
                 'has_api_key' => !empty(env('GEMINI_API_KEY')),
             ]);
 
-            $openAiResponse = $this->geminiGenerate($systemMessage, $prompt, 2500);
+            $openAiResponse = $this->aiGenerate($systemMessage, $prompt, 2500);
 
             Log::info('Gemini API Response - Update Scenario', [
                 'user_id' => $user->id,
@@ -2508,7 +2560,7 @@ Format:
 EOT;
 
         try {
-            $openAiResponse = $this->geminiGenerate($systemMessage, $prompt, 2000);
+            $openAiResponse = $this->aiGenerate($systemMessage, $prompt, 2000);
 
             if ($openAiResponse->successful()) {
                 $brief = $openAiResponse->json('candidates.0.content.parts.0.text');
