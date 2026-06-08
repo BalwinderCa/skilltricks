@@ -866,7 +866,15 @@
         document.querySelectorAll('[data-md]').forEach(function (el) {
             try {
                 var raw = decodeURIComponent(escape(atob(el.dataset.md)));
-                el.innerHTML = marked.parse(raw);
+                // New JSON-contract answers render read-only via renderAnswer;
+                // legacy markdown answers fall back to marked.parse.
+                var parsed = (typeof window.parseAnswerJson === 'function')
+                    ? window.parseAnswerJson(raw) : null;
+                if (parsed && typeof window.renderAnswer === 'function') {
+                    el.innerHTML = window.renderAnswer(parsed, { interactive: false });
+                } else {
+                    el.innerHTML = marked.parse(raw);
+                }
             } catch (e) {
                 console.error('Markdown render failed:', e);
             }
@@ -1024,11 +1032,40 @@
             </div>`;
         }
 
+        // Flatten the nested contract (top-level sections + per-strategy /
+        // per-scenario variants) into the flat shape the section renderers
+        // expect, resolving the given (or default) strategy + scenario.
+        window.flattenContract = function (data, selStrategy, selScenario) {
+            if (!data || typeof data !== 'object') return data;
+            const sid = selStrategy || data.selectedStrategyId
+                || ((data.strategyMap || [])[0] || {}).id;
+            const v = (data.strategyVariants && data.strategyVariants[sid]) || {};
+            const scid = selScenario || v.selectedScenarioId
+                || ((v.scenarios || [])[0] || {}).id;
+            const sv = (v.scenarioVariants && v.scenarioVariants[scid]) || {};
+            return {
+                acknowledgement: data.acknowledgement,
+                documentInsights: data.documentInsights,
+                goalAssessment: data.goalAssessment,
+                scoring: data.scoring,
+                strategyMap: data.strategyMap,
+                selectedStrategyId: sid,
+                scenarios: v.scenarios || [],
+                selectedScenarioId: scid,
+                rolesGoals: sv.rolesGoals || [],
+                complementaryGoals: sv.complementaryGoals || [],
+                finalOutcome: sv.finalOutcome
+            };
+        };
+
         // Render a full answer object to HTML. opts.interactive => radios for
         // strategy/scenario selection (live flow); otherwise read-only (reload).
+        // Accepts either the flat view shape or the nested contract.
         window.renderAnswer = function (data, opts) {
             if (!data || typeof data !== 'object') return '';
             opts = opts || {};
+            // Auto-flatten a nested contract (e.g. stored response on reload).
+            if (data.strategyVariants) data = window.flattenContract(data);
             return [
                 sectionAcknowledgement(data),
                 sectionDocInsights(data),
@@ -1073,21 +1110,7 @@
             // Flatten the active strategy/scenario into the shape the section
             // renderers (and window.renderAnswer) expect.
             function viewData() {
-                const v = variant();
-                const sv = (v.scenarioVariants && v.scenarioVariants[selScenario]) || {};
-                return {
-                    acknowledgement: data.acknowledgement,
-                    documentInsights: data.documentInsights,
-                    goalAssessment: data.goalAssessment,
-                    scoring: data.scoring,
-                    strategyMap: data.strategyMap,
-                    selectedStrategyId: selStrategy,
-                    scenarios: v.scenarios || [],
-                    selectedScenarioId: selScenario,
-                    rolesGoals: sv.rolesGoals || [],
-                    complementaryGoals: sv.complementaryGoals || [],
-                    finalOutcome: sv.finalOutcome
-                };
+                return window.flattenContract(data, selStrategy, selScenario);
             }
 
             const stepDefs = [
@@ -1178,6 +1201,11 @@
             renderStep();
         };
     })();
+
+    // Re-run the stored-answer renderer now that renderAnswer/parseAnswerJson
+    // exist (this script runs after the one that first calls it), so stored
+    // JSON answers render structured instead of falling back to raw markdown.
+    if (typeof renderStoredMarkdown === 'function') renderStoredMarkdown();
 </script>
 <script>
     // document.getElementById('ask-form').addEventListener('submit', async function (e) {
