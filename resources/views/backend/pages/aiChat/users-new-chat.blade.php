@@ -3612,12 +3612,18 @@ document.addEventListener('click', function (e) {
         roleGoalsSections.forEach(roleGoalsSection => {
             const cardContainer = roleGoalsSection.closest('.tt-template-carddads');
             if (!cardContainer) return;
-            if (cardContainer.querySelector('.action-table-suggestion')) return; // already added
             // Only show on the FINAL answer. While stepping through the wizard a
             // "Next/Finish" button is still present in the card — skip until the
             // user clicks Finish (final render removes the step buttons).
             // (.next-step-btn = markdown wizard, .gs-next = JSON wizard)
             if (cardContainer.querySelector('.next-step-btn') || cardContainer.querySelector('.gs-next')) return;
+
+            // Place at the very end of everything: after the Leadership Alignment
+            // Brief if it exists (it may be its own card on reload), otherwise at
+            // the end of the answer card.
+            const briefEl = document.querySelector('.leadership-alignment-brief');
+            const targetCard = (briefEl && briefEl.closest('.tt-template-carddads')) || cardContainer;
+            if (targetCard.querySelector('.action-table-suggestion')) return; // already added
 
             const wrap = document.createElement('div');
             wrap.className = 'action-table-suggestion mt-3';
@@ -3631,10 +3637,7 @@ document.addEventListener('click', function (e) {
                 <div class="action-table-result mt-3"></div>
             `;
 
-            // Place at the very end of the answer (after ✅ Final Outcome Summary
-            // and the Leadership Alignment Brief), never right after the roles.
-            // Appending to the card end avoids races with the async brief insert.
-            cardContainer.appendChild(wrap);
+            targetCard.appendChild(wrap);
 
             const genBtn = wrap.querySelector('.generate-action-table-btn');
             const resultDiv = wrap.querySelector('.action-table-result');
