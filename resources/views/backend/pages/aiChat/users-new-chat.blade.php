@@ -188,6 +188,27 @@
             margin-top: 20px;
             margin-bottom: 10px;
           }
+          /* Uniform heading sizing across ALL messages.
+             Markdown #/## render as h1/h2 (big + bold) which made follow-up
+             messages look different from the first. Normalize every level so
+             every message follows the same font/CSS. */
+          .main-content .chat-messages .response-text h1,
+          .main-content .chat-messages .response-text h2,
+          .main-content .chat-messages .response-text h3,
+          .main-content .chat-messages .response-text h4,
+          .main-content .chat-messages .response-text h5,
+          .main-content .chat-messages .response-text h6,
+          .main-content .chat-messages .bot-message h1,
+          .main-content .chat-messages .bot-message h2,
+          .main-content .chat-messages .bot-message h3,
+          .main-content .chat-messages .bot-message h4,
+          .main-content .chat-messages .bot-message h6 {
+            font-size: 1.05rem;
+            font-weight: 600;
+            line-height: 1.5;
+            margin-top: 18px;
+            margin-bottom: 8px;
+          }
           /* Great-grandchild - Message List */
           .main-content .chat-messages .bot-message ul {
             padding-left: 20px;
@@ -1104,9 +1125,27 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
             }
 
             const data = await res.json();
-            const fullAnswer = data.answer || 'No answer returned.';
+            let fullAnswer = data.answer || 'No answer returned.';
             const previousContext = data.previousContext || {};
             const chectdata = data.chectdata || {};
+
+            // Phase 1: extract per-strategy JSON bundles emitted by the first call.
+            // These let strategy/scenario selection render client-side with no extra
+            // AI calls. If parsing fails we strip nothing and fall back to fetches.
+            window.strategyBundles = null;
+            try {
+                const bundleMatch = fullAnswer.match(/%%%BUNDLES_JSON%%%([\s\S]*?)%%%END_BUNDLES_JSON%%%/);
+                if (bundleMatch) {
+                    // Remove the data block from what we display to the user
+                    fullAnswer = fullAnswer.replace(bundleMatch[0], '').trim();
+                    let raw = bundleMatch[1].trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+                    window.strategyBundles = JSON.parse(raw);
+                    console.log('✅ Parsed strategy bundles:', Object.keys(window.strategyBundles));
+                }
+            } catch (e) {
+                window.strategyBundles = null;
+                console.warn('⚠️ Could not parse strategy bundles, falling back to per-selection AI calls:', e);
+            }
             
             // Update chat_id if a new one was created
             if (data.chat_id && data.chat_id !== currentChat_id) {
@@ -1280,9 +1319,49 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                 window.scenarioResponsesCache = {};
             }
             const strategyResponsesCache = window.strategyResponsesCache;
-            
+
+            // Phase 1: pre-fill strategy + scenario caches from the bundles returned
+            // by the first call. With caches warm, selecting a strategy/scenario
+            // renders client-side and never fires an extra AI call.
+            if (window.strategyBundles && typeof window.strategyBundles === 'object') {
+                const bundleKeys = Object.keys(window.strategyBundles);
+                const matchBundle = (point) => {
+                    if (window.strategyBundles[point]) return window.strategyBundles[point];
+                    const p = point.substring(0, 30).toLowerCase();
+                    const k = bundleKeys.find(bk =>
+                        bk.toLowerCase().includes(p) ||
+                        point.toLowerCase().includes(bk.substring(0, 30).toLowerCase()));
+                    return k ? window.strategyBundles[k] : null;
+                };
+                (window.strategyPoints || []).forEach(point => {
+                    const block = matchBundle(point);
+                    if (!block) return;
+                    window.strategyResponsesCache[point] = block;
+
+                    // 👥📌✅ portion is what the scenario cache serves
+                    const rolesIdx = block.indexOf('👥');
+                    const rolesPart = rolesIdx !== -1 ? block.substring(rolesIdx) : block;
+
+                    // this strategy's own scenarios (from its 🔮 section)
+                    const scenMatch = block.match(/🔮[\s\S]*?(?=👥|📌|✅|$)/);
+                    const strategyKey = point.substring(0, 50);
+                    if (scenMatch) {
+                        scenMatch[0].split('\n').forEach(line => {
+                            const t = line.trim();
+                            if (t && (t.startsWith('-') || t.startsWith('•') || t.startsWith('*'))) {
+                                const sc = t.replace(/^[-•*]\s*/, '')
+                                            .replace(/\*\*([^*]+)\*\*/g, '$1')
+                                            .replace(/\*\*/g, '').trim();
+                                if (sc) window.scenarioResponsesCache[`${strategyKey}||${sc}`] = rolesPart;
+                            }
+                        });
+                    }
+                });
+                console.log('✅ Pre-filled caches from bundles. Strategies cached:', Object.keys(window.strategyResponsesCache));
+            }
+
             let currentStep = 0;
-            
+
             // Track API call states for Next button control
             window.apiCallInProgress = false;
             window.pendingApiCalls = 0;
@@ -1790,11 +1869,29 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                                 window.selectedStrategy = exactStrategy;
                                 selectedStrategy = exactStrategy;
                                 
-                                // CRITICAL: Clear scenario cache when strategy changes
-                                // Scenarios are strategy-specific, so old cached scenarios are invalid
-                                if (window.scenarioResponsesCache) {
-                                    console.log('🗑️ Clearing scenario cache - scenarios are strategy-specific');
-                                    window.scenarioResponsesCache = {};
+                                // Scenarios are strategy-specific. Reset the scenario cache,
+                                // then (Phase 1) immediately repopulate it for THIS strategy
+                                // from its bundle so scenario selection stays client-side.
+                                window.scenarioResponsesCache = {};
+                                if (window.strategyBundles) {
+                                    const block = window.strategyResponsesCache[exactStrategy];
+                                    if (block) {
+                                        const rolesIdx = block.indexOf('👥');
+                                        const rolesPart = rolesIdx !== -1 ? block.substring(rolesIdx) : block;
+                                        const scenMatch = block.match(/🔮[\s\S]*?(?=👥|📌|✅|$)/);
+                                        const sKey = exactStrategy.substring(0, 50);
+                                        if (scenMatch) {
+                                            scenMatch[0].split('\n').forEach(line => {
+                                                const t = line.trim();
+                                                if (t && (t.startsWith('-') || t.startsWith('•') || t.startsWith('*'))) {
+                                                    const sc = t.replace(/^[-•*]\s*/, '')
+                                                                .replace(/\*\*([^*]+)\*\*/g, '$1')
+                                                                .replace(/\*\*/g, '').trim();
+                                                    if (sc) window.scenarioResponsesCache[`${sKey}||${sc}`] = rolesPart;
+                                                }
+                                            });
+                                        }
+                                    }
                                 }
                                 
                                 console.log('Strategy selected:', exactStrategy);
@@ -2222,28 +2319,36 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                     console.log('🎯 renderFinalAnswer: Adding export button and generating brief...');
                     addExportButtonToRoleGoals();
                     
-                    // Reset brief generation flags to allow regeneration
-                    window.briefGenerationInProgress = false;
-                    window.briefGenerationCompleted = false;
-                    
-                    // Find the final outcome section within the current loadingDiv
-                    const finalOutcomeInLoadingDiv = loadingDiv.querySelector('.response-text');
-                    if (finalOutcomeInLoadingDiv && finalOutcomeInLoadingDiv.textContent.includes('✅') && finalOutcomeInLoadingDiv.textContent.includes('Final Outcome')) {
-                        console.log('✅ Found Final Outcome section in loadingDiv');
-                    } else {
-                        // Search all response-text elements
-                        const allResponseTexts = Array.from(loadingDiv.querySelectorAll('.response-text'));
-                        const finalOutcomeSection = allResponseTexts.find(el => 
-                            el.textContent.includes('✅') && el.textContent.includes('Final Outcome')
-                        );
-                        if (finalOutcomeSection) {
-                            console.log('✅ Found Final Outcome section in response sections');
-                        } else {
-                            console.warn('⚠️ Final Outcome section not found in loadingDiv');
+                    // renderFinalAnswer rebuilds the DOM, wiping any brief that was
+                    // already inserted during step navigation. If the brief was
+                    // already generated, re-insert the cached copy instead of making
+                    // a second API call (which caused the duplicate "Generating
+                    // Leadership Alignment Brief..." on Finish).
+                    const allResponseTexts = Array.from(loadingDiv.querySelectorAll('.response-text'));
+                    const finalOutcomeSection = allResponseTexts.find(el =>
+                        el.textContent.includes('✅') && el.textContent.includes('Final Outcome')
+                    );
+
+                    if (window.briefGenerationCompleted && window.generatedBriefHtml) {
+                        console.log('♻️ Re-inserting cached Leadership Alignment Brief (no regeneration)');
+                        const cardContainer = (finalOutcomeSection || loadingDiv).closest('.tt-template-carddads') || loadingDiv;
+                        if (!cardContainer.querySelector('.leadership-alignment-brief')) {
+                            const briefDiv = document.createElement('div');
+                            briefDiv.className = 'leadership-alignment-brief mt-3';
+                            const responseTextDiv = document.createElement('div');
+                            responseTextDiv.className = 'response-text';
+                            responseTextDiv.innerHTML = window.generatedBriefHtml;
+                            briefDiv.appendChild(responseTextDiv);
+                            if (finalOutcomeSection) {
+                                finalOutcomeSection.insertAdjacentElement('afterend', briefDiv);
+                            } else {
+                                loadingDiv.appendChild(briefDiv);
+                            }
                         }
+                    } else {
+                        // Not generated yet — generate once
+                        autoGenerateAlignmentBrief();
                     }
-                    
-                    autoGenerateAlignmentBrief();
                 }, 500); // Increased to 500ms to ensure DOM is ready
             }
 
@@ -2577,7 +2682,8 @@ document.addEventListener('click', function (e) {
             
             // Mark as no longer in progress
             window.briefGenerationInProgress = false;
-            
+            setBriefLoadingState(false); // re-enable Finish
+
             // Remove loading indicator
             if (loadingIndicator) loadingIndicator.remove();
             
@@ -2609,6 +2715,8 @@ document.addEventListener('click', function (e) {
                     // Fallback: use plain text with basic formatting
                     const briefText = data.brief.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
                                                 .replace(/\n/g, '<br>');
+                    // Cache so Finish can re-insert without a second API call
+                    window.generatedBriefHtml = briefText;
                     const briefDiv = document.createElement('div');
                     briefDiv.className = 'leadership-alignment-brief mt-3';
                     briefDiv.innerHTML = `<div class="response-text">${briefText}</div>`;
@@ -2627,9 +2735,12 @@ document.addEventListener('click', function (e) {
                                                 .replace(/\n/g, '<br>');
                     }
                     
+                    // Cache so Finish can re-insert without a second API call
+                    window.generatedBriefHtml = parsedBrief;
+
                     const briefDiv = document.createElement('div');
                     briefDiv.className = 'leadership-alignment-brief mt-3';
-                    
+
                     // Create response-text div
                     const responseTextDiv = document.createElement('div');
                     responseTextDiv.className = 'response-text';
@@ -2699,7 +2810,8 @@ document.addEventListener('click', function (e) {
             // Mark as no longer in progress and completed (to prevent retries)
             window.briefGenerationInProgress = false;
             window.briefGenerationCompleted = true;
-            
+            setBriefLoadingState(false); // re-enable Finish
+
             // Remove loading indicator
             if (loadingIndicator) loadingIndicator.remove();
             
@@ -2894,6 +3006,28 @@ document.addEventListener('click', function (e) {
     @endif
 
     // Automatically generate and display Leadership Alignment Brief after final outcome
+    // Disable/enable the visible Finish button while the brief is generating
+    function setBriefLoadingState(isLoading) {
+        document.querySelectorAll('.next-step-btn').forEach(function (btn) {
+            if (isLoading) {
+                const label = (btn.textContent || '').trim();
+                if (label === 'Finish' || btn.dataset.briefLock) {
+                    btn.dataset.briefLock = '1';
+                    if (!btn.dataset.briefOrigText) btn.dataset.briefOrigText = btn.innerHTML;
+                    btn.disabled = true;
+                    btn.classList.add('disabled');
+                    btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Generating...';
+                }
+            } else if (btn.dataset.briefLock) {
+                btn.disabled = false;
+                btn.classList.remove('disabled');
+                if (btn.dataset.briefOrigText) btn.innerHTML = btn.dataset.briefOrigText;
+                delete btn.dataset.briefLock;
+                delete btn.dataset.briefOrigText;
+            }
+        });
+    }
+
     function autoGenerateAlignmentBrief() {
         // Prevent multiple simultaneous calls
         if (window.briefGenerationInProgress || window.briefGenerationCompleted) {
@@ -2965,7 +3099,8 @@ document.addEventListener('click', function (e) {
         
         // Mark as in progress
         window.briefGenerationInProgress = true;
-        
+        setBriefLoadingState(true); // disable Finish while generating
+
         // Show loading indicator
         const loadingDiv = document.createElement('div');
         loadingDiv.className = 'alert alert-info mt-3 leadership-alignment-brief-loading';
