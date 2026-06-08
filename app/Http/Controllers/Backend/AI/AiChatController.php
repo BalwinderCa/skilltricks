@@ -1316,8 +1316,65 @@ class AiChatController extends Controller
 
 // kishan
 
+    /**
+     * Build the GoalSync first-message prompt that asks the model for the
+     * structured JSON contract (instead of an emoji-delimited markdown blob).
+     * This is the single source of truth consumed by window.renderAnswer().
+     *
+     * Schema mirrors the old BUNDLES_JSON: top-level strategy-independent
+     * sections + per-strategy variants (scenarios + roles for the selected
+     * scenario). Scenario switching is handled later by a JSON update call.
+     */
+    private function goalSyncJsonPrompt($question, $documentNamesList)
+    {
+        return <<<EOT
+You are an executive strategy assistant trained in the GoalSync 7-step framework.
 
+User Goal: "$question"
+{$documentNamesList}
 
+Return a SINGLE valid JSON object (no markdown, no code fences, no commentary) with EXACTLY this shape:
+
+{
+  "acknowledgement": "1-2 warm sentences acknowledging the goal",
+  "documentInsights": ["3-5 insights; at least one MUST reference a specific document by name"],
+  "goalAssessment": "2-3 sentences assessing alignment of the goal with the company",
+  "scoring": [
+    {"label": "Alignment with Company Goals", "value": "High"},
+    {"label": "Feasibility", "value": "Medium"},
+    {"label": "Impact on Operations", "value": "High"},
+    {"label": "Risk Level", "value": "Medium"}
+  ],
+  "strategyMap": [
+    {"id": "s1", "name": "Descriptive Strategy Name", "rationale": "one sentence", "teams": "IT, Operations", "tradeoffs": "what is gained vs lost", "risk": "Low|Medium|High"}
+  ],
+  "selectedStrategyId": "s1",
+  "strategyVariants": {
+    "s1": {
+      "scenarios": [
+        {"id": "sc1", "label": "Best Case", "text": "one sentence"},
+        {"id": "sc2", "label": "Expected", "text": "one sentence"},
+        {"id": "sc3", "label": "Risk", "text": "one sentence"}
+      ],
+      "selectedScenarioId": "sc1",
+      "rolesGoals": [
+        {"role": "Role title from documents", "goal": "1-2 sentences", "action": "EXACTLY one sentence"}
+      ],
+      "complementaryGoals": ["goal one", "goal two"],
+      "finalOutcome": "two sentences describing the outcome for the selected strategy and scenario"
+    }
+  }
+}
+
+Rules:
+- "strategyMap": 3 to 4 decision paths, each with a UNIQUE id (s1, s2, s3, s4) and a descriptive name (never "Path A/1").
+- "strategyVariants": one key for EACH strategy id in strategyMap. Each variant fully tailored to that strategy.
+- Each variant's "rolesGoals": 5 to 10 roles, using ONLY role titles found in the documents. "action" is EXACTLY one sentence (no lists, no line breaks).
+- "selectedStrategyId" = first strategy's id. Each variant's "selectedScenarioId" = its first scenario's id.
+- The rolesGoals/complementaryGoals/finalOutcome in each variant correspond to that variant's selected scenario.
+- Output VALID JSON only: double-quoted keys/strings, no trailing commas, no comments, no markdown.
+EOT;
+    }
 
 public function users_new_chat_ask(Request $request)
 {
@@ -1475,6 +1532,11 @@ public function users_new_chat_ask(Request $request)
         $systemMessage .= $contextFromDB;
     }
 
+ // Tracks how the stored/returned answer is encoded ('markdown' | 'json').
+ // Flipped to 'json' for the first GoalSync answer when GOALSYNC_JSON_MODE is on.
+ $responseFormat = 'markdown';
+ $useJson = filter_var(env('GOALSYNC_JSON_MODE', false), FILTER_VALIDATE_BOOLEAN);
+
  if(($previousContext && ($previousContext->status1 == '0' || $previousContext->status1 == 0)) || ($chectdata->status1 == '0' || $chectdata->status1 == 0)){
     // Build prompt to return GOALSYNC output in natural ChatGPT-style format
     // Build document names list for prompt
@@ -1596,8 +1658,15 @@ public function users_new_chat_ask(Request $request)
                 'has_api_key' => !empty(env('GEMINI_API_KEY')),
             ]);
 
-            // Larger budget: response now also carries per-strategy JSON bundles
-            $openAiResponse = $this->aiGenerate($systemMessage, $prompt, 8000);
+            // JSON-contract path (Phase 2): swap the markdown prompt for the
+            // structured JSON prompt and request native JSON from the provider.
+            if ($useJson) {
+                $prompt = $this->goalSyncJsonPrompt($question, $documentNamesList);
+                $responseFormat = 'json';
+            }
+
+            // Larger budget: response also carries per-strategy variants/bundles
+            $openAiResponse = $this->aiGenerate($systemMessage, $prompt, 8000, 0.7, $useJson);
 
             Log::info('Gemini API Response - First Chat', [
                 'user_id' => $user->id,
@@ -1794,6 +1863,19 @@ EOT;
 
         $responseContent = $openAiResponse->json('candidates.0.content.parts.0.text');
 
+        // For the JSON path, verify the model returned a parseable object.
+        // If not, fall back to the markdown renderer so the UI never breaks.
+        if ($responseFormat === 'json') {
+            if ($this->extractJson($responseContent) === null) {
+                Log::warning('GoalSync JSON parse failed - falling back to markdown render', [
+                    'user_id' => $user->id,
+                    'chat_id' => $chatId,
+                    'preview' => substr((string) $responseContent, 0, 300),
+                ]);
+                $responseFormat = 'markdown';
+            }
+        }
+
         // Save results to both main chat table and history
         $commonData = [
             'user_id' => $user->id,
@@ -1816,6 +1898,7 @@ EOT;
         return response()->json([
             'question' => $question,
             'answer' => $responseContent,
+            'format' => $responseFormat, // 'json' (structured contract) | 'markdown'
             'chat_id' => $chatId, // Include chat_id in case it was created
             'previousContext' => $previousContext ? (object)[
                 'status1' => $previousContext->status1 ?? null,
