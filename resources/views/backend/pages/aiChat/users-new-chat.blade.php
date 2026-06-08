@@ -535,6 +535,26 @@
         color: #fff;
     }
 
+    /* GoalSync structured (JSON) renderer */
+    .gs-section { margin-bottom: 18px; }
+    .gs-section > h5 {
+        font-size: 1rem;
+        font-weight: 700;
+        margin-bottom: 8px;
+    }
+    .gs-section ul { margin-bottom: 0; padding-left: 1.2rem; }
+    .gs-role-block {
+        padding: 8px 10px;
+        border-left: 3px solid #6f42c1;
+        background: #faf8ff;
+        border-radius: 4px;
+    }
+    .gs-role-block .gs-role-title { margin-bottom: 2px; }
+    [data-bs-theme="dark"] .gs-role-block {
+        background: #1f1b2a;
+        border-left-color: #a07cf0;
+    }
+
     /* Recommended Action Table suggestion */
     .action-table-suggestion-box {
         border: 1px dashed #b9c6e0;
@@ -1023,6 +1043,128 @@
                 return null;
             }
         };
+
+        // ----------------------------------------------------------------
+        // Step-by-step wizard driven entirely by the JSON contract.
+        // Strategy + scenario selection swap pre-generated variants
+        // client-side (no extra AI calls). On Finish it renders the full
+        // answer and triggers the action-table + alignment-brief extras.
+        // ----------------------------------------------------------------
+        window.renderJsonWizard = function (loadingDiv, data) {
+            let selStrategy = data.selectedStrategyId
+                || ((data.strategyMap || [])[0] || {}).id;
+
+            const variant = () => (data.strategyVariants && data.strategyVariants[selStrategy]) || {};
+            const scenarioList = () => variant().scenarios || [];
+            let selScenario = variant().selectedScenarioId || (scenarioList()[0] || {}).id;
+
+            // Flatten the active strategy/scenario into the shape the section
+            // renderers (and window.renderAnswer) expect.
+            function viewData() {
+                const v = variant();
+                const sv = (v.scenarioVariants && v.scenarioVariants[selScenario]) || {};
+                return {
+                    acknowledgement: data.acknowledgement,
+                    documentInsights: data.documentInsights,
+                    goalAssessment: data.goalAssessment,
+                    scoring: data.scoring,
+                    strategyMap: data.strategyMap,
+                    selectedStrategyId: selStrategy,
+                    scenarios: v.scenarios || [],
+                    selectedScenarioId: selScenario,
+                    rolesGoals: sv.rolesGoals || [],
+                    complementaryGoals: sv.complementaryGoals || [],
+                    finalOutcome: sv.finalOutcome
+                };
+            }
+
+            const stepDefs = [
+                d => sectionAcknowledgement(d),
+                d => sectionDocInsights(d),
+                d => sectionGoalAssessment(d),
+                d => sectionScoring(d),
+                d => sectionStrategyMap(d, { interactive: true }),
+                d => sectionScenarios(d, { interactive: true }),
+                d => sectionRolesGoals(d),
+                d => sectionComplementary(d),
+                d => sectionFinalOutcome(d),
+            ].filter(fn => fn(viewData()).trim() !== '');
+
+            let step = 0;
+            let inFinal = false;
+
+            function strategyName() {
+                const s = (data.strategyMap || []).find(x => x.id === selStrategy);
+                return s ? s.name : '';
+            }
+            function scenarioLabel() {
+                const sc = scenarioList().find(x => x.id === selScenario);
+                return sc ? sc.label : '';
+            }
+
+            function wireSelection() {
+                loadingDiv.querySelectorAll('input[name="gs-strategy"]').forEach(r => {
+                    r.addEventListener('change', function () {
+                        selStrategy = this.value;
+                        selScenario = variant().selectedScenarioId || (scenarioList()[0] || {}).id;
+                        inFinal ? renderFinal() : renderStep();
+                    });
+                });
+                loadingDiv.querySelectorAll('input[name="gs-scenario"]').forEach(r => {
+                    r.addEventListener('change', function () {
+                        selScenario = this.value;
+                        inFinal ? renderFinal() : renderStep();
+                    });
+                });
+            }
+
+            function renderStep() {
+                inFinal = false;
+                const d = viewData();
+                const isLast = step === stepDefs.length - 1;
+                loadingDiv.innerHTML = `
+                    <div class="response-text">${stepDefs[step](d)}</div>
+                    <div class="mt-2 gs-wizard-nav">
+                        ${step > 0 ? '<button type="button" class="btn btn-secondary btn-sm gs-prev">Previous</button>' : ''}
+                        <button type="button" class="btn btn-primary btn-sm gs-next">${isLast ? 'Finish' : 'Next'}</button>
+                    </div>`;
+                wireSelection();
+            }
+
+            function renderFinal() {
+                inFinal = true;
+                const d = viewData();
+                window.selectedStrategy = strategyName();
+                window.selectedScenario = scenarioLabel();
+                loadingDiv.innerHTML = `
+                    <div class="response-text">${window.renderAnswer(d, { interactive: true })}</div>
+                    <div class="mt-2">
+                        <button type="button" class="btn btn-sm text-success copy-btn" data-bs-toggle="tooltip" title="Copy Answer"><i class="bi bi-copy"></i></button>
+                    </div>`;
+                wireSelection();
+                setTimeout(() => {
+                    if (typeof addActionTableSuggestion === 'function') addActionTableSuggestion();
+                    if (typeof autoGenerateAlignmentBrief === 'function') autoGenerateAlignmentBrief();
+                }, 300);
+            }
+
+            loadingDiv.addEventListener('click', function (e) {
+                const next = e.target.closest('.gs-next');
+                const prev = e.target.closest('.gs-prev');
+                if (next) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (step === stepDefs.length - 1) renderFinal();
+                    else { step++; renderStep(); }
+                } else if (prev) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (step > 0) { step--; renderStep(); }
+                }
+            });
+
+            renderStep();
+        };
     })();
 </script>
 <script>
@@ -1337,6 +1479,26 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
             }
 
             const data = await res.json();
+
+            // JSON contract path (Phase 2): render via the structured wizard
+            // instead of the markdown split/collapse pipeline. Falls through to
+            // markdown if the payload isn't valid JSON.
+            if (data.format === 'json') {
+                const parsedAnswer = window.parseAnswerJson(data.answer);
+                if (parsedAnswer) {
+                    if (data.chat_id) {
+                        window.chatChatId = data.chat_id;
+                        const ci = document.getElementById('chat_id');
+                        if (ci) ci.value = data.chat_id;
+                    }
+                    window.chatUserId = window.chatUserId || currentUser_id;
+                    window.chatQuestion = window.chatQuestion || currentQuestion;
+                    window.renderJsonWizard(loadingDiv, parsedAnswer);
+                    return;
+                }
+                // not parseable -> continue with markdown rendering below
+            }
+
             let fullAnswer = data.answer || 'No answer returned.';
             const previousContext = data.previousContext || {};
             const chectdata = data.chectdata || {};
@@ -3347,7 +3509,8 @@ document.addEventListener('click', function (e) {
             // Only show on the FINAL answer. While stepping through the wizard a
             // "Next/Finish" button is still present in the card — skip until the
             // user clicks Finish (final render removes the step buttons).
-            if (cardContainer.querySelector('.next-step-btn')) return;
+            // (.next-step-btn = markdown wizard, .gs-next = JSON wizard)
+            if (cardContainer.querySelector('.next-step-btn') || cardContainer.querySelector('.gs-next')) return;
 
             const wrap = document.createElement('div');
             wrap.className = 'action-table-suggestion mt-3';
@@ -3536,7 +3699,10 @@ document.addEventListener('click', function (e) {
         // Find the parent card container
         const cardContainer = finalOutcomeSection.closest('.tt-template-carddads');
         if (!cardContainer) return;
-        
+
+        // Skip while the JSON/markdown wizard is still stepping (Finish not clicked).
+        if (cardContainer.querySelector('.gs-next') || cardContainer.querySelector('.next-step-btn')) return;
+
         // Check if brief already exists in this card container
         const existingBriefInCard = cardContainer.querySelector('.leadership-alignment-brief');
         if (existingBriefInCard) {
