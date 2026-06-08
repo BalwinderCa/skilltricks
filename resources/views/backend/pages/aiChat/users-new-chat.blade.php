@@ -902,8 +902,10 @@
                 .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         }
 
+        function nonEmpty(v) { return v != null && String(v).trim() !== ''; }
+
         function sectionAcknowledgement(d) {
-            if (!d.acknowledgement) return '';
+            if (!nonEmpty(d.acknowledgement)) return '';
             return `<div class="gs-section gs-ack">
                 <h5>🧩 Chat Acknowledgement</h5>
                 <p>${esc(d.acknowledgement)}</p>
@@ -920,7 +922,7 @@
         }
 
         function sectionGoalAssessment(d) {
-            if (!d.goalAssessment) return '';
+            if (!nonEmpty(d.goalAssessment)) return '';
             return `<div class="gs-section gs-goal-assessment">
                 <h5>📊 Goal Assessment Summary</h5>
                 <p>${esc(d.goalAssessment)}</p>
@@ -984,7 +986,17 @@
 
         function sectionRolesGoals(d) {
             if (!Array.isArray(d.rolesGoals) || !d.rolesGoals.length) return '';
-            const blocks = d.rolesGoals.map(r => `<div class="gs-role-block mb-2">
+            // Dedupe roles the model sometimes repeats (keep first occurrence,
+            // match case-insensitively on a normalized role title).
+            const seen = new Set();
+            const roles = d.rolesGoals.filter(r => {
+                const key = String(r && r.role || '').trim().toLowerCase().replace(/\s+/g, ' ');
+                if (!key || seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+            if (!roles.length) return '';
+            const blocks = roles.map(r => `<div class="gs-role-block mb-2">
                 <div class="gs-role-title"><strong>${esc(r.role)}</strong></div>
                 <div class="gs-role-goal"><strong>Goal:</strong> ${esc(r.goal)}</div>
                 <div class="gs-role-action"><strong>Actions:</strong> ${esc(r.action)}</div>
@@ -1005,7 +1017,7 @@
         }
 
         function sectionFinalOutcome(d) {
-            if (!d.finalOutcome) return '';
+            if (!nonEmpty(d.finalOutcome)) return '';
             return `<div class="gs-section gs-final-outcome">
                 <h5>✅ Final Outcome Summary</h5>
                 <p>${esc(d.finalOutcome)}</p>
