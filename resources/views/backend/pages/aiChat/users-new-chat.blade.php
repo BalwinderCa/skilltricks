@@ -645,7 +645,7 @@
                         @foreach ($searchuserchatdata as $index => $chat)
                            <div class="tt-template-carddads">
                             <div class="user-message">{{ $chat->search ?? '' }}</div>
-                            <div class="bot-message  response-text">{!! \Illuminate\Support\Str::markdown($chat->response) !!} </div>
+                            <div class="bot-message  response-text" data-md="{{ base64_encode($chat->response ?? '') }}"></div>
                             <!-- Copy Button -->
                                 <button type="button" class="btn btn-sm text-success me-2 copy-btn" data-bs-toggle="tooltip" data-bs-title="Copy Answer">
                                     <!-- <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"
@@ -662,7 +662,7 @@
                         @if(isset($leadershipBriefFromDB) && !empty($leadershipBriefFromDB))
                             <div class="tt-template-carddads">
                                 <div class="leadership-alignment-brief mt-3">
-                                    <div class="response-text">{!! \Illuminate\Support\Str::markdown($leadershipBriefFromDB) !!}</div>
+                                    <div class="response-text" data-md="{{ base64_encode($leadershipBriefFromDB ?? '') }}"></div>
                                 </div>
                             </div>
                             <script>
@@ -772,6 +772,26 @@
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+    // Render all server-stored messages with marked.js so they match
+    // live (JS-appended) responses exactly. Avoids font/size mismatch
+    // caused by PHP CommonMark vs marked.js producing different HTML.
+    function renderStoredMarkdown() {
+        document.querySelectorAll('[data-md]').forEach(function (el) {
+            try {
+                var raw = decodeURIComponent(escape(atob(el.dataset.md)));
+                el.innerHTML = marked.parse(raw);
+            } catch (e) {
+                console.error('Markdown render failed:', e);
+            }
+        });
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', renderStoredMarkdown);
+    } else {
+        renderStoredMarkdown();
+    }
+</script>
 <script>
     // document.getElementById('ask-form').addEventListener('submit', async function (e) {
     //     e.preventDefault();
