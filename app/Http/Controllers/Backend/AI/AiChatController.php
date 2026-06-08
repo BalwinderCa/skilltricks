@@ -1357,21 +1357,26 @@ Return a SINGLE valid JSON object (no markdown, no code fences, no commentary) w
         {"id": "sc3", "label": "Risk", "text": "one sentence"}
       ],
       "selectedScenarioId": "sc1",
-      "rolesGoals": [
-        {"role": "Role title from documents", "goal": "1-2 sentences", "action": "EXACTLY one sentence"}
-      ],
-      "complementaryGoals": ["goal one", "goal two"],
-      "finalOutcome": "two sentences describing the outcome for the selected strategy and scenario"
+      "scenarioVariants": {
+        "sc1": {
+          "rolesGoals": [
+            {"role": "Role title from documents", "goal": "1-2 sentences", "action": "EXACTLY one sentence"}
+          ],
+          "complementaryGoals": ["goal one", "goal two"],
+          "finalOutcome": "two sentences for this strategy + scenario"
+        }
+      }
     }
   }
 }
 
 Rules:
-- "strategyMap": 3 to 4 decision paths, each with a UNIQUE id (s1, s2, s3, s4) and a descriptive name (never "Path A/1").
-- "strategyVariants": one key for EACH strategy id in strategyMap. Each variant fully tailored to that strategy.
-- Each variant's "rolesGoals": 5 to 10 roles, using ONLY role titles found in the documents. "action" is EXACTLY one sentence (no lists, no line breaks).
-- "selectedStrategyId" = first strategy's id. Each variant's "selectedScenarioId" = its first scenario's id.
-- The rolesGoals/complementaryGoals/finalOutcome in each variant correspond to that variant's selected scenario.
+- "strategyMap": 3 decision paths, each with a UNIQUE id (s1, s2, s3) and a descriptive name (never "Path A/1").
+- "strategyVariants": one key for EACH strategy id in strategyMap.
+- Each variant has 3 "scenarios" (ids sc1, sc2, sc3) and a "scenarioVariants" object with one key for EACH of that variant's scenario ids.
+- Each scenarioVariant's "rolesGoals": 5 to 7 roles, using ONLY role titles found in the documents. "action" is EXACTLY one sentence (no lists, no line breaks).
+- "selectedStrategyId" = first strategy id. Each variant's "selectedScenarioId" = its first scenario id.
+- Keep every string concise to fit the response in one valid JSON object.
 - Output VALID JSON only: double-quoted keys/strings, no trailing commas, no comments, no markdown.
 EOT;
     }
