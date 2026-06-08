@@ -880,7 +880,19 @@
                         .replace(/%%%BUNDLES_JSON%%%[\s\S]*?%%%END_BUNDLES_JSON%%%/g, '')
                         .replace(/%%%(?:END_)?BUNDLES_JSON%%%/g, '')
                         .trim();
-                    el.innerHTML = marked.parse(md);
+                    // Split into per-section .response-text blocks (like the live
+                    // final answer) so the Export-role-goals button can sit right
+                    // after the 👥 roles section instead of after the whole blob.
+                    var parts = md.split(/(?=🧩|📁|📊|📈|🗺️|🔮|👥|📌|✅|📋)/)
+                        .filter(function (p) { return p.trim() !== ''; });
+                    if (parts.length > 1) {
+                        el.classList.remove('response-text');
+                        el.innerHTML = parts.map(function (p) {
+                            return '<div class="response-text">' + marked.parse(p) + '</div>';
+                        }).join('');
+                    } else {
+                        el.innerHTML = marked.parse(md);
+                    }
                 }
             } catch (e) {
                 console.error('Markdown render failed:', e);
