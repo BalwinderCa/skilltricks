@@ -136,6 +136,14 @@ class AiChatController extends Controller
         return $this->geminiGenerate($systemMessage, $userText, $maxOutputTokens, $temperature, $jsonMode);
     }
 
+    # Human-readable provider label for logs/error responses; mirrors aiGenerate() routing.
+    private function aiProviderLabel()
+    {
+        $provider = strtolower(env('AI_PROVIDER', 'gemini'));
+
+        return ($provider === 'openai' || $provider === 'chatgpt') ? 'OpenAI' : 'Gemini';
+    }
+
     # OpenAI generate. Returns a Response normalized to Gemini's JSON shape
     # (candidates.0.content.parts.0.text) so all callers stay unchanged.
     private function openAiGenerate($systemMessage, $userText, $maxOutputTokens = 3000, $temperature = 0.7, $jsonMode = false)
@@ -1079,243 +1087,6 @@ class AiChatController extends Controller
     }
 
 
-
-
-
-    //   public function users_new_chat_ask(Request $request)
-    // {
-    //     $user = auth()->user();
-    //     $question = $request->input('question');
-    //     $userid = $request->input('user_id');
-    //     $chatid = $request->input('chat_id');
-
-    //     $checkdata = DB::table('user_chat_answers')->where('user_id',$userid)->latest()->first();
-          
-    //     $response = Http::withToken('REDACTED_OPENAI_KEY')
-    //             ->post('https://api.openai.com/v1/chat/completions', [
-    //                 'model' => 'gpt-3.5-turbo',
-    //                 'messages' => [
-    //                     ['role' => 'user', 'content' => $question],
-    //                 ],
-    //             ]);
-
-    //         $answer = $response->json('candidates.0.content.parts.0.text');
-
-    //         // Save to DB
-
-    //         $newChat = DB::table('search_user_chat')->where('id',$chatid)->update([
-    //             'user_id' => $user->id,
-    //             'answers' => $checkdata->answers,
-    //             'chat_role_categories' => $checkdata->chat_role_categories,
-    //             'categories' => $checkdata->categories,
-    //             'subcategories' => $checkdata->subcategories,
-    //             'questionmenuid' => $checkdata->questionmenuid,
-    //             'search' => $question,
-    //             'response' => $answer,
-    //         ]);
-
-    //         DB::table('search_user_chat_data')->insert([
-    //             'search_user_chat_id' => $chatid,
-    //             'user_id' => $user->id,
-    //             'answers' => $checkdata->answers,
-    //             'chat_role_categories' => $checkdata->chat_role_categories,
-    //             'categories' => $checkdata->categories,
-    //             'subcategories' => $checkdata->subcategories,
-    //             'questionmenuid' => $checkdata->questionmenuid,
-    //             'search' => $question,
-    //             'response' => $answer,
-    //         ]);
-
-    //         return response()->json([
-    //             'question' => $question,
-    //             'answer' => $answer,
-    //             'id' => $newChat
-    //         ]);
-    // }
-
-
-
-
-// public function users_new_chat_ask(Request $request)
-// {
-//     $user = auth()->user();
-//     $question = $request->input('question');
-//     $chatId = $request->input('chat_id');
-
-//     // Validate input
-//     if (!$question || !$chatId) {
-//         return response()->json(['error' => 'Question and Chat ID are required.'], 400);
-//     }
-
-//     // Fetch last context
-//     $previous = DB::table('user_chat_answers')->where('user_id', $user->id)->latest()->first();
-
-//     // GoalSync instruction (manually embedded)
-//     $goalsyncInstructions = <<<TEXT
-//             OBJECTIVE:
-//             Respond to every user-inputted goal using the exact 7-step GoalSync structure. Never skip a step...
-
-//             🧩 Step 1: Chat Acknowledgement  
-//             📁 Step 2: Document Insights  
-//             📊 Step 3: Goal Assessment Summary  
-//             📈 Step 4: Scoring (Impact, Feasibility, Alignment)  
-//             🗺️ Step 5: Strategy Map (Decision Paths)  
-//             🔮 Step 6: Scenario Simulations  
-//             👥 Step 7: Rephrased Goals by Role  
-//             📌 Complementary Goals (if applicable)  
-//             ✅ Final Outcome Summary
-
-//             Rules:
-//             - Do not skip any step
-//             - Use fallback logic if data is missing
-//             - Keep tone strategic, professional, and conversational
-//             TEXT;
-
-//                 // Construct prompt
-//                 $prompt = <<<EOT
-//             You are a strategic assistant trained in the GoalSync method.
-
-//             Below is the instruction set you MUST follow:
-//             $goalsyncInstructions
-
-//             Now respond to the user's goal using the GoalSync format below.
-
-//             User's Goal:
-//             "$question"
-//             EOT;
-
-//         $response = Http::withToken('REDACTED_OPENAI_KEY')->post('https://api.openai.com/v1/chat/completions', [
-//             'model' => 'gpt-3.5-turbo',
-//             'messages' => [
-//                 ['role' => 'user', 'content' => $prompt],
-//             ],
-//         ]);
-
-//         if (!$response->successful()) {
-//             return response()->json([
-//                 'error' => 'OpenAI API failed.',
-//                 'details' => $response->body()
-//             ], 500);
-//         }
-
-//         $answer = $response->json('candidates.0.content.parts.0.text');
-//     // dd($answer);
-//        /* $responseData = preg_replace('/\/\/.*$/', '', $answer);
-         
-//         $responseData = mb_convert_encoding($answer, 'UTF-8', 'UTF-8');*/
-
-//         DB::table('search_user_chat')->where('id', $chatId)->update([
-//             'user_id' => $user->id,
-//             'answers' => $previous->answers ?? null,
-//             'chat_role_categories' => $previous->chat_role_categories ?? null,
-//             'categories' => $previous->categories ?? null,
-//             'subcategories' => $previous->subcategories ?? null,
-//             'questionmenuid' => $previous->questionmenuid ?? null,
-//             'search' => $question,
-//             'response' => $answer,
-//         ]);
-  
-//         DB::table('search_user_chat_data')->insert([
-//             'search_user_chat_id' => $chatId,
-//             'user_id' => $user->id,
-//             'answers' => $previous->answers ?? null,
-//             'chat_role_categories' => $previous->chat_role_categories ?? null,
-//             'categories' => $previous->categories ?? null,
-//             'subcategories' => $previous->subcategories ?? null,
-//             'questionmenuid' => $previous->questionmenuid ?? null,
-//             'search' => $question,
-//             'response' => $answer,
-//         ]);
-
-
-//     // Return final structured response
-//     return response()->json([
-//         'question' => $question,
-//         'answer' => $answer,
-//     ]);
-// }
-
-
-
-// public function users_new_chat_ask(Request $request)
-// {
-//     $user = auth()->user();
-//     $question = $request->input('question');
-//     $chatId = $request->input('chat_id');
-
-//     if (!$question || !$chatId) {
-//         return response()->json(['error' => 'Question and Chat ID are required.'], 400);
-//     }
-
-//     $previous = DB::table('user_chat_answers')->where('user_id', $user->id)->latest()->first();
-
-//     // Load the GoalSync instructions from the .docx
-//     $instructionPath = public_path('backend/GOALSYNC - GPT INSTRUCTION SET For Standardized Output Generation.docx');
-//     $goalsyncInstructions = $instructionPath;
-
-//     // Final Prompt
-//     $prompt = <<<EOT
-// $goalsyncInstructions
-
-// NEVER SKIP A STEP. Use fallback assumptions if real data is unavailable.  
-// Mirror executive tone: Clear, strategic, concise. Use symbols for section headers.
-
-// User's Goal:  
-// "$question"
-// EOT;
-
-//     $response = Http::withToken(env('OPENAI_API_KEY'))->post('https://api.openai.com/v1/chat/completions', [
-//         'model' => 'gpt-3.5-turbo',
-//         'messages' => [
-//             ['role' => 'user', 'content' => $prompt],
-//         ],
-//     ]);
-
-//     if (!$response->successful()) {
-//         return response()->json([
-//             'error' => 'OpenAI API failed.',
-//             'details' => $response->body()
-//         ], 500);
-//     }
-
-//     $answer = $response->json('candidates.0.content.parts.0.text');
-
-//     // Save response to DB
-//     DB::table('search_user_chat')->where('id', $chatId)->update([
-//         'user_id' => $user->id,
-//         'answers' => $previous->answers ?? null,
-//         'chat_role_categories' => $previous->chat_role_categories ?? null,
-//         'categories' => $previous->categories ?? null,
-//         'subcategories' => $previous->subcategories ?? null,
-//         'questionmenuid' => $previous->questionmenuid ?? null,
-//         'search' => $question,
-//         'response' => $answer,
-//     ]);
-
-//     DB::table('search_user_chat_data')->insert([
-//         'search_user_chat_id' => $chatId,
-//         'user_id' => $user->id,
-//         'answers' => $previous->answers ?? null,
-//         'chat_role_categories' => $previous->chat_role_categories ?? null,
-//         'categories' => $previous->categories ?? null,
-//         'subcategories' => $previous->subcategories ?? null,
-//         'questionmenuid' => $previous->questionmenuid ?? null,
-//         'search' => $question,
-//         'response' => $answer,
-//     ]);
-
-//     return response()->json([
-//         'question' => $question,
-//         'answer' => $answer,
-//     ]);
-// }
-
-
-
-
-
-// kishan
-
     /**
      * Build the GoalSync first-message prompt that asks the model for the
      * structured JSON contract (instead of an emoji-delimited markdown blob).
@@ -1542,6 +1313,8 @@ public function users_new_chat_ask(Request $request)
  // First GoalSync answer is always JSON; follow-ups stay markdown.
  $responseFormat = 'markdown';
 
+ $aiProvider = $this->aiProviderLabel();
+
  if(($previousContext && ($previousContext->status1 == '0' || $previousContext->status1 == 0)) || ($chectdata->status1 == '0' || $chectdata->status1 == 0)){
     // Build prompt to return GOALSYNC output in natural ChatGPT-style format
     // Build document names list for prompt
@@ -1557,21 +1330,21 @@ public function users_new_chat_ask(Request $request)
     $prompt = $this->goalSyncJsonPrompt($question, $documentNamesList);
     $responseFormat = 'json';
 
-        // Send to Gemini API with comprehensive error handling
+        // Send to AI provider with comprehensive error handling
         try {
-            Log::info('Gemini API Request - First Chat', [
+            Log::info($aiProvider . ' API Request - First Chat', [
                 'user_id' => $user->id,
                 'chat_id' => $chatId,
                 'prompt_length' => strlen($prompt),
                 'system_message_length' => strlen($systemMessage),
                 'documents_count' => $documents->count(),
-                'has_api_key' => !empty(env('GEMINI_API_KEY')),
+                'has_api_key' => !empty(env($aiProvider === 'OpenAI' ? 'OPENAI_API_KEY' : 'GEMINI_API_KEY')),
             ]);
 
             // Always request the structured GoalSync JSON contract.
             $openAiResponse = $this->aiGenerate($systemMessage, $prompt, 8000, 0.7, true);
 
-            Log::info('Gemini API Response - First Chat', [
+            Log::info($aiProvider . ' API Response - First Chat', [
                 'user_id' => $user->id,
                 'chat_id' => $chatId,
                 'status' => $openAiResponse->status(),
@@ -1583,7 +1356,7 @@ public function users_new_chat_ask(Request $request)
             DB::table('search_user_chat')->where('id', $chatId)->update(['status1' => 1]);
 
         } catch (\Illuminate\Http\Client\ConnectionException $e) {
-            Log::error('Gemini API Connection Exception - First Chat', [
+            Log::error($aiProvider . ' API Connection Exception - First Chat', [
                 'user_id' => $user->id,
                 'chat_id' => $chatId,
                 'error_message' => $e->getMessage(),
@@ -1594,16 +1367,16 @@ public function users_new_chat_ask(Request $request)
             ]);
 
             return response()->json([
-                'error' => 'Gemini API connection timeout. The request took too long to complete.',
+                'error' => $aiProvider . ' API connection timeout. The request took too long to complete.',
                 'details' => [
                     'message' => $e->getMessage(),
                     'type' => 'ConnectionException',
-                    'suggestion' => 'Please try again. If the issue persists, the Gemini API may be experiencing high load.',
+                    'suggestion' => 'Please try again. If the issue persists, the ' . $aiProvider . ' API may be experiencing high load.',
                 ]
             ], 504);
 
         } catch (\Illuminate\Http\Client\RequestException $e) {
-            Log::error('Gemini API Request Exception - First Chat', [
+            Log::error($aiProvider . ' API Request Exception - First Chat', [
                 'user_id' => $user->id,
                 'chat_id' => $chatId,
                 'error_message' => $e->getMessage(),
@@ -1615,7 +1388,7 @@ public function users_new_chat_ask(Request $request)
             ]);
 
             return response()->json([
-                'error' => 'Gemini API request failed.',
+                'error' => $aiProvider . ' API request failed.',
                 'details' => [
                     'message' => $e->getMessage(),
                     'type' => 'RequestException',
@@ -1624,7 +1397,7 @@ public function users_new_chat_ask(Request $request)
             ], 500);
 
         } catch (\Exception $e) {
-            Log::error('Gemini API General Exception - First Chat', [
+            Log::error($aiProvider . ' API General Exception - First Chat', [
                 'user_id' => $user->id,
                 'chat_id' => $chatId,
                 'error_message' => $e->getMessage(),
@@ -1659,20 +1432,20 @@ Respond using the GoalSync method, but keep it SHORT and scannable:
 - Keep the whole reply under ~120 words.
 EOT;
 
-        // Send to Gemini API with comprehensive error handling
+        // Send to AI provider with comprehensive error handling
         try {
-            Log::info('Gemini API Request - Follow-up Chat', [
+            Log::info($aiProvider . ' API Request - Follow-up Chat', [
                 'user_id' => $user->id,
                 'chat_id' => $chatId,
                 'question_length' => strlen($question),
                 'system_message_length' => strlen($systemMessage),
                 'documents_count' => $documents->count(),
-                'has_api_key' => !empty(env('GEMINI_API_KEY')),
+                'has_api_key' => !empty(env($aiProvider === 'OpenAI' ? 'OPENAI_API_KEY' : 'GEMINI_API_KEY')),
             ]);
 
             $openAiResponse = $this->aiGenerate($systemMessage, $followUpPrompt, 1200);
 
-            Log::info('Gemini API Response - Follow-up Chat', [
+            Log::info($aiProvider . ' API Response - Follow-up Chat', [
                 'user_id' => $user->id,
                 'chat_id' => $chatId,
                 'status' => $openAiResponse->status(),
@@ -1684,7 +1457,7 @@ EOT;
             DB::table('search_user_chat')->where('id', $chatId)->update(['status2' => 1]);
 
         } catch (\Illuminate\Http\Client\ConnectionException $e) {
-            Log::error('Gemini API Connection Exception - Follow-up Chat', [
+            Log::error($aiProvider . ' API Connection Exception - Follow-up Chat', [
                 'user_id' => $user->id,
                 'chat_id' => $chatId,
                 'error_message' => $e->getMessage(),
@@ -1695,16 +1468,16 @@ EOT;
             ]);
 
             return response()->json([
-                'error' => 'Gemini API connection timeout. The request took too long to complete.',
+                'error' => $aiProvider . ' API connection timeout. The request took too long to complete.',
                 'details' => [
                     'message' => $e->getMessage(),
                     'type' => 'ConnectionException',
-                    'suggestion' => 'Please try again. If the issue persists, the Gemini API may be experiencing high load.',
+                    'suggestion' => 'Please try again. If the issue persists, the ' . $aiProvider . ' API may be experiencing high load.',
                 ]
             ], 504);
 
         } catch (\Illuminate\Http\Client\RequestException $e) {
-            Log::error('Gemini API Request Exception - Follow-up Chat', [
+            Log::error($aiProvider . ' API Request Exception - Follow-up Chat', [
                 'user_id' => $user->id,
                 'chat_id' => $chatId,
                 'error_message' => $e->getMessage(),
@@ -1716,7 +1489,7 @@ EOT;
             ]);
 
             return response()->json([
-                'error' => 'Gemini API request failed.',
+                'error' => $aiProvider . ' API request failed.',
                 'details' => [
                     'message' => $e->getMessage(),
                     'type' => 'RequestException',
@@ -1725,7 +1498,7 @@ EOT;
             ], 500);
 
         } catch (\Exception $e) {
-            Log::error('Gemini API General Exception - Follow-up Chat', [
+            Log::error($aiProvider . ' API General Exception - Follow-up Chat', [
                 'user_id' => $user->id,
                 'chat_id' => $chatId,
                 'error_message' => $e->getMessage(),
@@ -1749,7 +1522,7 @@ EOT;
 
         // Handle API errors (non-exception cases)
         if (!$openAiResponse->successful()) {
-            Log::error('Gemini API Unsuccessful Response', [
+            Log::error($aiProvider . ' API Unsuccessful Response', [
                 'user_id' => $user->id,
                 'chat_id' => $chatId,
                 'status' => $openAiResponse->status(),
@@ -1757,7 +1530,7 @@ EOT;
             ]);
 
             $statusCode = $openAiResponse->status();
-            $clientError = $statusCode === 429 ? 'Gemini API quota exceeded. Check your billing or reduce request rate.' : 'Gemini API request failed.';
+            $clientError = $statusCode === 429 ? $aiProvider . ' API quota exceeded. Check your billing or reduce request rate.' : $aiProvider . ' API request failed.';
             return response()->json([
                 'error' => $clientError,
                 'details' => $openAiResponse->json() ?? $openAiResponse->body()
@@ -1915,20 +1688,22 @@ Generate these 4 sections concisely:
 
 EOT;
 
-       // Send to Gemini API with comprehensive error handling
+       // Send to AI provider with comprehensive error handling
+       $aiProvider = $this->aiProviderLabel();
+
        try {
-           Log::info('Gemini API Request - Update Strategy', [
+           Log::info($aiProvider . ' API Request - Update Strategy', [
                'user_id' => $user->id,
                'chat_id' => $chatId,
                'prompt_length' => strlen($prompt),
                'system_message_length' => strlen($systemMessage),
                'selected_strategy' => $selectedStrategy,
-               'has_api_key' => !empty(env('GEMINI_API_KEY')),
+               'has_api_key' => !empty(env($aiProvider === 'OpenAI' ? 'OPENAI_API_KEY' : 'GEMINI_API_KEY')),
            ]);
 
            $openAiResponse = $this->aiGenerate($systemMessage, $prompt, 3000);
 
-           Log::info('Gemini API Response - Update Strategy', [
+           Log::info($aiProvider . ' API Response - Update Strategy', [
                'user_id' => $user->id,
                'chat_id' => $chatId,
                'status' => $openAiResponse->status(),
@@ -1937,7 +1712,7 @@ EOT;
            ]);
 
        } catch (ConnectionException $e) {
-           Log::error('Gemini API Connection Exception - Update Strategy', [
+           Log::error($aiProvider . ' API Connection Exception - Update Strategy', [
                'user_id' => $user->id,
                'chat_id' => $chatId,
                'error_message' => $e->getMessage(),
@@ -1948,16 +1723,16 @@ EOT;
            ]);
 
            return response()->json([
-               'error' => 'Gemini API connection timeout. The request took too long to complete.',
+               'error' => $aiProvider . ' API connection timeout. The request took too long to complete.',
                'details' => [
                    'message' => $e->getMessage(),
                    'type' => 'ConnectionException',
-                   'suggestion' => 'Please try again. If the issue persists, the Gemini API may be experiencing high load.',
+                   'suggestion' => 'Please try again. If the issue persists, the ' . $aiProvider . ' API may be experiencing high load.',
                ]
            ], 504);
 
        } catch (RequestException $e) {
-           Log::error('Gemini API Request Exception - Update Strategy', [
+           Log::error($aiProvider . ' API Request Exception - Update Strategy', [
                'user_id' => $user->id,
                'chat_id' => $chatId,
                'error_message' => $e->getMessage(),
@@ -1969,7 +1744,7 @@ EOT;
            ]);
 
            return response()->json([
-               'error' => 'Gemini API request failed.',
+               'error' => $aiProvider . ' API request failed.',
                'details' => [
                    'message' => $e->getMessage(),
                    'type' => 'RequestException',
@@ -1978,7 +1753,7 @@ EOT;
            ], 500);
 
        } catch (\Exception $e) {
-           Log::error('Gemini API General Exception - Update Strategy', [
+           Log::error($aiProvider . ' API General Exception - Update Strategy', [
                'user_id' => $user->id,
                'chat_id' => $chatId,
                'error_message' => $e->getMessage(),
@@ -2000,7 +1775,7 @@ EOT;
 
        // Handle API errors (non-exception cases)
        if (!$openAiResponse->successful()) {
-           Log::error('Gemini API Unsuccessful Response - Update Strategy', [
+           Log::error($aiProvider . ' API Unsuccessful Response - Update Strategy', [
                'user_id' => $user->id,
                'chat_id' => $chatId,
                'status' => $openAiResponse->status(),
@@ -2008,7 +1783,7 @@ EOT;
            ]);
 
            return response()->json([
-               'error' => 'Gemini API request failed.',
+               'error' => $aiProvider . ' API request failed.',
                'details' => $openAiResponse->body()
            ], 500);
        }
@@ -2167,19 +1942,21 @@ Regenerate these sections tailored to the selected scenario (and strategy if pro
 Keep the same emojis and section headers exactly as shown above. Use the scenario details to adjust tone, risks, and opportunities.
 EOT;
 
+        $aiProvider = $this->aiProviderLabel();
+
         try {
-            Log::info('Gemini API Request - Update Scenario', [
+            Log::info($aiProvider . ' API Request - Update Scenario', [
                 'user_id' => $user->id,
                 'chat_id' => $chatId,
                 'scenario' => $selectedScenario,
                 'strategy' => $selectedStrategy,
                 'prompt_length' => strlen($prompt),
-                'has_api_key' => !empty(env('GEMINI_API_KEY')),
+                'has_api_key' => !empty(env($aiProvider === 'OpenAI' ? 'OPENAI_API_KEY' : 'GEMINI_API_KEY')),
             ]);
 
             $openAiResponse = $this->aiGenerate($systemMessage, $prompt, 2500);
 
-            Log::info('Gemini API Response - Update Scenario', [
+            Log::info($aiProvider . ' API Response - Update Scenario', [
                 'user_id' => $user->id,
                 'chat_id' => $chatId,
                 'status' => $openAiResponse->status(),
@@ -2188,7 +1965,7 @@ EOT;
             ]);
 
         } catch (ConnectionException $e) {
-            Log::error('Gemini API Connection Exception - Update Scenario', [
+            Log::error($aiProvider . ' API Connection Exception - Update Scenario', [
                 'user_id' => $user->id,
                 'chat_id' => $chatId,
                 'error_message' => $e->getMessage(),
@@ -2199,16 +1976,16 @@ EOT;
             ]);
 
             return response()->json([
-                'error' => 'Gemini API connection timeout. The request took too long to complete.',
+                'error' => $aiProvider . ' API connection timeout. The request took too long to complete.',
                 'details' => [
                     'message' => $e->getMessage(),
                     'type' => 'ConnectionException',
-                    'suggestion' => 'Please try again. If the issue persists, the Gemini API may be experiencing high load.',
+                    'suggestion' => 'Please try again. If the issue persists, the ' . $aiProvider . ' API may be experiencing high load.',
                 ]
             ], 504);
 
         } catch (RequestException $e) {
-            Log::error('Gemini API Request Exception - Update Scenario', [
+            Log::error($aiProvider . ' API Request Exception - Update Scenario', [
                 'user_id' => $user->id,
                 'chat_id' => $chatId,
                 'error_message' => $e->getMessage(),
@@ -2220,7 +1997,7 @@ EOT;
             ]);
 
             return response()->json([
-                'error' => 'Gemini API request failed.',
+                'error' => $aiProvider . ' API request failed.',
                 'details' => [
                     'message' => $e->getMessage(),
                     'type' => 'RequestException',
@@ -2229,7 +2006,7 @@ EOT;
             ], 500);
 
         } catch (\Exception $e) {
-            Log::error('Gemini API General Exception - Update Scenario', [
+            Log::error($aiProvider . ' API General Exception - Update Scenario', [
                 'user_id' => $user->id,
                 'chat_id' => $chatId,
                 'error_message' => $e->getMessage(),
@@ -2250,7 +2027,7 @@ EOT;
         }
 
         if (!$openAiResponse->successful()) {
-            Log::error('Gemini API Unsuccessful Response - Update Scenario', [
+            Log::error($aiProvider . ' API Unsuccessful Response - Update Scenario', [
                 'user_id' => $user->id,
                 'chat_id' => $chatId,
                 'status' => $openAiResponse->status(),
@@ -2258,7 +2035,7 @@ EOT;
             ]);
 
             $statusCode = $openAiResponse->status();
-            $clientError = $statusCode === 429 ? 'Gemini API quota exceeded. Check your billing or reduce request rate.' : 'Gemini API request failed.';
+            $clientError = $statusCode === 429 ? $aiProvider . ' API quota exceeded. Check your billing or reduce request rate.' : $aiProvider . ' API request failed.';
             return response()->json([
                 'error' => $clientError,
                 'details' => $openAiResponse->json() ?? $openAiResponse->body()
