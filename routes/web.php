@@ -168,9 +168,10 @@ Route::group(['prefix' => ''], function () {
     Route::post('/midtrans/payment/pay-account-notification', [MidtransController::class, 'payAccountNotification'])->name('midtrans.pay-account-notification');
     Route::post('/midtrans/payment/recurring-notification', [MidtransController::class, 'recurringNotification'])->name('midtrans.recurring-notification');
 
-    Route::get('test', [TestController::class, 'test']);
-    Route::get('migrate', [TestController::class, 'migrate']);
-    Route::get('version-change', [TestController::class, 'VersionChange']);
+    // SECURITY: disabled public debug/admin routes (were unauthenticated and could leak env / run migrations).
+    // Route::get('test', [TestController::class, 'test']);
+    // Route::get('migrate', [TestController::class, 'migrate']);
+    // Route::get('version-change', [TestController::class, 'VersionChange']);
 });
 
 Route::prefix('webhooks')->name('webhooks.')->group(function () {
