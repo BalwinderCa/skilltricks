@@ -1289,6 +1289,10 @@
                 if (next) {
                     e.preventDefault();
                     e.stopPropagation();
+                    // Block Finish while the alignment brief is still generating
+                    // so renderFinal doesn't rebuild the DOM and lose the
+                    // in-progress brief (the button is also visually disabled).
+                    if (window.briefGenerationInProgress) return;
                     if (step >= visibleSteps().length - 1) renderFinal();
                     else { step++; renderStep(); }
                 } else if (prev) {
@@ -3767,7 +3771,11 @@ document.addEventListener('click', function (e) {
     // Automatically generate and display Leadership Alignment Brief after final outcome
     // Disable/enable the visible Finish button while the brief is generating
     function setBriefLoadingState(isLoading) {
-        document.querySelectorAll('.next-step-btn').forEach(function (btn) {
+        // Cover both renderers' Finish buttons: legacy .next-step-btn and the
+        // JSON wizard's .gs-next. Without .gs-next the wizard Finish stayed
+        // clickable mid-generation, so clicking it rebuilt the DOM and dropped
+        // the in-progress brief.
+        document.querySelectorAll('.next-step-btn, .gs-next').forEach(function (btn) {
             if (isLoading) {
                 const label = (btn.textContent || '').trim();
                 if (label === 'Finish' || btn.dataset.briefLock) {
