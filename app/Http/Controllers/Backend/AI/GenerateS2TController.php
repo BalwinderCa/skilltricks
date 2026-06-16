@@ -45,7 +45,7 @@ class GenerateS2TController extends Controller
     public function generate(Request $request)
     {
 
-        if (env('DEMO_MODE') == "On") {
+        if (config('custom.demo_mode') == "On") {
             $data = [
                 'status'  => 400,
                 'success' => false,

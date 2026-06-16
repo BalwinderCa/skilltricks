@@ -39,7 +39,7 @@ class AccountCreatedFromPos extends Notification
 
         return (new MailMessage)
             ->view('emails.newAccount', ['array' => $array])
-            ->subject(localize('Account Created - ') . env('APP_NAME'));
+            ->subject(localize('Account Created - ') . config('custom.app_name'));
     }
 
     public function toArray($notifiable)

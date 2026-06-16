@@ -12,15 +12,15 @@ class SmsServices
     {
         if (getSetting('active_sms_gateway') == 'twilio') {
 
-            $TWILIO_SID = env('TWILIO_SID');
-            $TWILIO_AUTH_TOKEN = env('TWILIO_AUTH_TOKEN');
+            $TWILIO_SID = config('custom.twilio_sid');
+            $TWILIO_AUTH_TOKEN = config('custom.twilio_auth_token');
 
             try {
                 Http::withHeaders([
                     'Authorization' => 'Basic ' . \base64_encode("$TWILIO_SID:$TWILIO_AUTH_TOKEN")
                 ])->asForm()->post("https://api.twilio.com/2010-04-01/Accounts/$TWILIO_SID/Messages.json", [
                     "Body" => $text,
-                    "From" => env('VALID_TWILIO_NUMBER'),
+                    "From" => config('custom.valid_twilio_number'),
                     "To" => $to,
                 ]);
             } catch (Exception $e) {
@@ -32,14 +32,14 @@ class SmsServices
     # phone verification
     public function phoneVerificationSms($to, $code)
     {
-        $sms = 'Your verification code for ' . env('APP_NAME') . ' is ' . $code . '.';
+        $sms = 'Your verification code for ' . config('custom.app_name') . ' is ' . $code . '.';
         $this->sendSMS($to, $sms);
     }
 
     # forgot password
     public function forgotPasswordSms($to, $code)
     {
-        $sms = 'Your password reset code for ' . env('APP_NAME') . ' is ' . $code . '.';
+        $sms = 'Your password reset code for ' . config('custom.app_name') . ' is ' . $code . '.';
         $this->sendSMS($to, $sms);
     }
 }

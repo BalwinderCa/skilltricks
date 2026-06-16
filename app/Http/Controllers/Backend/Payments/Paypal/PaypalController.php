@@ -140,7 +140,7 @@ class PaypalController extends Controller
 
                 'payment_action'    => 'Sale',
                 "currency"          => $currencyCode ?? 'USD',
-                'notify_url'        => env('PAYPAL_NOTIFY_URL', ''),
+                'notify_url'        => config('custom.paypal_notify_url'),
                 'locale'            => 'en_US',
                 'validate_ssl'      => false,
             ];
@@ -155,7 +155,7 @@ class PaypalController extends Controller
 
                 'payment_action' => 'Sale',
                 'currency'       => $currencyCode ?? 'USD',
-                'notify_url'     => env('PAYPAL_NOTIFY_URL', ''),
+                'notify_url'     => config('custom.paypal_notify_url'),
                 'locale'         => 'en_US',
                 'validate_ssl'   => true,
             ];

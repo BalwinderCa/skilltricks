@@ -15,8 +15,8 @@ class IyZicoController extends Controller
     public function initPayment()
     {
         $options = new \Iyzipay\Options();
-        $options->setApiKey(env('IYZICO_API_KEY'));
-        $options->setSecretKey(env('IYZICO_SECRET_KEY'));
+        $options->setApiKey(config('custom.iyzico_api_key'));
+        $options->setSecretKey(config('custom.iyzico_secret_key'));
 
         if(paymentGateway('midtrans')->sandbox == 1) {
             $options->setBaseUrl("https://sandbox-api.iyzipay.com");
@@ -111,8 +111,8 @@ class IyZicoController extends Controller
     public function callback(Request $request)
     {
         $options = new \Iyzipay\Options();
-        $options->setApiKey(env('IYZICO_API_KEY'));
-        $options->setSecretKey(env('IYZICO_SECRET_KEY'));
+        $options->setApiKey(config('custom.iyzico_api_key'));
+        $options->setSecretKey(config('custom.iyzico_secret_key'));
 
         if(paymentGateway('midtrans')->sandbox == 1) {
             $options->setBaseUrl("https://sandbox-api.iyzipay.com");

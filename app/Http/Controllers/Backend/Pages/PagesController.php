@@ -47,7 +47,7 @@ class PagesController extends Controller
     {
         $page = Page::create($this->formattedParams($request));
 
-        $pageLocalization           = PageLocalization::firstOrNew(['lang_key' => env('DEFAULT_LANGUAGE'), 'page_id' => $page->id]);
+        $pageLocalization           = PageLocalization::firstOrNew(['lang_key' => config('custom.default_language'), 'page_id' => $page->id]);
         $pageLocalization->title    = $request->title;
         $pageLocalization->content  = $request->content;
         $pageLocalization->save();
@@ -79,7 +79,7 @@ class PagesController extends Controller
     {
         $page = Page::findOrFail($request->id);
 
-        if ($request->lang_key == env("DEFAULT_LANGUAGE")) {
+        if ($request->lang_key == config('custom.default_language')) {
             $page->update($this->formattedParams($request, $page));
         }
 
@@ -156,7 +156,7 @@ class PagesController extends Controller
         $page->is_system        = $request->is_system ?? 0;
         $page->save();
 
-        $pageLocalization           = PageLocalization::firstOrNew(['lang_key' => env('DEFAULT_LANGUAGE'), 'page_id' => $page->id]);
+        $pageLocalization           = PageLocalization::firstOrNew(['lang_key' => config('custom.default_language'), 'page_id' => $page->id]);
         $pageLocalization->title    = $request->title;
         $pageLocalization->content  = $request->content;
         $pageLocalization->save();

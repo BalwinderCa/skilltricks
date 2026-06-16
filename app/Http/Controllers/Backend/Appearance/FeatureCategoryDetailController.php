@@ -44,7 +44,7 @@ class FeatureCategoryDetailController extends Controller
         $editFeatureCategoryDetail = FeatureCategoryDetail::findOrFail($id);
         $featureCategoryDetails    = FeatureCategoryDetail::all();
         $featureCategories         = FeatureCategory::where('is_active', 1)->get();
-        $lang_key                  = $request->lang_key ?? env('DEFAULT_LANGUAGE');
+        $lang_key                  = $request->lang_key ?? config('custom.default_language');
 
         return view('backend.pages.appearance.homepage.feature-category-detail-edit', compact('editFeatureCategoryDetail', 'featureCategoryDetails', 'lang_key', 'featureCategories'));
     }
@@ -84,7 +84,7 @@ class FeatureCategoryDetailController extends Controller
     }
     private function localizeDataStore($model_id, $name, $short_description)
     {
-        $blogLocalization = FeatureCategoryDetailLocalization::firstOrNew(['lang_key' => env('DEFAULT_LANGUAGE'), 'feature_category_detail_id' => $model_id]);
+        $blogLocalization = FeatureCategoryDetailLocalization::firstOrNew(['lang_key' => config('custom.default_language'), 'feature_category_detail_id' => $model_id]);
         $blogLocalization->title             = $name;
         $blogLocalization->short_description = $short_description;
         $blogLocalization->save();

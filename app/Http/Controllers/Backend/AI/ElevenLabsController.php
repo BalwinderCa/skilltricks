@@ -35,7 +35,7 @@ class ElevenLabsController extends Controller
             }
         }
         $ttsSettings = voiceSettingCredential('eleven_labs');
-           if (!$ttsSettings && env('DEMO_MODE') == 'Off') {
+           if (!$ttsSettings && config('custom.demo_mode') == 'Off') {
                 flash(localize('Your Eleven Lab API not connected ! Please connect API From Voice Settings'))->error();
            }
         $data = $this->loadData();
@@ -52,7 +52,7 @@ class ElevenLabsController extends Controller
     {
         try {
 
-           if(env('DEMO_MODE') == 'On'){
+           if(config('custom.demo_mode') == 'On'){
                 flash(localize('Operation  Turn off for demo'))->warning();
                 return redirect()->back();
            }

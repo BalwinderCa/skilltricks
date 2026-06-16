@@ -238,8 +238,8 @@ class SystemUpdateController extends Controller
             if(!$license) {
                 $opts = [
                     'purchase_code'        => $request->purchase_code,
-                    'app_name'             => env('APP_NAME'),
-                    'current_version'      => env('APP_VERSION'),
+                    'app_name'             => config('custom.app_name'),
+                    'current_version'      => config('custom.app_version'),
                     'customer_current_url' => request()->fullUrl(),
                     'product_type'         => 1,
                     'app_env'              => $request->server_mode,

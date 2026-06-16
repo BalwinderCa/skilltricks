@@ -106,7 +106,7 @@ class LanguageController extends Controller
         $language = Language::findOrFail($request->id);
         $activatedLanguages = Language::where('is_active', 1)->count();
 
-        if (env('DEFAULT_LANGUAGE') == $language->code && $request->is_active == 0) {
+        if (config('custom.default_language') == $language->code && $request->is_active == 0) {
             return [
                 'status'    => false,
                 'message'    => localize('Default language can not be disabled'),
@@ -153,7 +153,7 @@ class LanguageController extends Controller
     # update default language 
     public function defaultLanguage(Request $request)
     {
-        if (env('DEMO_MODE') == "On") {
+        if (config('custom.demo_mode') == "On") {
             return [
                 'message' => localize('This is turned off in demo')
             ];
@@ -186,7 +186,7 @@ class LanguageController extends Controller
     # add localizations
     public function key_value_store(Request $request)
     {
-        if (env('DEMO_MODE') == "On") {
+        if (config('custom.demo_mode') == "On") {
             flash(localize('This is turned off in demo'))->success();
             return back();
         }

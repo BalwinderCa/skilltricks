@@ -43,7 +43,7 @@ class GenerateCodesController extends Controller
     # generate code
     public function generate(Request $request)
     {
-        if (env('DEMO_MODE') == 'On') {
+        if (config('custom.demo_mode') == 'On') {
             $response = [
                 'status'    => 400,
                 'message'   => localize('In demo mode, this feature is disabled'),

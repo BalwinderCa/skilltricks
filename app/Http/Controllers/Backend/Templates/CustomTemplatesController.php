@@ -250,7 +250,7 @@ class CustomTemplatesController extends Controller
             abort(404);
         }
 
-        if ($request->lang_key == env("DEFAULT_LANGUAGE")) {
+        if ($request->lang_key == config('custom.default_language')) {
             $template->name                         = $request->name;
             $template->slug                         = preg_replace('/\s+/', '-', trim($request->name));
             $template->code                         = preg_replace('/\s+/', '-', trim($request->name));

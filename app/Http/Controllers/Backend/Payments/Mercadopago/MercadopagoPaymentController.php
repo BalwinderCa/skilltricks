@@ -52,7 +52,7 @@ class MercadopagoPaymentController extends Controller
         }
         try {
             //Payment
-            MercadoPago\SDK::setAccessToken(env('MERCADOPAGO_SECRET_KEY'));
+            MercadoPago\SDK::setAccessToken(config('custom.mercadopago_secret_key'));
             $preference = new MercadoPago\Preference();
             $payer = new MercadoPago\Payer();
             $payer->name = auth()->user()->name;

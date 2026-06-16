@@ -28,13 +28,13 @@ class NewslettersController extends Controller
     # send newsletter
     public function sendNewsletter(Request $request)
     {
-        if (env('MAIL_USERNAME') != null) {
+        if (config('custom.mail_username') != null) {
             //sends newsletter to subscribed users
             if ($request->has('subscriber_emails')) {
                 foreach ($request->subscriber_emails as $key => $email) {
                     $array['view'] = 'emails.bulkEmail';
                     $array['subject'] = $request->subject;
-                    $array['from'] = env('MAIL_FROM_ADDRESS');
+                    $array['from'] = config('custom.mail_from_address');
                     $array['content'] = $request->content;
                     try {
                         Mail::to($email)->queue(new EmailManager($array));
@@ -50,7 +50,7 @@ class NewslettersController extends Controller
                 foreach ($request->user_emails as $key => $email) {
                     $array['view'] = 'emails.bulkEmail';
                     $array['subject'] = $request->subject;
-                    $array['from'] = env('MAIL_FROM_ADDRESS');
+                    $array['from'] = config('custom.mail_from_address');
                     $array['content'] = $request->content;
 
                     try {

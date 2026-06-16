@@ -21,10 +21,10 @@ class PaystackController extends Controller
         $request->email     = $user->email;
         $request->amount    = round($amount  * 100);
 
-        $request->currency  = env('PAYSTACK_CURRENCY_CODE', 'USD');
+        $request->currency  = config('custom.paystack_currency_code');
 
         $currency = Currency::where('code', $request->currency)->first();
-        if(!is_null($currency) && $request->currency != "USD" && strtolower(session('currency_code')) != strtolower(env('PAYSTACK_CURRENCY_CODE'))){
+        if(!is_null($currency) && $request->currency != "USD" && strtolower(session('currency_code')) != strtolower(config('custom.paystack_currency_code'))){
             $request->amount = round($request->amount * (double) $currency->rate);
         }
 

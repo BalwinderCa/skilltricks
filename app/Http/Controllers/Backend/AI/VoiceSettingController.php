@@ -102,7 +102,7 @@ class VoiceSettingController extends Controller
     // default voice over request
     public function defaultVoiceOver(Request $request)
     {
-        if (env('DEMO_MODE') == "On") {
+        if (config('custom.demo_mode') == "On") {
             return [
                 'status' => 'success',
                 'message' => localize('This is turned off in demo')

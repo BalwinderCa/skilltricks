@@ -77,7 +77,7 @@ class BlogsController extends Controller
         $blog->save();
         $blog->tags()->sync($request->tag_ids);
 
-        $blogLocalization = BlogLocalization::firstOrNew(['lang_key' => env('DEFAULT_LANGUAGE'), 'blog_id' => $blog->id]);
+        $blogLocalization = BlogLocalization::firstOrNew(['lang_key' => config('custom.default_language'), 'blog_id' => $blog->id]);
         $blogLocalization->title = $blog->title;
         $blogLocalization->short_description = $blog->short_description;
         $blogLocalization->description = $blog->description;
@@ -111,7 +111,7 @@ class BlogsController extends Controller
         $blog = Blog::findOrFail($request->id);
         $exitSlugId = Blog::where('slug', $request->slug)->where('id', '!=', $request->id)->value('id');
 
-        if ($request->lang_key == env("DEFAULT_LANGUAGE")) {
+        if ($request->lang_key == config('custom.default_language')) {
 
             $blog->title = $request->title;
             $blog->slug = $request->slug != null ? $request->slug.$exitSlugId : convertToSlug($request->title) .$exitSlugId;

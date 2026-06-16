@@ -51,7 +51,7 @@ class FaqsController extends Controller
     public function edit(Request $request, $id)
     {
         $faq = Faq::findOrFail($id);
-        $lang_key = $request->lang_key ?? env('DEFAULT_LANGUAGE');
+        $lang_key = $request->lang_key ?? config('custom.default_language');
         return view('backend.pages.faqs.edit', compact('faq', 'lang_key'));
     }
 

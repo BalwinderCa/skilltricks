@@ -28,7 +28,7 @@ class StripePaymentController extends Controller
     public function checkoutSession()
     {
         $amount = session('amount');
-        Stripe::setApiKey(env('STRIPE_SECRET'));
+        Stripe::setApiKey(config('custom.stripe_secret'));
 
         $supportedCurrency = [
             "EUR",   # Euro

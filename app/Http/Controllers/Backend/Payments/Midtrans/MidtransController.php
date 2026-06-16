@@ -22,7 +22,7 @@ class MidtransController extends Controller
 
         try {
             // Set your Merchant Server Key
-            \Midtrans\Config::$serverKey = env('MIDTRANS_SERVER_KEY');
+            \Midtrans\Config::$serverKey = config('custom.midtrans_server_key');
             // Set to Development/Sandbox Environment (default). Set to true for Production Environment (accept real transaction).
             \Midtrans\Config::$isProduction =  paymentGateway('midtrans')->sandbox == 1 ? false : true;
             // Set sanitization on (default)
@@ -58,7 +58,7 @@ class MidtransController extends Controller
         try {
             $notification_body = json_decode($request->getContent());
             Log::info('callback notification :' . $notification_body);
-            \Midtrans\Config::$serverKey = env('MIDTRANS_SERVER_KEY');
+            \Midtrans\Config::$serverKey = config('custom.midtrans_server_key');
             $notif = new \Midtrans\Notification();
             Log::info('callback notify notification :' . $notif);
             Log::info('callback notify request :' . $request->all());
@@ -88,7 +88,7 @@ class MidtransController extends Controller
                 return (new PaymentsController)->payment_failed();
             }
             // config midtranse
-            \Midtrans\Config::$serverKey = env('MIDTRANS_SERVER_KEY');
+            \Midtrans\Config::$serverKey = config('custom.midtrans_server_key');
 
             $transaction = \Midtrans\Transaction::status($order_id);
 
@@ -131,7 +131,7 @@ class MidtransController extends Controller
 
          
             \Midtrans\Config::$isProduction =  paymentGateway('midtrans')->sandbox == 1 ? false : true;
-            \Midtrans\Config::$serverKey = env('MIDTRANS_SERVER_KEY');
+            \Midtrans\Config::$serverKey = config('custom.midtrans_server_key');
             $notification = new \Midtrans\Notification();
             $transaction = $notification->transaction_status;
             $type = $notification->payment_type;

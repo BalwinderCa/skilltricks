@@ -37,7 +37,7 @@ class BlogRequestForm extends FormRequest
             'meta_description' => ['sometimes', 'nullable'],
             'tag_ids' => ['sometimes', 'nullable', 'array'],
         ];
-        if(env('DEFAULT_LANGUAGE') == $this->lang_key) {
+        if(config('custom.default_language') == $this->lang_key) {
             $rules['category_id'] =  ['required'];
         }else{
             $rules['category_id'] =  ['sometimes', 'nullable'];

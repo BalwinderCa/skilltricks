@@ -48,7 +48,7 @@ trait SystemUpdate
             $license = License::first();
             $opts = [
                 'purchase_code'        => $license ? $license->purchase_code: '',
-                'app_name'             => env('APP_NAME'),
+                'app_name'             => config('custom.app_name'),
                 'current_version'      => currentVersion(),
                 'customer_current_url' => URL::to('/'),
                 'client_token'         => $license ? $license->client_token : '',
@@ -74,7 +74,7 @@ trait SystemUpdate
             $license = License::first();
             $opts = [
                 'purchase_code'        => $license ? $license->purchase_code: '',
-                'app_name'             => env('APP_NAME'),
+                'app_name'             => config('custom.app_name'),
                 'current_version'      => currentVersion(),
                 'server_info'          => $_SERVER,
                 'customer_current_url' => URL::to('/'),

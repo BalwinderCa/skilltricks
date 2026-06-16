@@ -17,7 +17,7 @@ class DemoMiddleware
      */
     public function handle(Request $request, Closure $next)
     {
-        if (env('DEMO_MODE') == "On") { 
+        if (config('custom.demo_mode') == "On") { 
             if($request->ajax()){
                 return response()->json([
                     'status'    => 200,

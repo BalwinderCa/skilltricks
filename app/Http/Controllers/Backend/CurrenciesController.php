@@ -98,7 +98,7 @@ class CurrenciesController extends Controller
         $currency->alignment = $request->alignment;
         $currency->save();
 
-        if (env('DEFAULT_CURRENCY') == $currency->code) {
+        if (config('custom.default_currency') == $currency->code) {
             writeToEnvFile('DEFAULT_CURRENCY', $currency->code);
             writeToEnvFile('DEFAULT_CURRENCY_RATE', $currency->rate);
             writeToEnvFile('DEFAULT_CURRENCY_SYMBOL', $currency->symbol);

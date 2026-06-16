@@ -18,7 +18,7 @@ class FooterController extends Controller
     public function index(Request $request)
     {
         $pages = Page::latest()->get();
-        $lang_key = $request->lang_key ?? env('DEFAULT_LANGUAGE');
+        $lang_key = $request->lang_key ?? config('custom.default_language');
         return view('backend.pages.appearance.footer', compact('pages', 'lang_key'));
     }
 }

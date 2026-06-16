@@ -175,7 +175,7 @@ class CustomTemplateCategoriesController extends Controller
             abort(404);
         }
 
-        if ($request->lang_key == env("DEFAULT_LANGUAGE")) {
+        if ($request->lang_key == config('custom.default_language')) {
             $category->name         = $request->name;
             $category->slug         = preg_replace('/\s+/', '-', trim($request->name));
             $category->icon         = $request->icon;

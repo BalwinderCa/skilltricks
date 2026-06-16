@@ -108,7 +108,7 @@ class AiChatController extends Controller
         $response = null;
 
         foreach ($models as $model) {
-            $response = Http::withHeaders(['x-goog-api-key' => env('GEMINI_API_KEY')])
+            $response = Http::withHeaders(['x-goog-api-key' => config('custom.gemini_api_key')])
                 ->timeout(90)
                 ->connectTimeout(10)
                 ->retry(2, 1000)
@@ -147,9 +147,9 @@ class AiChatController extends Controller
     # so callers stay unchanged. Auth is OAuth (project-based), not an API key.
     private function vertexGenerate($systemMessage, $userText, $maxOutputTokens = 3000, $temperature = 0.7, $jsonMode = false)
     {
-        $project  = env('GOOGLE_CLOUD_PROJECT');
-        $location = env('VERTEX_LOCATION', 'global');
-        $models   = array_filter(array_map('trim', explode(',', env('VERTEX_MODELS', 'gemini-2.5-flash,gemini-3.1-pro-preview'))));
+        $project  = config('custom.google_cloud_project');
+        $location = config('custom.vertex_location');
+        $models   = array_filter(array_map('trim', explode(',', config('custom.vertex_models'))));
 
         $host = $location === 'global'
             ? 'aiplatform.googleapis.com'
@@ -253,7 +253,7 @@ class AiChatController extends Controller
     #   AI_PROVIDER="openai"  -> OPENAI_MODEL (default gpt-4-turbo)
     private function aiGenerate($systemMessage, $userText, $maxOutputTokens = 3000, $temperature = 0.7, $jsonMode = false)
     {
-        $provider = strtolower(env('AI_PROVIDER', 'gemini'));
+        $provider = strtolower(config('custom.ai_provider'));
 
         if ($provider === 'openai' || $provider === 'chatgpt') {
             return $this->openAiGenerate($systemMessage, $userText, $maxOutputTokens, $temperature, $jsonMode);
@@ -269,7 +269,7 @@ class AiChatController extends Controller
     # Human-readable provider label for logs/error responses; mirrors aiGenerate() routing.
     private function aiProviderLabel()
     {
-        $provider = strtolower(env('AI_PROVIDER', 'gemini'));
+        $provider = strtolower(config('custom.ai_provider'));
 
         if ($provider === 'openai' || $provider === 'chatgpt') {
             return 'OpenAI';
@@ -286,11 +286,11 @@ class AiChatController extends Controller
     # (candidates.0.content.parts.0.text) so all callers stay unchanged.
     private function openAiGenerate($systemMessage, $userText, $maxOutputTokens = 3000, $temperature = 0.7, $jsonMode = false)
     {
-        $model = env('OPENAI_MODEL', 'gpt-4-turbo');
+        $model = config('custom.openai_model');
 
         // gpt-4-turbo caps completion at 4096 tokens; clamp so larger Gemini
         // budgets (e.g. 8000) don't 400 when running on OpenAI.
-        $maxOutputTokens = min((int) $maxOutputTokens, (int) env('OPENAI_MAX_TOKENS', 4096));
+        $maxOutputTokens = min((int) $maxOutputTokens, (int) config('custom.openai_max_tokens'));
 
         $payload = [
             'model'       => $model,
@@ -307,7 +307,7 @@ class AiChatController extends Controller
             $payload['response_format'] = ['type' => 'json_object'];
         }
 
-        $response = Http::withToken(env('OPENAI_API_KEY'))
+        $response = Http::withToken(config('custom.openai_api_key'))
             ->timeout(90)
             ->connectTimeout(10)
             ->retry(2, 1000)
@@ -914,7 +914,7 @@ class AiChatController extends Controller
 
             $array['view'] = 'emails.chat';
 
-            $array['from'] = env('MAIL_FROM_ADDRESS');
+            $array['from'] = config('custom.mail_from_address');
 
             $array['subject'] = $conversation->title;
 

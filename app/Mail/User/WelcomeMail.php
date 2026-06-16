@@ -40,7 +40,7 @@ class WelcomeMail extends Mailable
         return $this
                 ->view('emails.verification')
                 ->with(["array" =>$array])
-                ->subject(localize('Email Verification - ') . env('APP_NAME'));
+                ->subject(localize('Email Verification - ') . config('custom.app_name'));
 
     }
 }

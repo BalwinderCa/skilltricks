@@ -45,7 +45,7 @@ class UtilityController extends Controller
             abort(403);
         }
 
-        if(env('APP_DEBUG')) {
+        if(config('custom.app_debug')) {
             $message = 'Debug Mode Disable Successfully';
             self::writeToEnvFile([
                 'DEBUGBAR_ENABLED' => 'false',

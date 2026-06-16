@@ -25,9 +25,9 @@ class CustomTemplateCategoryRequestForm extends FormRequest
     public function rules()
     {
         $rules =  [];
-        if ($this->lang_key == env("DEFAULT_LANGUAGE")) {
+        if ($this->lang_key == config('custom.default_language')) {
             $rules['name'] =  ['required', Rule::unique('custom_template_categories', 'name')->where('user_id', auth()->user()->id)->ignore($this->id)];
-        } elseif ($this->lang_key != env("DEFAULT_LANGUAGE") && $this->id) {
+        } elseif ($this->lang_key != config('custom.default_language') && $this->id) {
             $rules['name'] =  ['required'];
         } else {
             $rules['name'] =  ['required', Rule::unique('custom_template_categories', 'name')->where('user_id', auth()->user()->id)->ignore($this->id)];

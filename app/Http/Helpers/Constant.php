@@ -128,7 +128,7 @@ if (!function_exists('paginationNumber')) {
     # return number of data per page
     function paginationNumber($value = null)
     {
-        return $value != null ? $value : env('DEFAULT_PAGINATION');
+        return $value != null ? $value : config('custom.default_pagination');
     }
 }
 
@@ -158,9 +158,9 @@ if (!function_exists('staticAsset')) {
     function staticAsset($path, $secure = null)
     {
         if (strpos(url('/'), '.test') !== false || strpos(url('/'), 'http://127.0.0.1:') !== false) {
-            return app('url')->asset('' . $path, $secure) . '?v=' . env('APP_VERSION');
+            return app('url')->asset('' . $path, $secure) . '?v=' . config('custom.app_version');
         }
-        return app('url')->asset('public/' . $path, $secure) . '?v=' . env('APP_VERSION');
+        return app('url')->asset('public/' . $path, $secure) . '?v=' . config('custom.app_version');
     }
 }
 if (!function_exists('userAvatar')) {
@@ -343,7 +343,7 @@ if (!function_exists('fileDelete')) {
 if (!function_exists('isDemoMode')) {
     function isDemoMode()
     {
-        return env('DEMO_MODE') == appStatic()::MODE_DEMO;
+        return config('custom.demo_mode') == appStatic()::MODE_DEMO;
     }
 }
 
@@ -508,7 +508,7 @@ if (!function_exists('formatPrice')) {
         // convert amount equal to local currency
         if (Session::has('currency_code') && Session::has('local_currency_rate')) {
 
-            $price = floatval($price) / (floatval(env('DEFAULT_CURRENCY_RATE')) || 1);
+            $price = floatval($price) / (floatval(config('custom.default_currency_rate')) || 1);
             $price = floatval($price) * floatval(Session::get('local_currency_rate'));
 
             if (session()->get('currency_code') != $currency_code && $currency) {
@@ -541,11 +541,11 @@ if (!function_exists('formatPrice')) {
 
         if ($addSymbol) {
             // currency symbol
-            $symbol             = Session::has('currency_symbol')           ? Session::get('currency_symbol')           : env('DEFAULT_CURRENCY_SYMBOL');
+            $symbol             = Session::has('currency_symbol')           ? Session::get('currency_symbol')           : config('custom.default_currency_symbol');
             if ($currency_code && session()->get('currency_code') == $currency_code && $currency) {
                 $symbol = $currency->symbol;
             }
-            $symbolAlignment    = Session::has('currency_symbol_alignment') ? Session::get('currency_symbol_alignment') : env('DEFAULT_CURRENCY_SYMBOL_ALIGNMENT');
+            $symbolAlignment    = Session::has('currency_symbol_alignment') ? Session::get('currency_symbol_alignment') : config('custom.default_currency_symbol_alignment');
 
             if ($symbolAlignment == 0) {
                 return $symbol . $price;
@@ -737,7 +737,7 @@ if (!function_exists('getUsedS2TPercentage')) {
 if (!function_exists('checkLanguage')) {
     function checkLanguage($lang_key)
     {
-        return  env('DEFAULT_LANGUAGE') == $lang_key ? true : false;
+        return  config('custom.default_language') == $lang_key ? true : false;
     }
 }
 
@@ -1211,7 +1211,7 @@ if (!function_exists('recaptchaValidation')) {
 if (!function_exists('currentVersion')) {
     function currentVersion($isNumber = false)
     {
-        $version = env('APP_VERSION') ? str_replace('v', '', env('APP_VERSION')) : null;
+        $version = config('custom.app_version') ? str_replace('v', '', config('custom.app_version')) : null;
         # need to check bcz of setup route
         if (Schema::hasTable('system_settings')) {
             $settings = SystemSetting::where('entity', 'software_version')->first();
@@ -1220,7 +1220,7 @@ if (!function_exists('currentVersion')) {
             }
         }
         if (empty($version)) {
-            $version = env('APP_VERSION') ? str_replace('v', '', env('APP_VERSION')) : null;
+            $version = config('custom.app_version') ? str_replace('v', '', config('custom.app_version')) : null;
         }
 
         return $isNumber ? intval(str_replace(".", "", $version)) : $version;
@@ -1833,9 +1833,9 @@ if (!function_exists("isCapable")) {
 if (!function_exists('sendMail')) {
     function sendMail($receiverEmail, $receiverName, $type, $data = [])
     {
-        $senderEmail  = env('MAIL_FROM_ADDRESS');
-        $senderName   = env('MAIL_FROM_NAME');
-        $email_driver = env('MAIL_MAILER');
+        $senderEmail  = config('custom.mail_from_address');
+        $senderName   = config('custom.mail_from_name');
+        $email_driver = config('custom.mail_mailer');
         $template     = EmailTemplate::where('type', $type)->where('is_active', 1)->first();
         if (!$template) return false;
         $subject = $template->subject;

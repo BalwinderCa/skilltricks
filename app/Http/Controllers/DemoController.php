@@ -96,7 +96,7 @@ class DemoController extends Controller
 
     public function cron_2()
     {
-        if (env('DEMO_MODE') != 'On') {
+        if (config('custom.demo_mode') != 'On') {
             return back();
         }
         $this->remove_folder();

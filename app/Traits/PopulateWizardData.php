@@ -368,7 +368,7 @@ trait PopulateWizardData
     public function generateImages(Request $request)
     {
         try {
-            if (env('DEMO_MODE') == "On") {
+            if (config('custom.demo_mode') == "On") {
                 $data = [
                     'status'  => false,
                     'success' => false,

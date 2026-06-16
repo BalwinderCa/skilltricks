@@ -34,11 +34,11 @@ class CurrencyMiddleware
                     $request->session()->put('currency_symbol_alignment', 0);
                 }
             }
-        } elseif (env('DEFAULT_CURRENCY') != null) {
-            $request->session()->put('currency_code',  env('DEFAULT_CURRENCY'));
-            $request->session()->put('local_currency_rate',  env('DEFAULT_CURRENCY_RATE'));
-            $request->session()->put('currency_symbol',  env('DEFAULT_CURRENCY_SYMBOL'));
-            $request->session()->put('currency_symbol_alignment', env('DEFAULT_CURRENCY_SYMBOL_ALIGNMENT'));
+        } elseif (config('custom.default_currency') != null) {
+            $request->session()->put('currency_code',  config('custom.default_currency'));
+            $request->session()->put('local_currency_rate',  config('custom.default_currency_rate'));
+            $request->session()->put('currency_symbol',  config('custom.default_currency_symbol'));
+            $request->session()->put('currency_symbol_alignment', config('custom.default_currency_symbol_alignment'));
         } else {
             $request->session()->put('currency_code',  "usd");
             $request->session()->put('local_currency_rate', 1);

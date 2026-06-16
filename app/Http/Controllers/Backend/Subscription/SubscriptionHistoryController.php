@@ -30,13 +30,13 @@ class SubscriptionHistoryController extends Controller
         if (session()->has('locale')) {
             $language_code = session()->get('locale', Config::get('app.locale'));
         } else {
-            $language_code = env('DEFAULT_LANGUAGE');
+            $language_code = config('custom.default_language');
         }
 
         if (session()->has('currency_code')) {
             $currency_code = session()->get('currency_code', Config::get('app.currency_code'));
         } else {
-            $currency_code = env('DEFAULT_CURRENCY');
+            $currency_code = config('custom.default_currency');
         }
 
         if (Language::where('code', $language_code)->first()->is_rtl == 1) {
@@ -49,9 +49,9 @@ class SubscriptionHistoryController extends Controller
             $reverse_text_align = 'right';
         }
 
-        $currency_code = env('INVOICE_LANG');
+        $currency_code = config('custom.invoice_lang');
 
-        $font_family = env('INVOICE_FONT');
+        $font_family = config('custom.invoice_font');
 
         if ($currency_code == 'BDT' || $currency_code == 'bdt' || $language_code == 'bd' || $language_code == 'bn') {
             # bengali font

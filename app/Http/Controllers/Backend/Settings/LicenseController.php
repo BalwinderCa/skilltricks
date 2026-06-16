@@ -19,8 +19,8 @@ class LicenseController extends Controller
         try {
             $opts = [
                 'purchase_code'        => $request->purchase_code,
-                'app_name'             => env('APP_NAME'),
-                'current_version'      => env('APP_VERSION'),
+                'app_name'             => config('custom.app_name'),
+                'current_version'      => config('custom.app_version'),
                 'server_info'          => $_SERVER,
                 'customer_current_url' => URL::to('/'),
                 'product_type'         => 1,
@@ -61,8 +61,8 @@ class LicenseController extends Controller
         $license = License::first();
         $opts = [
             'purchase_code'        => $license->purchase_code,
-            'app_name'             => env('APP_NAME'),
-            'current_version'      => env('APP_VERSION'),
+            'app_name'             => config('custom.app_name'),
+            'current_version'      => config('custom.app_version'),
             'server_info'          => $_SERVER,
             'customer_current_url' => URL::to('/'),
             'client_token'         => $license->client_token,

@@ -40,7 +40,7 @@ class SettingsController extends Controller
     # admin general settings
     public function index(Request $request)
     {
-        $data['lang_key'] =  $request->lang_key ?? env('DEFAULT_LANGUAGE');
+        $data['lang_key'] =  $request->lang_key ?? config('custom.default_language');
         return view('backend.pages.systemSettings.general', $data);
     }
 
@@ -85,7 +85,7 @@ class SettingsController extends Controller
     {
         $array['view'] = 'emails.bulkEmail';
         $array['subject'] = "SMTP Test";
-        $array['from'] = env('MAIL_FROM_ADDRESS');
+        $array['from'] = config('custom.mail_from_address');
         $array['content'] = "This is a test email.";
         try {
             Mail::to($request->email)->queue(new EmailManager($array));
@@ -313,7 +313,7 @@ class SettingsController extends Controller
             $request_ai_models = ["default_open_ai_model", "ai_blog_wizard_model", "ai_chat_model"];
             foreach ($request->types as $key => $type) {
                 # check model supported
-                if (in_array($type, $request_ai_models) && openAiKey() && env('OPENAI_SECRET_KEY') != "") {
+                if (in_array($type, $request_ai_models) && openAiKey() && config('custom.openai_secret_key') != "") {
                     if (!in_array($request[$type], $this->openAiModels($request["OPENAI_SECRET_KEY"])) && !empty($this->openAiModels($request["OPENAI_SECRET_KEY"]))) {
                         flash(localize("Your Selected Model Not Supported in Your Open Ai Key"))->warning();
                     }
@@ -362,7 +362,7 @@ class SettingsController extends Controller
     # auth  settings
     public function authSettings(Request $request)
     {
-        $lang_key = $request->lang_key ?? env('DEFAULT_LANGUAGE');
+        $lang_key = $request->lang_key ?? config('custom.default_language');
         return view('backend.pages.systemSettings.authSettings', compact('lang_key'));
     }
 

@@ -46,7 +46,7 @@ class RazorpayController extends Controller
             'currency' => $currencyCode,
             'name' => $user->name,
             'email' => $user->email,
-            'app_name' => env('APP_NAME'),
+            'app_name' => config('custom.app_name'),
             'app_logo' => uploadedAsset(getSetting('navbar_logo')),
             'payment_title' => $title
         ];
@@ -60,7 +60,7 @@ class RazorpayController extends Controller
         //Input items of form
         $input = $request->all();
         //get API Configuration
-        $api = new Api(env('RAZORPAY_KEY'), env('RAZORPAY_SECRET'));
+        $api = new Api(config('custom.razorpay_key'), config('custom.razorpay_secret'));
 
         //Fetch payment information by razorpay_payment_id
         $payment = $api->payment->fetch($input['razorpay_payment_id']);

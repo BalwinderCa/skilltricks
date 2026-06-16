@@ -76,7 +76,7 @@ class HomepageController extends Controller
     private function languageData($request): array
     {
         $data = [];
-        $data['lang_key'] =  $request->lang_key ?? env('DEFAULT_LANGUAGE');
+        $data['lang_key'] =  $request->lang_key ?? config('custom.default_language');
         return $data;
     }
 

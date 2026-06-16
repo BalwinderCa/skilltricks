@@ -36,7 +36,7 @@ class FeatureCategoryController extends Controller
     {
         $editFeatureCategory = FeatureCategory::findOrFail($id);
         $featureCategories = FeatureCategory::all();
-        $lang_key =  $request->lang_key ?? env('DEFAULT_LANGUAGE');
+        $lang_key =  $request->lang_key ?? config('custom.default_language');
         return view('backend.pages.appearance.homepage.feature-category-edit', compact('editFeatureCategory', 'featureCategories', 'lang_key'));
     }
     public function update(FeatureCategoryRequestForm $request)
@@ -70,7 +70,7 @@ class FeatureCategoryController extends Controller
     }
     private function localizeDataStore($model_id, $name)
     {
-        $blogLocalization = FeatureCategoryLocalization::firstOrNew(['lang_key' => env('DEFAULT_LANGUAGE'), 'feature_category_id' => $model_id]);
+        $blogLocalization = FeatureCategoryLocalization::firstOrNew(['lang_key' => config('custom.default_language'), 'feature_category_id' => $model_id]);
         $blogLocalization->name = $name;
         $blogLocalization->save();
     }
@@ -91,7 +91,7 @@ class FeatureCategoryController extends Controller
     private function languageData($request): array
     {
         $data = [];
-        $data['lang_key'] =  $request->lang_key ?? env('DEFAULT_LANGUAGE');
+        $data['lang_key'] =  $request->lang_key ?? config('custom.default_language');
         return $data;
     }
 }

@@ -49,8 +49,8 @@ class SetupController extends Controller
         try {
             $opts = [
                 'purchase_code'        => $request->purchase_code,
-                'app_name'             => env('APP_NAME'),
-                'current_version'      => env('APP_VERSION'),
+                'app_name'             => config('custom.app_name'),
+                'current_version'      => config('custom.app_version'),
                 'customer_current_url' => URL::to('/'),
                 'product_type'         => 1,
                 'server_info'          => $_SERVER,
@@ -182,7 +182,7 @@ class SetupController extends Controller
                 }
             }
             
-            if ($this->checkDatabaseConnection(env('DB_HOST'), env('DB_DATABASE'), env('DB_USERNAME'), env('DB_PASSWORD'))) {
+            if ($this->checkDatabaseConnection(config('custom.db_host'), config('custom.db_database'), config('custom.db_username'), config('custom.db_password'))) {
                 return view('setup.dbMigration');
             } else {
                 // db connection error
@@ -251,7 +251,7 @@ class SetupController extends Controller
     public function storeAdminForm()
     {
 
-        if ($this->checkDatabaseConnection(env('DB_HOST'), env('DB_DATABASE'), env('DB_USERNAME'), env('DB_PASSWORD'))) {
+        if ($this->checkDatabaseConnection(config('custom.db_host'), config('custom.db_database'), config('custom.db_username'), config('custom.db_password'))) {
             return view('setup.adminConfig');
         } else {
             // db connection error

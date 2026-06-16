@@ -306,7 +306,7 @@ trait GenerateVoice
         $storage = new StorageClient([
             'keyFilePath' => base_path() . '/gcp.json',
         ]);
-        $bucketName = env('GOOGLE_CLOUD_BUCKET');
+        $bucketName = config('custom.google_cloud_bucket');
         $bucket = $storage->bucket($bucketName);
 
         $object = $bucket->upload(

@@ -20,8 +20,8 @@ class LanguageMiddleware
     {
         if (Session::has('locale')) {
             $locale = Session::get('locale');
-        } elseif (env('DEFAULT_LANGUAGE') != null) {
-            $locale = env('DEFAULT_LANGUAGE');
+        } elseif (config('custom.default_language') != null) {
+            $locale = config('custom.default_language');
         } else {
             $locale = 'en';
         }

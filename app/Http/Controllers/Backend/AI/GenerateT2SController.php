@@ -64,7 +64,7 @@ class GenerateT2SController extends Controller
         $data['empty'] = '';
         $data += $this->loadData();
 
-        if (env('DEMO_MODE') == 'On') {
+        if (config('custom.demo_mode') == 'On') {
             $response = [
                 'status'    => false,
                 'message'   => localize('In demo mode, this feature is disabled'),
@@ -213,7 +213,7 @@ class GenerateT2SController extends Controller
     }
     public function openAiTextToSpeech($type, $request)
     {
-        if(env('DEMO_MODE') == 'On'){
+        if(config('custom.demo_mode') == 'On'){
             flash(localize('Operation  Turn off for demo'))->success();
             return redirect()->back();
        }

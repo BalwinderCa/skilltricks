@@ -27,7 +27,7 @@ class FileStorageManagerController extends Controller
     }
     public function update(FileStorageRequestForm $request)
     {
-        if (env('DEMO_MODE') == "On") {
+        if (config('custom.demo_mode') == "On") {
             flash(localize("This is turned off in demo"))->warning();
             return back();
         }
@@ -75,7 +75,7 @@ class FileStorageManagerController extends Controller
 
     public function activeStorage(Request $request)
     {
-        if (env('DEMO_MODE') == "On") {
+        if (config('custom.demo_mode') == "On") {
             return [
                 'status' => 'success',
                 'message' => localize('This is turned off in demo')

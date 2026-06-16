@@ -17,7 +17,7 @@ class MolilePaymentController extends Controller
 
         try {
             $mollie = new \Mollie\Api\MollieApiClient();
-            $mollie->setApiKey(env('MOLILE_API_KEY'));
+            $mollie->setApiKey(config('custom.molile_api_key'));
             $payment = $mollie->payments->create([
                 "amount" => [
                     "currency" => strtoupper($currencyCode),
@@ -37,7 +37,7 @@ class MolilePaymentController extends Controller
     public function redirect()
     {
         $mollie = new \Mollie\Api\MollieApiClient();
-        $mollie->setApiKey(env('MOLILE_API_KEY'));
+        $mollie->setApiKey(config('custom.molile_api_key'));
         $pay_id = Session::get('pay_id');
         $payment = $mollie->payments->get($pay_id);
 

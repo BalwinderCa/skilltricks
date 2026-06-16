@@ -27,7 +27,7 @@ class YookassaPaymentController extends Controller
             $currency = $this->_getCurrency();
 
             $idempotenceKey = uniqid('', true);
-            if(env('YOOKASSA_RECIEPT') == 'on') {
+            if(config('custom.yookassa_reciept') == 'on') {
                 $formatData =  [
                     'amount' => [
                         'value' => $amount,
@@ -60,7 +60,7 @@ class YookassaPaymentController extends Controller
                                     'value' => $amount,
                                     'currency' => $currency
                                 ),
-                                'vat_code' => env('YOOKASSA_VAT') ?? '2',
+                                'vat_code' => config('custom.yookassa_vat') ?? '2',
                                 'payment_mode' => 'full_payment',
                                 
                             ),
@@ -155,8 +155,8 @@ class YookassaPaymentController extends Controller
 
     private function _getAuthClient()
     {
-        $shopId = env('YOOKASSA_SHOP_ID');
-        $secretKey = env('YOOKASSA_SECRET_KEY');
+        $shopId = config('custom.yookassa_shop_id');
+        $secretKey = config('custom.yookassa_secret_key');
 
         $client = new \YooKassa\Client();
         $client->setAuth($shopId, $secretKey);
@@ -166,7 +166,7 @@ class YookassaPaymentController extends Controller
 
     private function _getCurrency()
     {
-        switch (env('YOOKASSA_CURRENCY_CODE')) {
+        switch (config('custom.yookassa_currency_code')) {
             case 'rub':
                 return \YooKassa\Model\CurrencyCode::RUB;
             case 'usd':
