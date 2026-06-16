@@ -5,6 +5,12 @@
 
     RewriteEngine On
 
+    # Serve existing static files straight from public/ when the document root
+    # is the project root (assets live under public/, referenced without a
+    # /public prefix). The web server serves real files directly, no PHP.
+    RewriteCond %{DOCUMENT_ROOT}/public%{REQUEST_URI} -f
+    RewriteRule ^(.*)$ public/$1 [L]
+
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
