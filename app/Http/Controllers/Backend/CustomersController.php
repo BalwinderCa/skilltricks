@@ -37,7 +37,7 @@ class CustomersController extends Controller
         $user_ids  = $package_id 
             ? SubscriptionHistory::where('subscription_status', 1)->where('subscription_package_id', $package_id)->pluck('user_id')->toArray() : [];
         
-        $customers = User::with('currentPackage')->where('user_type', 'customer')
+        $customers = User::with('currentPackage.subscriptionPackage')->where('user_type', 'customer')
         ->when($package_id, function($q) use($user_ids){
             $q->whereIn('id', $user_ids);
         })->latest();

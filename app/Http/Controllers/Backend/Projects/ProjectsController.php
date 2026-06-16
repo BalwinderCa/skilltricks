@@ -46,7 +46,7 @@ class ProjectsController extends Controller
             abort(403);
         }
         $languages = Language::isActiveForTemplate()->latest()->get(); 
-        $project = Project::where('slug', $slug)->first();
+        $project = Project::where('slug', $slug)->where('user_id', auth()->id())->first();
         return view('backend.pages.projects.edit', compact('project', 'languages'));
     }
 
@@ -54,7 +54,13 @@ class ProjectsController extends Controller
     # update project
     public function update(Request $request)
     {
-        $project = Project::findOrFail((int)$request->project_id);
+        $request->validate([
+            'project_id' => 'required|integer',
+            'title'      => 'nullable|string',
+            'contents'   => 'nullable|string',
+        ]);
+
+        $project = Project::where('user_id', auth()->id())->findOrFail((int)$request->project_id);
         $project->title = $request->title;
         $project->content = $request->contents;
         $project->save();
@@ -67,7 +73,7 @@ class ProjectsController extends Controller
     # delete project
     public function delete($id)
     {
-        $project = Project::findOrFail($id);
+        $project = Project::where('user_id', auth()->id())->findOrFail($id);
         if (empty($project)) {
             abort(404);
         }
@@ -79,7 +85,7 @@ class ProjectsController extends Controller
     # move to folder modal open
     public function moveToFolderModalOpen(Request $request)
     {
-        $project = Project::findOrFail((int)$request->project_id);
+        $project = Project::where('user_id', auth()->id())->findOrFail((int)$request->project_id);
         $folders = Folder::latest();
 
         if (isCustomer()) {
@@ -98,7 +104,7 @@ class ProjectsController extends Controller
     public function publishedToHomepage(Request $request, $id)
     {
      
-        $project = Project::where('id', $id)->first();
+        $project = Project::where('id', $id)->where('user_id', auth()->id())->first();
         if($project){
             $project->is_published = $request->status;
             $project->save();
@@ -109,7 +115,7 @@ class ProjectsController extends Controller
     # move to folder
     public function moveToFolder(Request $request)
     {
-        $project = Project::findOrFail((int)$request->project_id);
+        $project = Project::where('user_id', auth()->id())->findOrFail((int)$request->project_id);
         $project->folder_id = $request->folder_id;
         $project->save();
 

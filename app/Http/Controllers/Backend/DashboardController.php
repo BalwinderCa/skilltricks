@@ -213,6 +213,9 @@ class DashboardController extends Controller
 
         $projectQueries = $projects->oldest();
 
+        // Fetch once instead of re-querying the whole table on every loop iteration below.
+        $projectCollection = $projectQueries->get();
+
         $totalWordsTimelineInString = '';
 
         $totalWordsAmountInString   = '';
@@ -225,7 +228,7 @@ class DashboardController extends Controller
 
 
 
-            foreach ($projectQueries->get() as $project) {
+            foreach ($projectCollection as $project) {
 
                 if (date('Y-m-d', strtotime($i . ' days ago')) == date('Y-m-d', strtotime($project->created_at))) {
 
