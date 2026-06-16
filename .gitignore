@@ -41,6 +41,9 @@ change-list.text
 
 # Deployment artifacts
 id_rsa_skilltricks*
+id_skilltricks_new*
+*.pem
+id_ed25519*
 PUBLIC_KEY.txt
 SSH_SETUP_INSTRUCTIONS.md
 upload_log.txt
