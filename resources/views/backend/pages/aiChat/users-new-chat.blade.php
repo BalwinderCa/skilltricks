@@ -1094,12 +1094,27 @@
             if (!data || typeof data !== 'object') return data;
             const sid = selStrategy || data.selectedStrategyId
                 || ((data.strategyMap || [])[0] || {}).id;
-            const v = (data.strategyVariants && data.strategyVariants[sid]) || {};
+            // Fall back to the default/first strategy's variant when the
+            // selected strategy has no own variant. Without this every
+            // downstream section (scenarios, roles, outcome) vanishes for
+            // strategies the model didn't generate (e.g. only s1 populated),
+            // collapsing the wizard and showing "Finish" on the strategy step.
+            const defSid = data.selectedStrategyId || ((data.strategyMap || [])[0] || {}).id;
+            const v = (data.strategyVariants && (data.strategyVariants[sid]
+                || data.strategyVariants[defSid])) || {};
             const scid = selScenario || v.selectedScenarioId
                 || ((v.scenarios || [])[0] || {}).id;
             const sv = (v.scenarioVariants && v.scenarioVariants[scid]) || {};
-            // Prefer scenario-level content, but fall back to strategy-variant
-            // or top-level if the model placed these fields higher up.
+            // Fall back to the default/first scenario's variant when the
+            // selected scenario has no own downstream content. Without this the
+            // roles/complementary/finalOutcome steps vanish for scenarios the
+            // model didn't fully generate (e.g. only sc1 populated), which
+            // collapses the wizard and shows "Finish" on the scenario step.
+            const defScid = v.selectedScenarioId || ((v.scenarios || [])[0] || {}).id;
+            const dsv = (v.scenarioVariants && v.scenarioVariants[defScid]) || {};
+            // Prefer scenario-level content, but fall back to the default
+            // scenario, then strategy-variant or top-level if the model placed
+            // these fields higher up.
             return {
                 acknowledgement: data.acknowledgement,
                 documentInsights: data.documentInsights,
@@ -1109,9 +1124,9 @@
                 selectedStrategyId: sid,
                 scenarios: v.scenarios || [],
                 selectedScenarioId: scid,
-                rolesGoals: sv.rolesGoals || v.rolesGoals || data.rolesGoals || [],
-                complementaryGoals: sv.complementaryGoals || v.complementaryGoals || data.complementaryGoals || [],
-                finalOutcome: sv.finalOutcome || v.finalOutcome || data.finalOutcome
+                rolesGoals: sv.rolesGoals || dsv.rolesGoals || v.rolesGoals || data.rolesGoals || [],
+                complementaryGoals: sv.complementaryGoals || dsv.complementaryGoals || v.complementaryGoals || data.complementaryGoals || [],
+                finalOutcome: sv.finalOutcome || dsv.finalOutcome || v.finalOutcome || data.finalOutcome
             };
         };
 
