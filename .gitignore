@@ -21,6 +21,8 @@ public_html/storage
 public_html/hot
 
 storage/*.key
+storage/app/vertex-sa.json
+storage/app/*-sa.json
 .env
 Homestead.yaml
 Homestead.json

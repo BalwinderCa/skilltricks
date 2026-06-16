@@ -47,6 +47,8 @@ use Carbon\Carbon;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
+use Google\Auth\ApplicationDefaultCredentials;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 
@@ -122,8 +124,89 @@ class AiChatController extends Controller
         return $response; // last failed response
     }
 
+    # OAuth access token for Vertex AI via Application Default Credentials.
+    # Resolves GOOGLE_APPLICATION_CREDENTIALS (service account json) or gcloud ADC.
+    # Cached just under the 1h token lifetime to avoid re-minting on every call.
+    private function vertexAccessToken()
+    {
+        return Cache::remember('vertex_access_token', 3300, function () {
+            $creds = ApplicationDefaultCredentials::getCredentials(
+                'https://www.googleapis.com/auth/cloud-platform'
+            );
+            $token = $creds->fetchAuthToken();
+
+            return $token['access_token'] ?? null;
+        });
+    }
+
+    # Vertex AI generate: primary gemini-3.1-pro-preview, fallback gemini-2.5-flash.
+    # Uses the same Gemini generateContent payload/response shape as geminiGenerate(),
+    # so callers stay unchanged. Auth is OAuth (project-based), not an API key.
+    private function vertexGenerate($systemMessage, $userText, $maxOutputTokens = 3000, $temperature = 0.7, $jsonMode = false)
+    {
+        $project  = env('GOOGLE_CLOUD_PROJECT');
+        $location = env('VERTEX_LOCATION', 'global');
+        $models   = array_filter(array_map('trim', explode(',', env('VERTEX_MODELS', 'gemini-3.1-pro-preview,gemini-2.5-flash'))));
+
+        $host = $location === 'global'
+            ? 'aiplatform.googleapis.com'
+            : "{$location}-aiplatform.googleapis.com";
+
+        $generationConfig = [
+            'temperature'     => $temperature,
+            'maxOutputTokens' => $maxOutputTokens,
+        ];
+
+        if ($jsonMode) {
+            $generationConfig['responseMimeType'] = 'application/json';
+        }
+
+        $payload = [
+            'systemInstruction' => [
+                'parts' => [['text' => $systemMessage]]
+            ],
+            'contents' => [
+                [
+                    'role'  => 'user',
+                    'parts' => [['text' => $userText]]
+                ]
+            ],
+            'generationConfig' => $generationConfig,
+        ];
+
+        $token = $this->vertexAccessToken();
+
+        if (empty($token)) {
+            Log::error('Vertex AI auth failed: no access token (check GOOGLE_APPLICATION_CREDENTIALS / ADC)');
+        }
+
+        $response = null;
+
+        foreach ($models as $model) {
+            $url = "https://{$host}/v1/projects/{$project}/locations/{$location}/publishers/google/models/{$model}:generateContent";
+
+            $response = Http::withToken($token)
+                ->timeout(90)
+                ->connectTimeout(10)
+                ->retry(2, 1000)
+                ->post($url, $payload);
+
+            if ($response->successful()) {
+                return $response;
+            }
+
+            Log::warning('Vertex AI model failed, trying fallback', [
+                'model'  => $model,
+                'status' => $response->status(),
+            ]);
+        }
+
+        return $response; // last failed response
+    }
+
     # AI provider dispatcher. Choose model via .env:
-    #   AI_PROVIDER="gemini"  -> gemini-3.5-flash-lite (geminiGenerate)
+    #   AI_PROVIDER="vertex"  -> Vertex AI Gemini (vertexGenerate, OAuth/project-based)
+    #   AI_PROVIDER="gemini"  -> AI Studio Gemini API key (geminiGenerate)
     #   AI_PROVIDER="openai"  -> OPENAI_MODEL (default gpt-4-turbo)
     private function aiGenerate($systemMessage, $userText, $maxOutputTokens = 3000, $temperature = 0.7, $jsonMode = false)
     {
@@ -131,6 +214,10 @@ class AiChatController extends Controller
 
         if ($provider === 'openai' || $provider === 'chatgpt') {
             return $this->openAiGenerate($systemMessage, $userText, $maxOutputTokens, $temperature, $jsonMode);
+        }
+
+        if ($provider === 'vertex' || $provider === 'vertexai' || $provider === 'vertex-ai') {
+            return $this->vertexGenerate($systemMessage, $userText, $maxOutputTokens, $temperature, $jsonMode);
         }
 
         return $this->geminiGenerate($systemMessage, $userText, $maxOutputTokens, $temperature, $jsonMode);
@@ -141,7 +228,15 @@ class AiChatController extends Controller
     {
         $provider = strtolower(env('AI_PROVIDER', 'gemini'));
 
-        return ($provider === 'openai' || $provider === 'chatgpt') ? 'OpenAI' : 'Gemini';
+        if ($provider === 'openai' || $provider === 'chatgpt') {
+            return 'OpenAI';
+        }
+
+        if ($provider === 'vertex' || $provider === 'vertexai' || $provider === 'vertex-ai') {
+            return 'Vertex AI';
+        }
+
+        return 'Gemini';
     }
 
     # OpenAI generate. Returns a Response normalized to Gemini's JSON shape
