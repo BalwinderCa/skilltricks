@@ -190,7 +190,7 @@
 
             <div class="col-lg-3">
                 <div class="form-input"
-                    @if (env('DEMO_MODE') == 'On') data-bs-toggle="tooltip"
+                    @if (config('custom.demo_mode') == 'On') data-bs-toggle="tooltip"
         data-bs-placement="top"
         data-bs-title="{{ localize('Disabled in demo') }}" @endif>
                     <label for="resolution" class="form-label">{{ localize('Image Resolution') }}
@@ -199,7 +199,7 @@
                                 data-feather="help-circle" class="icon-14"></i></span>
                     </label>
                     <select class="form-select select2" id="resolution" name="resolution" required
-                        @if (env('DEMO_MODE') == 'On') disabled @endif>
+                        @if (config('custom.demo_mode') == 'On') disabled @endif>
                         @if (getSetting('image_stable_diffusion_engine') == 'stable-diffusion-v1-6')
                             <option value='512x512' selected>
                                 {{ localize('Width') }}
@@ -334,7 +334,7 @@
 
             <div class="col-lg-3">
                 <div class="form-input"
-                    @if (env('DEMO_MODE') == 'On') data-bs-toggle="tooltip"
+                    @if (config('custom.demo_mode') == 'On') data-bs-toggle="tooltip"
             data-bs-placement="top"
             data-bs-title="{{ localize('Disabled in demo') }}" @endif>
                     <label for="num_of_results" class="form-label">{{ localize('Number of Results') }}
@@ -343,7 +343,7 @@
                                 data-feather="help-circle" class="icon-14"></i></span>
                     </label>
                     <select class="form-select select2" id="num_of_results" name="num_of_results" required
-                        @if (env('DEMO_MODE') == 'On') disabled @endif>
+                        @if (config('custom.demo_mode') == 'On') disabled @endif>
                         <option value="1" @if (getSetting('default_number_of_results') == '1') selected @endif>
                             1
                         </option>

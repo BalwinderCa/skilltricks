@@ -23,7 +23,7 @@
                         
                         href="{{ $image_path }}"
                         @else 
-                        href="{{ route('projects.edit', ['slug' => $project->slug, 'lang_key' => env('DEFAULT_LANGUAGE')]) }}" @endif
+                        href="{{ route('projects.edit', ['slug' => $project->slug, 'lang_key' => config('custom.default_language')]) }}" @endif
                         class="d-flex align-items-center" @if ($newTab || $project->content_type == 'image') target="_blank" @endif>
                         <div class="avatar avatar-sm">
                             <div class="text-center"><span data-feather="{{ getProjectIcon($project->content_type) }}"
@@ -70,7 +70,7 @@
                             <a class="dropdown-item" @if ($newTab || $project->content_type == 'image') target="_blank" @endif
                                 @if ($project->content_type == 'image') href="{{ staticAsset($project->content) }}"
                         @else 
-                        href="{{ route('projects.edit', ['slug' => $project->slug, 'lang_key' => env('DEFAULT_LANGUAGE')]) }}" @endif>
+                        href="{{ route('projects.edit', ['slug' => $project->slug, 'lang_key' => config('custom.default_language')]) }}" @endif>
                                 <i data-feather="edit-3" class="me-2"></i>{{ localize('View Contents') }}
                             </a>
 

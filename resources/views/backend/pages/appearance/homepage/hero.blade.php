@@ -86,7 +86,7 @@
                                         class="form-control"
                                         value="{{ getSetting('hero_sub_title_btn_link') ?? route('login') }}">
                                 </div>
-                                @if (env('DEFAULT_LANGUAGE') == $lang_key)
+                                @if (config('custom.default_language') == $lang_key)
                                     @if (getTheme() == appStatic()::defaultTheme)
                                         <div class="mb-3">
                                             <label class="form-label">{{ localize('Background Image') }}</label>

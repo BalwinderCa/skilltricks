@@ -63,7 +63,7 @@
                                 </div>
 
 
-                                @if (env('DEFAULT_LANGUAGE') == $lang_key && $page->is_system !=1)
+                                @if (config('custom.default_language') == $lang_key && $page->is_system !=1)
                                     <div class="mb-4">
                                         <label for="slug" class="form-label">{{ localize('Page Slug') }} <x-required-star/></label>
                                         <input class="form-control" type="text" id="slug"
@@ -80,7 +80,7 @@
                         </div>
                         <!--basic information end-->
 
-                        @if (env('DEFAULT_LANGUAGE') == $lang_key)
+                        @if (config('custom.default_language') == $lang_key)
                             <!--seo meta description start-->
                             <div class="card mb-4" id="section-2">
                                 <div class="card-body">
@@ -152,7 +152,7 @@
                                         <a href="#section-1" class="active">{{ localize('Basic Information') }}</a>
                                     </li>
 
-                                    @if (env('DEFAULT_LANGUAGE') == $lang_key)
+                                    @if (config('custom.default_language') == $lang_key)
                                         <li>
                                             <a href="#section-2" class="">{{ localize('SEO Meta Options') }}</a>
                                         </li>

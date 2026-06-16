@@ -47,7 +47,7 @@
                         <div class="dropdown-menu dropdown-menu-end shadow">
 
                             <a class="dropdown-item"
-                                href="{{ route('admin.appearance.homepage.edit-feature-category-detail', ['id' => $detail->id, 'lang_key' => env('DEFAULT_LANGUAGE')]) }}">
+                                href="{{ route('admin.appearance.homepage.edit-feature-category-detail', ['id' => $detail->id, 'lang_key' => config('custom.default_language')]) }}">
                                 <i data-feather="edit-3" class="me-2"></i>{{ localize('Edit') }}
                             </a>
 

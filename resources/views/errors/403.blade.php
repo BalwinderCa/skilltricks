@@ -13,7 +13,7 @@
                           class="img-fluid h-75 w-25">
                       <h2 class="mt-4">Forbidden</h2>
                       <p class="mb-6">You do not have permission to view this page.</p>
-                      <a href="{{ env('APP_URL') }}" class="btn btn-secondary btn-md rounded-1">Back to Home Page</a>
+                      <a href="{{ config('custom.app_url') }}" class="btn btn-secondary btn-md rounded-1">Back to Home Page</a>
                   </div>
 
               </div>

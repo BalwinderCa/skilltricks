@@ -43,11 +43,11 @@
                                                                 <tr>
                                                                     <td class="text-header right"
                                                                         style="color:#000000; font-family:'Fira Mono', Arial,sans-serif; font-size:12px; line-height:16px; text-align:right;">
-                                                                        <a href="{{ env('APP_URL') }}" target="_blank"
+                                                                        <a href="{{ config('custom.app_url') }}" target="_blank"
                                                                             class="link"
                                                                             style="color:#000001; text-decoration:none;"><span
                                                                                 class="link"
-                                                                                style="color:#000001; text-decoration:none;">{{ env('APP_NAME') }}</span></a>
+                                                                                style="color:#000001; text-decoration:none;">{{ config('custom.app_name') }}</span></a>
                                                                     </td>
                                                                 </tr>
                                                             </table>

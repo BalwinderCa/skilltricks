@@ -61,7 +61,7 @@
 <div class="{{$column}}">
 
     <div class="form-input mb-3"
-        @if (env('DEMO_MODE') == 'On') data-bs-toggle="tooltip"
+        @if (config('custom.demo_mode') == 'On') data-bs-toggle="tooltip"
                                                 data-bs-placement="top"
                                                 data-bs-title="{{ localize('Disabled in demo') }}" @endif>
         <label for="resolution" class="form-label">{{ localize('Resolution') }}
@@ -70,7 +70,7 @@
                     class="icon-14"></i></span>
         </label>
         <select class="form-select" id="resolution" name="resolution" required
-            @if (env('DEMO_MODE') == 'On') disabled @endif>
+            @if (config('custom.demo_mode') == 'On') disabled @endif>
             <option value="512x512" selected>{{ localize('Medium [512x512]') }}
             </option>
             <option value="1024x1024" >

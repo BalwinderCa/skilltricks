@@ -212,7 +212,7 @@
             "use strict";
 
             const stripe = Stripe(
-                "{{ env('STRIPE_KEY') }}");
+                "{{ config('custom.stripe_key') }}");
 
             let elements;
 

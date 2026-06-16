@@ -158,13 +158,13 @@
                                                 <div class="dropdown-menu dropdown-menu-end shadow">
 
                                                     <!-- <a class="dropdown-item"
-                                                        href="{{ route('admin.customers.assignPackage', ['id' => $customer->id, 'lang_key' => env('DEFAULT_LANGUAGE')]) }}">
+                                                        href="{{ route('admin.customers.assignPackage', ['id' => $customer->id, 'lang_key' => config('custom.default_language')]) }}">
                                                         <i data-feather="zap"
                                                             class="me-2"></i>{{ localize('Assign Package') }}
                                                     </a> -->
 
                                                     <a class="dropdown-item"
-                                                        href="{{ route('admin.customers.edit', ['id' => $customer->id, 'lang_key' => env('DEFAULT_LANGUAGE')]) }}">
+                                                        href="{{ route('admin.customers.edit', ['id' => $customer->id, 'lang_key' => config('custom.default_language')]) }}">
                                                         <i data-feather="edit-3" class="me-2"></i>{{ localize('Edit') }}
                                                     </a>
                                                     <a href="#" class="dropdown-item confirm-delete"

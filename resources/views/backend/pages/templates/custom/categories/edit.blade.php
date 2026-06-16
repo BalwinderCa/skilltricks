@@ -64,7 +64,7 @@
                                     @endif
                                 </div>
 
-                                @if (env('DEFAULT_LANGUAGE') == $lang_key)
+                                @if (config('custom.default_language') == $lang_key)
                                     <div class="mb-4">
                                         <label for="icon" class="form-label">{{ localize('Icon') }}<a class="ms-1"
                                                 href="https://icons8.com/line-awesome" target="_blank"

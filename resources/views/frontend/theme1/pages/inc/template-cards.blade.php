@@ -37,7 +37,7 @@
                     </button>
                     
                     @if (auth()->user()->user_type != 'customer')
-                        <a href="{{ route('templates.edit', ['id' => $template->id, 'lang_key' => env('DEFAULT_LANGUAGE')]) }}"
+                        <a href="{{ route('templates.edit', ['id' => $template->id, 'lang_key' => config('custom.default_language')]) }}"
                             class="btn ai-card-btn"
                             data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ localize('Edit') }}">
                             <i class="bi bi-pencil-fill"></i>

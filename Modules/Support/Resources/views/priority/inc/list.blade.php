@@ -67,7 +67,7 @@
                                     </button>
                                     <div class="dropdown-menu dropdown-menu-end shadow">
                                         <a class="dropdown-item"
-                                            href="{{ route('support.priority.edit', ['id' => $priority->id, 'lang_key' => env('DEFAULT_LANGUAGE')]) }}">
+                                            href="{{ route('support.priority.edit', ['id' => $priority->id, 'lang_key' => config('custom.default_language')]) }}">
                                             <i data-feather="edit-3"
                                                 class="me-2"></i>{{ localize('Edit') }}
                                         </a>
@@ -89,7 +89,7 @@
                                         </button>
                                         <div class="dropdown-menu dropdown-menu-end shadow">
                                             <a class="dropdown-item"
-                                                href="{{ route('support.category.edit', ['id' => $priority->id, 'lang_key' => env('DEFAULT_LANGUAGE')]) }}">
+                                                href="{{ route('support.category.edit', ['id' => $priority->id, 'lang_key' => config('custom.default_language')]) }}">
                                                 <i data-feather="edit-3"
                                                     class="me-2"></i>{{ localize('Edit') }}
                                             </a>

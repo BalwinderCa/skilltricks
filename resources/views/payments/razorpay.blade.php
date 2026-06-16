@@ -14,7 +14,7 @@
         @csrf
         <!-- Note that the amount is in paise = 50 INR -->
         <!--amount need to be in paisa-->
-        <script src="https://checkout.razorpay.com/v1/checkout.js" data-key="{{ env('RAZORPAY_KEY') }}"
+        <script src="https://checkout.razorpay.com/v1/checkout.js" data-key="{{ config('custom.razorpay_key') }}"
             data-amount="{{ $data['amount'] }}" data-buttontext="" data-name="{{ $data['app_name'] }}" data-currency={{$data['currency']}}
             data-description="{{ $data['payment_title'] }}" data-image="{{ $data['app_logo'] }}"
             data-prefill.name="{{ $data['name'] }}" data-prefill.email="{{ $data['email'] }}" data-theme.color="#ff7529">

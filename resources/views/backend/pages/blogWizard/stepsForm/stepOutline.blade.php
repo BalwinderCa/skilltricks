@@ -55,7 +55,7 @@
                 if (Session::has('locale')) {
                     $locale = Session::get('locale', Config::get('app.locale'));
                 } else {
-                    $locale = env('DEFAULT_LANGUAGE');
+                    $locale = config('custom.default_language');
                 }
                 $currentLanguage = \App\Models\Language::where('code', $locale)->first();
                 

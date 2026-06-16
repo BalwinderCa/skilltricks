@@ -12,7 +12,7 @@
         <div class="d-flex align-items-center justify-content-end template-actions">
             @auth
                 @if (auth()->user()->user_type != 'customer')
-                    <a href="{{ route('chat.editPrompt', ['id' => $prompt->id, 'lang_key' => env('DEFAULT_LANGUAGE')]) }}"
+                    <a href="{{ route('chat.editPrompt', ['id' => $prompt->id, 'lang_key' => config('custom.default_language')]) }}"
                         class="border-0 px-1 bg-transparent tt-template-edit position-absolute d-flex align-items-center edit-template"
                         data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ localize('Edit') }}">
                         <i data-feather="edit-3" class="icon-14 text-primary"></i>

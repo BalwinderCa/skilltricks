@@ -33,7 +33,7 @@
         <!-- custom template edit and delete icon -->
         <div class="d-flex align-items-center justify-content-end template-actions">
             @if (auth()->user()->user_type != 'customer')
-                <a href="{{ route('custom.templates.edit', ['id' => $template->id, 'lang_key' => env('DEFAULT_LANGUAGE')]) }}"
+                <a href="{{ route('custom.templates.edit', ['id' => $template->id, 'lang_key' => config('custom.default_language')]) }}"
                     class="p-1 tt-edit tt-template-edit position-absolute" data-bs-toggle="tooltip"
                     data-bs-placement="top" data-bs-title="{{ localize('Edit') }}">
                     <i data-feather="edit-3" class="icon-14"></i>
@@ -45,7 +45,7 @@
                 </a>
             @else
                 @if ($template->user_id == auth()->user()->id)
-                    <a href="{{ route('custom.templates.edit', ['id' => $template->id, 'lang_key' => env('DEFAULT_LANGUAGE')]) }}"
+                    <a href="{{ route('custom.templates.edit', ['id' => $template->id, 'lang_key' => config('custom.default_language')]) }}"
                         class="p-1 tt-edit tt-template-edit position-absolute" data-bs-toggle="tooltip"
                         data-bs-placement="top" data-bs-title="{{ localize('Edit') }}">
                         <i data-feather="edit-3" class="icon-14"></i>

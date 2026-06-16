@@ -72,7 +72,7 @@
                                                     ])
                                                     <div class="col-lg-3">
                                                         <div class="form-input"
-                                                            @if (env('DEMO_MODE') == 'On') data-bs-toggle="tooltip"
+                                                            @if (config('custom.demo_mode') == 'On') data-bs-toggle="tooltip"
                                                         data-bs-placement="top"
                                                         data-bs-title="{{ localize('Disabled in demo') }}" @endif>
                                                             <label for="num_of_results"
@@ -85,7 +85,7 @@
                                                             </label>
                                                             <select class="form-select select2" id="num_of_results"
                                                                 name="num_of_results" required
-                                                                @if (env('DEMO_MODE') == 'On') disabled @endif>
+                                                                @if (config('custom.demo_mode') == 'On') disabled @endif>
                                                                 <option value="1"> 1</option>
 
                                                             </select>

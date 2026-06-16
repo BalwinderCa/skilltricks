@@ -112,7 +112,7 @@
 
                                                     <div class="col-lg-3">
                                                         <div class="form-input"
-                                                            @if (env('DEMO_MODE') == 'On') data-bs-toggle="tooltip"
+                                                            @if (config('custom.demo_mode') == 'On') data-bs-toggle="tooltip"
                                                         data-bs-placement="top"
                                                         data-bs-title="{{ localize('Disabled in demo') }}" @endif>
                                                             <label for="speed"
@@ -125,7 +125,7 @@
                                                             </label>
                                                             <select class="form-select select2" id="speed"
                                                                 name="speed" required
-                                                                @if (env('DEMO_MODE') == 'On') disabled @endif>
+                                                                @if (config('custom.demo_mode') == 'On') disabled @endif>
                                                                 <option value="x-slow">{{ localize('Very Slow') }}
                                                                 </option>
                                                                 <option value="slow">{{ localize('Slow') }}
@@ -142,7 +142,7 @@
 
                                                     <div class="col-lg-3">
                                                         <div class="form-input"
-                                                            @if (env('DEMO_MODE') == 'On') data-bs-toggle="tooltip"
+                                                            @if (config('custom.demo_mode') == 'On') data-bs-toggle="tooltip"
                                                             data-bs-placement="top"
                                                             data-bs-title="{{ localize('Disabled in demo') }}" @endif>
                                                             <label for="break"
@@ -155,7 +155,7 @@
                                                             </label>
                                                             <select class="form-select select2" id="break"
                                                                 name="break" required
-                                                                @if (env('DEMO_MODE') == 'On') disabled @endif>
+                                                                @if (config('custom.demo_mode') == 'On') disabled @endif>
                                                                 <option value="1"
                                                                     @if (getSetting('default_number_of_results') == '1') selected @endif>
                                                                     1

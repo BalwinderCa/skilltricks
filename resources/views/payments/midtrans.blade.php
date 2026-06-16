@@ -51,7 +51,7 @@
     <script src="{{ staticAsset('backend/assets/js/vendors/jquery-3.7.0.min.js') }}"></script>
     <script type="text/javascript"
         @if (getSetting('midtrans_sandbox') == '0') src="https://app.midtrans.com/snap/snap.js" @else src="https://app.sandbox.midtrans.com/snap/snap.js" @endif
-        data-client-key="{{ env('MIDTRANS_CLIENT_KEY') }}"></script>
+        data-client-key="{{ config('custom.midtrans_client_key') }}"></script>
 
     <script type="text/javascript">
         // Create an instance of the Stripe object with your publishable API key 

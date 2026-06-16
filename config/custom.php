@@ -19,6 +19,16 @@ return [
     'app_name'                          => env('APP_NAME'),
     'app_version'                       => env('APP_VERSION'),
     'app_debug'                         => env('APP_DEBUG'),
+    'app_url'                           => env('APP_URL', 'http://localhost'),
+
+    // Front-end public keys / analytics (safe to render client-side)
+    'tracking_id'                       => env('TRACKING_ID'),
+    'enable_google_analytics'           => env('ENABLE_GOOGLE_ANALYTICS'),
+    'enable_google_adsense'             => env('ENABLE_GOOGLE_ADSENSE'),
+    'facebook_pixel_id'                 => env('FACEBOOK_PIXEL_ID'),
+    'recaptchav3_sitekey'               => env('RECAPTCHAV3_SITEKEY'),
+    'stripe_key'                        => env('STRIPE_KEY'),
+    'midtrans_client_key'               => env('MIDTRANS_CLIENT_KEY'),
 
     'default_currency'                  => env('DEFAULT_CURRENCY'),
     'default_currency_symbol'           => env('DEFAULT_CURRENCY_SYMBOL'),

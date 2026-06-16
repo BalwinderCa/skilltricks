@@ -33,9 +33,9 @@
         @yield('title', getSetting('system_title'))
     </title>
     @laravelPWA
-    @if (env('ENABLE_GOOGLE_ANALYTICS') == 1)
+    @if (config('custom.enable_google_analytics') == 1)
         <!-- Global site tag (gtag.js) - Google Analytics -->
-        <script async src="https://www.googletagmanager.com/gtag/js?id={{ env('TRACKING_ID') }}"></script>
+        <script async src="https://www.googletagmanager.com/gtag/js?id={{ config('custom.tracking_id') }}"></script>
 
         <script>
             window.dataLayer = window.dataLayer || [];
@@ -44,7 +44,7 @@
                 dataLayer.push(arguments);
             }
             gtag('js', new Date());
-            gtag('config', '{{ env('TRACKING_ID') }}');
+            gtag('config', '{{ config('custom.tracking_id') }}');
         </script>
     @endif
 
@@ -75,8 +75,8 @@
         <meta property="og:url" content="{{ route('home') }}" />
         <meta property="og:image" content="{{ uploadedAsset(getSetting('global_meta_image')) }}" />
         <meta property="og:description" content="{{ getSetting('global_meta_description') }}" />
-        <meta property="og:site_name" content="{{ env('APP_NAME') }}" /> 
-        <meta property="fb:app_id" content="{{ env('FACEBOOK_PIXEL_ID') }}">
+        <meta property="og:site_name" content="{{ config('custom.app_name') }}" /> 
+        <meta property="fb:app_id" content="{{ config('custom.facebook_pixel_id') }}">
 
     @else
     
@@ -102,15 +102,15 @@
         <meta property="og:url" content="{{ route('home') }}" />
         <meta property="og:description" content="{{ $blog->meta_description }}" />
         <meta property="og:image" content="{{ uploadedAsset($blog->meta_img) }}" />
-        <meta property="og:site_name" content="{{ env('APP_NAME') }}" /> 
-        <meta property="fb:app_id" content="{{ env('FACEBOOK_PIXEL_ID') }}">
+        <meta property="og:site_name" content="{{ config('custom.app_name') }}" /> 
+        <meta property="fb:app_id" content="{{ config('custom.facebook_pixel_id') }}">
     @endif
 
     <!-- recaptcha -->
     @if (getSetting('enable_recaptcha') == 1)
         {!! RecaptchaV3::initJs() !!}
     @endif
-    @if (env('ENABLE_GOOGLE_ADSENSE') == 1)
+    @if (config('custom.enable_google_adsense') == 1)
 
     @endif
     <!-- recaptcha -->

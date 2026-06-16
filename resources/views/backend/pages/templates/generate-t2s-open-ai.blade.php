@@ -117,7 +117,7 @@
 
                                                     <div class="col-lg-3">
                                                         <div class="form-input"
-                                                            @if (env('DEMO_MODE') == 'On') data-bs-toggle="tooltip"
+                                                            @if (config('custom.demo_mode') == 'On') data-bs-toggle="tooltip"
                                                         data-bs-placement="top"
                                                         data-bs-title="{{ localize('Disabled in demo') }}" @endif>
                                                             <label for="speed"
@@ -130,7 +130,7 @@
                                                             </label>
                                                             <select class="form-select select2" id="speed"
                                                                 name="speed" required
-                                                                @if (env('DEMO_MODE') == 'On') disabled @endif>
+                                                                @if (config('custom.demo_mode') == 'On') disabled @endif>
                                                                 @foreach ($speeds as $speed)
                                                                     <option value="{{ $speed }}"
                                                                         {{ $speed == 1 ? 'selected' : '' }}>
@@ -143,7 +143,7 @@
 
                                                     <div class="col-lg-3">
                                                         <div class="form-input"
-                                                            @if (env('DEMO_MODE') == 'On') data-bs-toggle="tooltip"
+                                                            @if (config('custom.demo_mode') == 'On') data-bs-toggle="tooltip"
                                                             data-bs-placement="top"
                                                             data-bs-title="{{ localize('Disabled in demo') }}" @endif>
                                                             <label for="break"
@@ -156,7 +156,7 @@
                                                             </label>
                                                             <select class="form-select select2" id="response_format"
                                                                 name="response_format" required
-                                                                @if (env('DEMO_MODE') == 'On') disabled @endif>
+                                                                @if (config('custom.demo_mode') == 'On') disabled @endif>
                                                                 @foreach ($response_formats as $format)
                                                                     <option value="{{ $format }}"
                                                                         {{ $format == 'mp3' ? 'selected' : '' }}>

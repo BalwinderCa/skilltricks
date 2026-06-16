@@ -153,7 +153,7 @@
                             </div>
 
 <!--demo credentials-->
-@if (env('DEMO_MODE') == 'On')
+@if (config('custom.demo_mode') == 'On')
 <div class="row my-4 mt-8">
     <div class="col-12">
         <label class="clr-neutral-80 mb-2">Admin Access</label>

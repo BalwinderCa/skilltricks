@@ -65,7 +65,7 @@
                                 </div>
 
 
-                                @if (env('DEFAULT_LANGUAGE') == $lang_key)
+                                @if (config('custom.default_language') == $lang_key)
                                     <div class="mb-4">
                                         <label for="slug" class="form-label">{{ localize('Blog Slug') }}</label>
                                         <input type="text" name="slug" id="slug"
@@ -127,7 +127,7 @@
                         </div>
                         <!--basic information end-->
 
-                        @if (env('DEFAULT_LANGUAGE') == $lang_key)
+                        @if (config('custom.default_language') == $lang_key)
                             <!-- image and gallery start-->
                             <div class="card mb-4" id="section-2">
                                 <div class="card-body">
@@ -244,7 +244,7 @@
                                     <li>
                                         <a href="#section-1" class="active">{{ localize('Basic Information') }}</a>
                                     </li>
-                                    @if (env('DEFAULT_LANGUAGE') == $lang_key)
+                                    @if (config('custom.default_language') == $lang_key)
                                         <li>
                                             <a href="#section-2">{{ localize('Blog Images') }}</a>
                                         </li>

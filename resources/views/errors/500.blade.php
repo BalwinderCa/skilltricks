@@ -14,7 +14,7 @@
                     <h2 class="mt-4">Sorry, Internal Server Error</h2>
                     <p class="mb-6">The page you are looking for might have been removed had its name changed or is
                         temporarily unavailable.</p>
-                    <a href="{{ env('APP_URL') }}" class="btn btn-secondary btn-md rounded-1">Back to Home Page</a>
+                    <a href="{{ config('custom.app_url') }}" class="btn btn-secondary btn-md rounded-1">Back to Home Page</a>
                 </div>
 
             </div>

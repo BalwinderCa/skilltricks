@@ -38,7 +38,7 @@
             @endif
 
             <div class="form-input"
-                @if (env('DEMO_MODE') == 'On') data-bs-toggle="tooltip"
+                @if (config('custom.demo_mode') == 'On') data-bs-toggle="tooltip"
                                                             data-bs-placement="top"
                                                             data-bs-title="{{ localize('Disabled in demo') }}" @endif>
                 <label for="num_of_results" class="form-label">{{ localize('Number of Results') }}
@@ -47,7 +47,7 @@
                             data-feather="help-circle" class="icon-14"></i></span>
                 </label>
                 <select class="form-select" id="num_of_results" name="num_of_results" required
-                    @if (env('DEMO_MODE') == 'On') disabled @endif>
+                    @if (config('custom.demo_mode') == 'On') disabled @endif>
                     @if(getSetting('generate_image_option') == 'dall_e_3')
                         <option value="1"  selected >1</option>
                     @else

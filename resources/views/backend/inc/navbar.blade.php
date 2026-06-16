@@ -78,7 +78,7 @@
                         if (Session::has('locale')) {
                             $locale = Session::get('locale', Config::get('app.locale'));
                         } else {
-                            $locale = env('DEFAULT_LANGUAGE');
+                            $locale = config('custom.default_language');
                         }
                         $currentLanguage = \App\Models\Language::where('code', $locale)->first();
 
@@ -113,7 +113,7 @@
                         if (Session::has('currency_code')) {
                             $currency_code = Session::get('currency_code', Config::get('app.currency_code'));
                         } else {
-                            $currency_code = env('DEFAULT_CURRENCY');
+                            $currency_code = config('custom.default_currency');
                         }
                         $currentCurrency = \App\Models\Currency::where('code', $currency_code)->first();
 

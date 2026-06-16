@@ -26,9 +26,9 @@
 
     </title>
 
-    @if (env('ENABLE_GOOGLE_ANALYTICS') == 1)
+    @if (config('custom.enable_google_analytics') == 1)
         <!-- Global site tag (gtag.js) - Google Analytics -->
-        <script async src="https://www.googletagmanager.com/gtag/js?id={{ env('TRACKING_ID') }}"></script>
+        <script async src="https://www.googletagmanager.com/gtag/js?id={{ config('custom.tracking_id') }}"></script>
 
         <script>
             window.dataLayer = window.dataLayer || [];
@@ -37,7 +37,7 @@
                 dataLayer.push(arguments);
             }
             gtag('js', new Date());
-            gtag('config', '{{ env('TRACKING_ID') }}');
+            gtag('config', '{{ config('custom.tracking_id') }}');
         </script>
     @endif
 

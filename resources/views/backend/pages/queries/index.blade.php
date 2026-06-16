@@ -87,7 +87,7 @@
                                                 <div class="dropdown-menu dropdown-menu-end shadow">
 
                                                     <a class="dropdown-item"
-                                                        href="{{ route('admin.queries.markRead', ['id' => $message->id, 'lang_key' => env('DEFAULT_LANGUAGE')]) }}">
+                                                        href="{{ route('admin.queries.markRead', ['id' => $message->id, 'lang_key' => config('custom.default_language')]) }}">
                                                         <i data-feather="check"
                                                             class="me-2"></i>{{ $message->is_seen == 0 ? localize('Mark As Read') : localize('Mark As Unread') }}
                                                     </a>

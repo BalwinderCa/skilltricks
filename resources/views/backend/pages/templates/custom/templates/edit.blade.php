@@ -66,7 +66,7 @@
                                         value="{{ $template->collectLocalization('name', $lang_key) }}">
                                 </div>
 
-                                @if (env('DEFAULT_LANGUAGE') == $lang_key)
+                                @if (config('custom.default_language') == $lang_key)
                                     <div class="mb-4">
                                         <label for="icon" class="form-label">{{ localize('Icon') }}<a class="ms-1"
                                                 href="https://icons8.com/line-awesome" target="_blank"
@@ -99,7 +99,7 @@
                         </div>
                         <!--basic information end-->
 
-                        @if (env('DEFAULT_LANGUAGE') == $lang_key)
+                        @if (config('custom.default_language') == $lang_key)
                             <!--input information start-->
                             <div class="card mb-4" id="section-2">
                                 <div class="card-body">
@@ -248,7 +248,7 @@
                                     <li>
                                         <a href="#section-1" class="active">{{ localize('Basic') }}</a>
                                     </li>
-                                    @if (env('DEFAULT_LANGUAGE') == $lang_key)
+                                    @if (config('custom.default_language') == $lang_key)
                                         <li>
                                             <a href="#section-2" class="">{{ localize('Inputs') }}</a>
                                         </li>

@@ -352,7 +352,7 @@
                                                                     <br>{{ getSetting('system_title') }} <br>
                                                                     {{ localize('Email') }}:
                                                                     {{ getSetting('contact_email') }}<br>
-                                                                    {{ localize('Website') }}: {{ env('APP_URL') }}
+                                                                    {{ localize('Website') }}: {{ config('custom.app_url') }}
                                                                 </p>
 
                                                             </td>

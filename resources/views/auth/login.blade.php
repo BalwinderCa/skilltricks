@@ -597,7 +597,7 @@ hidden;
                     </div>
 
                     <!--demo credentials-->
-                    @if (env('DEMO_MODE') == 'On')
+                    @if (config('custom.demo_mode') == 'On')
                         <div class="row my-3">
                             <div class="col-12">
                                 <label class="fw-bold">Admin Access</label>

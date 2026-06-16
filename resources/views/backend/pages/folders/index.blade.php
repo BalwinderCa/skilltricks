@@ -82,7 +82,7 @@
                                                                 data-feather="more-vertical" class="icon-16"></i></span>
                                                         <div class="dropdown-menu dropdown-menu-end shadow">
                                                             <a class="dropdown-item"
-                                                                href="{{ route('folders.edit', ['slug' => $folder->slug, 'lang_key' => env('DEFAULT_LANGUAGE')]) }}">
+                                                                href="{{ route('folders.edit', ['slug' => $folder->slug, 'lang_key' => config('custom.default_language')]) }}">
                                                                 <i data-feather="edit-3"
                                                                     class="me-2"></i>{{ localize('Rename') }}
                                                             </a>
