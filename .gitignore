@@ -49,3 +49,9 @@ skilltricks_deploy.zip
 # Database dumps (never commit - contain secrets & user data)
 *.sql
 database.sql
+
+# Logs & debug endpoints (never commit - leak paths/stack traces/server info)
+error_log
+**/error_log
+info.php
+phpinfo.php

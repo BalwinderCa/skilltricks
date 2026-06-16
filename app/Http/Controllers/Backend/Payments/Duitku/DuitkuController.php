@@ -79,7 +79,7 @@ class DuitkuController extends DuitkuBaseController
                 $params = $merchantCode . $amount . $merchantOrderId . $apiKey;
                 $calcSignature = md5($params);
 
-                if ($signature == $calcSignature) {
+                if (hash_equals($calcSignature, (string) $signature)) {
                     if ($resultCode == DuitkuCallbackCode::SUCCESS) {
                         // Payment success
                         if($pendingRecord) {

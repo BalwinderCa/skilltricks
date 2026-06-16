@@ -16,7 +16,12 @@ use Illuminate\Support\Facades\Route;
 */
 
 
-Route::post('/youkassa/process', [YookassaPaymentController::class, 'process']);
+// Yookassa server-to-server webhook. Cannot use auth (called by Yookassa), so:
+//  - throttle to blunt abuse/replay
+//  - the handler MUST verify the notification (Yookassa IP allowlist and/or
+//    re-fetch the payment by id) before granting any subscription. See controller.
+Route::post('/youkassa/process', [YookassaPaymentController::class, 'process'])
+    ->middleware('throttle:30,1');
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();

@@ -119,6 +119,13 @@ class YookassaPaymentController extends Controller
                 $payment_id = $payment->getId();
                 \Illuminate\Support\Facades\Log::info("Yookassa payment id: $payment_id");
 
+                // SECURITY: This webhook is unauthenticated and the metadata
+                // (user_id, package_id, amount) is attacker-controllable. Before
+                // re-enabling payment_success below, re-fetch the payment from
+                // Yookassa by $payment_id via _getAuthClient()->getPaymentInfo()
+                // and confirm status === 'succeeded' and amount matches the
+                // server-side package price. Do NOT trust $metadata as-is.
+
                 // (new PaymentsController)->payment_success(
                 //     json_encode(["status" => "Success"]),
                 //     $user,
