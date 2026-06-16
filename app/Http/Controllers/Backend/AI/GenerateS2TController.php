@@ -152,7 +152,7 @@ class GenerateS2TController extends Controller
                 $project->content       = trim($outputContents);
                 $project->save();
             } else {
-                $project = Project::where('id', $request->project_id)->first();
+                $project = Project::where('id', $request->project_id)->where('user_id', auth()->id())->first();
                 if (!is_null($project)) {
                     $project->words         = $tokens;
                     $project->content       = trim($outputContents);

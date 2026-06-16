@@ -117,7 +117,7 @@ class ElevenLabsController extends Controller
     public function delete($id)
     {
 
-        $textToVoice = TextToSpeech::findOrFail($id);
+        $textToVoice = TextToSpeech::where('created_by', auth()->id())->findOrFail($id);
 
         $exit_file_path = base_path('public/' . $textToVoice->file_path);
         if (file_exists($exit_file_path)) {

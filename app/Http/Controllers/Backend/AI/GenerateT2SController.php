@@ -123,7 +123,7 @@ class GenerateT2SController extends Controller
     // update
     public function update(Request $request)
     {
-        $model = TextToSpeech::findOrFail($request->id);
+        $model = TextToSpeech::where('created_by', auth()->id())->findOrFail($request->id);
         $formData = $this->formatParams($request, $request->id);
         $model->update($formData);
     }
@@ -189,7 +189,7 @@ class GenerateT2SController extends Controller
     public function delete($id)
     {
 
-        $textToVoice = TextToSpeech::findOrFail($id); 
+        $textToVoice = TextToSpeech::where('created_by', auth()->id())->findOrFail($id);
    
         $exit_file_path = base_path('public/' . $textToVoice->file_path);
         if (file_exists($exit_file_path)) {

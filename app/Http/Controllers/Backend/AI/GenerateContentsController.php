@@ -82,7 +82,7 @@ class GenerateContentsController extends Controller
             # SET AI PARAMS ENDS
 
             if($request->project_id != null){
-                $project = Project::query()->findOrFail($request->project_id);
+                $project = Project::where('user_id', $user->id)->findOrFail($request->project_id);
                 $request->session()->put('project_id', $project->id);
             }else{
                 $projectTitle = "Untitled Project - " . date("Y-m-d");

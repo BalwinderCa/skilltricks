@@ -70,7 +70,7 @@ class VisionController extends Controller
     public function newMessage(Request $request)
     {
         try{
-            $chat = AiChat::where('id', $request->chat_id)->first();
+            $chat = AiChat::where('id', $request->chat_id)->where('user_id', auth()->id())->first();
             $category = AiChatCategory::where('type', 'vision')->first();
 
             $user = auth()->user();

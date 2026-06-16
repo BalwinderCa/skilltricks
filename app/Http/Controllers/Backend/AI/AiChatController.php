@@ -2332,8 +2332,10 @@ EOT;
 
       public function userschat_search_delete(Request $request,$id)
     {
-        DB::table('search_user_chat')->where('id', $id)->delete();
-        DB::table('search_user_chat_data')->where('search_user_chat_id', $id)->delete();
+        $deleted = DB::table('search_user_chat')->where('id', $id)->where('user_id', auth()->id())->delete();
+        if ($deleted) {
+            DB::table('search_user_chat_data')->where('search_user_chat_id', $id)->delete();
+        }
         flash(localize('Chat deleted successfully!'));
         return back();
     }
