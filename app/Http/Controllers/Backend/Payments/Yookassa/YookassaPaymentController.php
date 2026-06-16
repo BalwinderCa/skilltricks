@@ -134,8 +134,11 @@ class YookassaPaymentController extends Controller
                 //     'yookassa'
                 // );
             }
-        } catch (Exception $e) {
-            // todo	
+        } catch (\Throwable $e) {
+            // Malformed/incomplete notification: log and ack so the gateway
+            // does not retry indefinitely. (Was `catch (Exception $e)`, which in
+            // this namespace resolved to a non-existent class and never caught.)
+            \Illuminate\Support\Facades\Log::warning('Yookassa webhook ignored: ' . $e->getMessage());
         }
 
         return response()->json(['message' => 'Success'], 200);
