@@ -82,6 +82,9 @@ class AiChatController extends Controller
         $generationConfig = [
             'temperature' => $temperature,
             'maxOutputTokens' => $maxOutputTokens,
+            // Gemini 2.5 thinking tokens count against maxOutputTokens and can
+            // truncate or empty the visible JSON answer.
+            'thinkingConfig' => ['thinkingBudget' => 0],
         ];
 
         // Ask Gemini for a raw JSON object (no markdown fences) when requested.
@@ -146,7 +149,7 @@ class AiChatController extends Controller
     {
         $project  = env('GOOGLE_CLOUD_PROJECT');
         $location = env('VERTEX_LOCATION', 'global');
-        $models   = array_filter(array_map('trim', explode(',', env('VERTEX_MODELS', 'gemini-3.1-pro-preview,gemini-2.5-flash'))));
+        $models   = array_filter(array_map('trim', explode(',', env('VERTEX_MODELS', 'gemini-2.5-flash,gemini-3.1-pro-preview'))));
 
         $host = $location === 'global'
             ? 'aiplatform.googleapis.com'
@@ -155,6 +158,7 @@ class AiChatController extends Controller
         $generationConfig = [
             'temperature'     => $temperature,
             'maxOutputTokens' => $maxOutputTokens,
+            'thinkingConfig'  => ['thinkingBudget' => 0],
         ];
 
         if ($jsonMode) {
@@ -192,16 +196,55 @@ class AiChatController extends Controller
                 ->post($url, $payload);
 
             if ($response->successful()) {
-                return $response;
-            }
+                if ($this->extractGeminiResponseText($response) !== '') {
+                    return $response;
+                }
 
-            Log::warning('Vertex AI model failed, trying fallback', [
-                'model'  => $model,
-                'status' => $response->status(),
-            ]);
+                Log::warning('Vertex AI model returned empty text, trying fallback', [
+                    'model'         => $model,
+                    'finish_reason' => $response->json('candidates.0.finishReason'),
+                ]);
+            } else {
+                Log::warning('Vertex AI model failed, trying fallback', [
+                    'model'  => $model,
+                    'status' => $response->status(),
+                ]);
+            }
         }
 
-        return $response; // last failed response
+        return $response; // last failed/empty response
+    }
+
+    # Pull visible answer text from a Gemini/Vertex generateContent response.
+    # Skips thought-only parts; falls back to thought text if that is all we got.
+    private function extractGeminiResponseText($response)
+    {
+        $parts = $response->json('candidates.0.content.parts', []);
+
+        if (!is_array($parts) || empty($parts)) {
+            return (string) $response->json('candidates.0.content.parts.0.text', '');
+        }
+
+        $visible = [];
+        $thought = [];
+
+        foreach ($parts as $part) {
+            if (empty($part['text'])) {
+                continue;
+            }
+
+            if (!empty($part['thought'])) {
+                $thought[] = $part['text'];
+            } else {
+                $visible[] = $part['text'];
+            }
+        }
+
+        if (!empty($visible)) {
+            return implode("\n", $visible);
+        }
+
+        return implode("\n", $thought);
     }
 
     # AI provider dispatcher. Choose model via .env:
@@ -1437,7 +1480,7 @@ public function users_new_chat_ask(Request $request)
             ]);
 
             // Always request the structured GoalSync JSON contract.
-            $openAiResponse = $this->aiGenerate($systemMessage, $prompt, 8000, 0.7, true);
+            $openAiResponse = $this->aiGenerate($systemMessage, $prompt, 8192, 0.7, true);
 
             Log::info($aiProvider . ' API Response - First Chat', [
                 'user_id' => $user->id,
@@ -1632,7 +1675,20 @@ EOT;
             ], $statusCode >= 400 && $statusCode < 500 ? $statusCode : 500);
         }
 
-        $responseContent = $openAiResponse->json('candidates.0.content.parts.0.text');
+        $responseContent = $this->extractGeminiResponseText($openAiResponse);
+
+        if ($openAiResponse->successful() && $responseContent === '') {
+            Log::error($aiProvider . ' API returned empty text', [
+                'user_id' => $user->id,
+                'chat_id' => $chatId,
+                'finish_reason' => $openAiResponse->json('candidates.0.finishReason'),
+                'body_preview' => substr($openAiResponse->body(), 0, 500),
+            ]);
+
+            return response()->json([
+                'error' => $aiProvider . ' returned an empty response. Please try again.',
+            ], 502);
+        }
 
         // For the JSON path, verify the model returned a parseable object.
         // If not, fall back to the markdown renderer so the UI never breaks.
@@ -1883,7 +1939,7 @@ EOT;
            ], 500);
        }
 
-       $updatedSections = $openAiResponse->json('candidates.0.content.parts.0.text');
+       $updatedSections = $this->extractGeminiResponseText($openAiResponse);
 
        // Only update database if this is a user selection (not just eager loading)
        if ($isUserSelection) {
@@ -2137,7 +2193,7 @@ EOT;
             ], $statusCode >= 400 && $statusCode < 500 ? $statusCode : 500);
         }
 
-        $updatedSections = $openAiResponse->json('candidates.0.content.parts.0.text');
+        $updatedSections = $this->extractGeminiResponseText($openAiResponse);
 
         if ($isUserSelection) {
             try {
@@ -2475,7 +2531,7 @@ EOT;
             $openAiResponse = $this->aiGenerate($systemMessage, $prompt, 2000);
 
             if ($openAiResponse->successful()) {
-                $brief = $openAiResponse->json('candidates.0.content.parts.0.text');
+                $brief = $this->extractGeminiResponseText($openAiResponse);
                 
                 // Save brief to database
                 try {
@@ -2687,7 +2743,7 @@ EOT;
             $aiResponse = $this->aiGenerate($systemMessage, $prompt, 1500, 0.7, true);
 
             if ($aiResponse->successful()) {
-                $text = $aiResponse->json('candidates.0.content.parts.0.text');
+                $text = $this->extractGeminiResponseText($aiResponse);
                 $rows = $this->parseRecommendedActionRows($text);
 
                 if (empty($rows)) {
