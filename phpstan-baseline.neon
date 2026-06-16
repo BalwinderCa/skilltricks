@@ -1,0 +1,2116 @@
+parameters:
+	ignoreErrors:
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SubscriptionHistory\\:\\:\\$subscriptionPackage\\.$#"
+			count: 1
+			path: app/Console/Commands/SubscriptionExpire.php
+
+		-
+			message: "#^Method App\\\\Console\\\\Commands\\\\SubscriptionExpire\\:\\:handle\\(\\) should return int but return statement is missing\\.$#"
+			count: 1
+			path: app/Console/Commands/SubscriptionExpire.php
+
+		-
+			message: "#^Relation 'currentPackage' is not found in App\\\\Models\\\\User model\\.$#"
+			count: 1
+			path: app/Exports/CustomersExport.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AffiliatePayoutAccount\\:\\:\\$additional_info\\.$#"
+			count: 1
+			path: app/Http/Controllers/Affiliate/WithdrawRequestsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\User\\:\\:\\$verification_code \\(string\\|null\\) does not accept int\\<100000, 999999\\>\\.$#"
+			count: 1
+			path: app/Http/Controllers/Auth/ForgotPasswordController.php
+
+		-
+			message: "#^Call to an undefined method Laravel\\\\Socialite\\\\Contracts\\\\Provider\\:\\:stateless\\(\\)\\.$#"
+			count: 1
+			path: app/Http/Controllers/Auth/LoginController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\User\\:\\:\\$email_verified_at \\(Carbon\\\\Carbon\\|null\\) does not accept string\\.$#"
+			count: 2
+			path: app/Http/Controllers/Auth/LoginController.php
+
+		-
+			message: "#^Variable \\$user might not be defined\\.$#"
+			count: 1
+			path: app/Http/Controllers/Auth/LoginController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AiChat\\:\\:\\$category\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/AiChatController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AiChat\\:\\:\\$messages\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/AI/AiChatController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AiChatMessage\\:\\:\\$aiChat\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/AiChatController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$chat_role_categories\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/AiChatController.php
+
+		-
+			message: "#^Left side of && is always false\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/AiChatController.php
+
+		-
+			message: "#^Left side of && is always true\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/AiChatController.php
+
+		-
+			message: "#^Relation 'messages' is not found in App\\\\Models\\\\AiChat model\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/AI/AiChatController.php
+
+		-
+			message: "#^Variable \\$currentActions in empty\\(\\) always exists and is always falsy\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/AiChatController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AiChat\\:\\:\\$category\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/AiImageChatController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AiChatMessage\\:\\:\\$aiChat\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/AiImageChatController.php
+
+		-
+			message: "#^Relation 'messages' is not found in App\\\\Models\\\\AiChat model\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/AiImageChatController.php
+
+		-
+			message: "#^Unreachable statement \\- code above always terminates\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/AiImageChatController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AiBlogWizard\\:\\:\\$aiBlogWizardArticle\\.$#"
+			count: 3
+			path: app/Http/Controllers/Backend/AI/BlogWizardController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AiBlogWizard\\:\\:\\$aiBlogWizardKeyword\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/BlogWizardController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AiBlogWizard\\:\\:\\$aiBlogWizardTitle\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/BlogWizardController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AiBlogWizardArticle\\:\\:\\$aiBlogWizard\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/AI/BlogWizardController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AiBlogWizardKeyWord\\:\\:\\$aiBlogWizard\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/BlogWizardController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\AiBlogWizardArticle\\:\\:\\$prompt_tokens \\(string\\|null\\) does not accept int\\<1, max\\>\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/AI/BlogWizardController.php
+
+		-
+			message: "#^Unreachable statement \\- code above always terminates\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/BlogWizardController.php
+
+		-
+			message: "#^Deprecated in PHP 8\\.0\\: Required parameter \\$content follows optional parameter \\$response_format\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/ElevenLabsController.php
+
+		-
+			message: "#^Else branch is unreachable because previous condition is always true\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/ElevenLabsController.php
+
+		-
+			message: "#^Elseif branch is unreachable because previous condition is always true\\.$#"
+			count: 3
+			path: app/Http/Controllers/Backend/AI/ElevenLabsController.php
+
+		-
+			message: "#^If condition is always true\\.$#"
+			count: 4
+			path: app/Http/Controllers/Backend/AI/ElevenLabsController.php
+
+		-
+			message: "#^Method App\\\\Http\\\\Controllers\\\\Backend\\\\AI\\\\ElevenLabsController\\:\\:azureVoiceGenerate\\(\\) should return array but returns Illuminate\\\\Http\\\\JsonResponse\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/ElevenLabsController.php
+
+		-
+			message: "#^Method App\\\\Http\\\\Services\\\\ElevenLabsService\\:\\:voices\\(\\) invoked with 1 parameter, 0 required\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/ElevenLabsController.php
+
+		-
+			message: "#^Strict comparison using \\=\\=\\= between \\*NEVER\\* and 'ogg' will always evaluate to false\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/ElevenLabsController.php
+
+		-
+			message: "#^Strict comparison using \\=\\=\\= between \\*NEVER\\* and 'wav' will always evaluate to false\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/ElevenLabsController.php
+
+		-
+			message: "#^Strict comparison using \\=\\=\\= between \\*NEVER\\* and 'webm' will always evaluate to false\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/ElevenLabsController.php
+
+		-
+			message: "#^Unreachable statement \\- code above always terminates\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/ElevenLabsController.php
+
+		-
+			message: "#^Call to function is_null\\(\\) with non\\-falsy\\-string will always evaluate to false\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/GenerateContentsController.php
+
+		-
+			message: "#^Unreachable statement \\- code above always terminates\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/GenerateContentsController.php
+
+		-
+			message: "#^Unreachable statement \\- code above always terminates\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/GenerateImagesController.php
+
+		-
+			message: "#^Variable \\$project might not be defined\\.$#"
+			count: 5
+			path: app/Http/Controllers/Backend/AI/GenerateImagesController.php
+
+		-
+			message: "#^Unreachable statement \\- code above always terminates\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/GenerateS2TController.php
+
+		-
+			message: "#^Unreachable statement \\- code above always terminates\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/GenerateSdImagesController.php
+
+		-
+			message: "#^Variable \\$data might not be defined\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/AI/GenerateSdImagesController.php
+
+		-
+			message: "#^Variable \\$dataUpscale might not be defined\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/GenerateSdImagesController.php
+
+		-
+			message: "#^Variable \\$height might not be defined\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/GenerateSdImagesController.php
+
+		-
+			message: "#^Variable \\$imagePath might not be defined\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/AI/GenerateSdImagesController.php
+
+		-
+			message: "#^Variable \\$proTitle might not be defined\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/GenerateSdImagesController.php
+
+		-
+			message: "#^Variable \\$project might not be defined\\.$#"
+			count: 5
+			path: app/Http/Controllers/Backend/AI/GenerateSdImagesController.php
+
+		-
+			message: "#^Variable \\$uploadedImageUrl might not be defined\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/GenerateSdImagesController.php
+
+		-
+			message: "#^Variable \\$width might not be defined\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/GenerateSdImagesController.php
+
+		-
+			message: "#^Deprecated in PHP 8\\.0\\: Required parameter \\$content follows optional parameter \\$response_format\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/GenerateT2SController.php
+
+		-
+			message: "#^Else branch is unreachable because previous condition is always true\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/GenerateT2SController.php
+
+		-
+			message: "#^Elseif branch is unreachable because previous condition is always true\\.$#"
+			count: 3
+			path: app/Http/Controllers/Backend/AI/GenerateT2SController.php
+
+		-
+			message: "#^If condition is always true\\.$#"
+			count: 4
+			path: app/Http/Controllers/Backend/AI/GenerateT2SController.php
+
+		-
+			message: "#^Method App\\\\Http\\\\Controllers\\\\Backend\\\\AI\\\\GenerateT2SController\\:\\:azureVoiceGenerate\\(\\) should return array but returns Illuminate\\\\Http\\\\JsonResponse\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/GenerateT2SController.php
+
+		-
+			message: "#^Method App\\\\Http\\\\Services\\\\ElevenLabsService\\:\\:voices\\(\\) invoked with 1 parameter, 0 required\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/GenerateT2SController.php
+
+		-
+			message: "#^Strict comparison using \\=\\=\\= between \\*NEVER\\* and 'ogg' will always evaluate to false\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/GenerateT2SController.php
+
+		-
+			message: "#^Strict comparison using \\=\\=\\= between \\*NEVER\\* and 'wav' will always evaluate to false\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/GenerateT2SController.php
+
+		-
+			message: "#^Strict comparison using \\=\\=\\= between \\*NEVER\\* and 'webm' will always evaluate to false\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/GenerateT2SController.php
+
+		-
+			message: "#^Unreachable statement \\- code above always terminates\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/GenerateT2SController.php
+
+		-
+			message: "#^Variable \\$voiceData might not be defined\\.$#"
+			count: 8
+			path: app/Http/Controllers/Backend/AI/GenerateT2SController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\GoogleTTSSettings\\:\\:\\$file_name\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/GtsSettingController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\GoogleTTSSettings\\:\\:\\$path\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/GtsSettingController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\GoogleTTSSettings\\:\\:\\$project_name\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/GtsSettingController.php
+
+		-
+			message: "#^Anonymous function has an unused use \\$prompt\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/PdfChatController.php
+
+		-
+			message: "#^Anonymous function has an unused use \\$user\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/PdfChatController.php
+
+		-
+			message: "#^Call to static method disk\\(\\) on an unknown class App\\\\Traits\\\\Storage\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/AI/PdfChatController.php
+
+		-
+			message: "#^Binary operation \"\\-\" between 100 and string results in an error\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/Plagiarism/AIDetectorController.php
+
+		-
+			message: "#^Variable \\$detector might not be defined\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/AI/Plagiarism/AIDetectorController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\AiContentDetector\\:\\:\\$ai \\(string\\|null\\) does not accept int\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/Plagiarism/AIPlagiarismController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\AiContentDetector\\:\\:\\$human \\(string\\|null\\) does not accept int\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/Plagiarism/AIPlagiarismController.php
+
+		-
+			message: "#^Variable \\$plagiarism might not be defined\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/AI/Plagiarism/AIPlagiarismController.php
+
+		-
+			message: "#^Offset 'updated_by' does not exist on array\\{key\\: mixed\\}\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/Plagiarism/SetupController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AiChat\\:\\:\\$category\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/VisionController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AiChatMessage\\:\\:\\$aiChat\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/VisionController.php
+
+		-
+			message: "#^Anonymous function has an unused use \\$content\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/VisionController.php
+
+		-
+			message: "#^Anonymous function has an unused use \\$images\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/VisionController.php
+
+		-
+			message: "#^Anonymous function has an unused use \\$prompt\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/VisionController.php
+
+		-
+			message: "#^Call to an undefined method App\\\\Http\\\\Controllers\\\\Backend\\\\AI\\\\VisionController\\:\\:updateUserWords\\(\\)\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/VisionController.php
+
+		-
+			message: "#^Expression on left side of \\?\\? is not nullable\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/VisionController.php
+
+		-
+			message: "#^Relation 'messages' is not found in App\\\\Models\\\\AiChat model\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/VisionController.php
+
+		-
+			message: "#^Called 'count' on Laravel collection, but could have been retrieved as a query\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/AI/VoiceSettingController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\MediaManager\\:\\:\\$designation\\.$#"
+			count: 3
+			path: app/Http/Controllers/Backend/Appearance/ClientFeedbackController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\MediaManager\\:\\:\\$heading\\.$#"
+			count: 3
+			path: app/Http/Controllers/Backend/Appearance/ClientFeedbackController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\MediaManager\\:\\:\\$image\\.$#"
+			count: 3
+			path: app/Http/Controllers/Backend/Appearance/ClientFeedbackController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\MediaManager\\:\\:\\$name\\.$#"
+			count: 3
+			path: app/Http/Controllers/Backend/Appearance/ClientFeedbackController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\MediaManager\\:\\:\\$rating\\.$#"
+			count: 3
+			path: app/Http/Controllers/Backend/Appearance/ClientFeedbackController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\MediaManager\\:\\:\\$review\\.$#"
+			count: 3
+			path: app/Http/Controllers/Backend/Appearance/ClientFeedbackController.php
+
+		-
+			message: "#^Method App\\\\Http\\\\Controllers\\\\Backend\\\\Appearance\\\\FeatureCategoryController\\:\\:languageData\\(\\) is unused\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Appearance/FeatureCategoryController.php
+
+		-
+			message: "#^Unreachable statement \\- code above always terminates\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Appearance/FeatureCategoryDetailController.php
+
+		-
+			message: "#^Unreachable statement \\- code above always terminates\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Appearance/FeatureImageUploadController.php
+
+		-
+			message: "#^Class App\\\\Http\\\\Requests\\\\VideoUploadRequestForm referenced with incorrect case\\: App\\\\Http\\\\Requests\\\\VideouploadRequestForm\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Appearance/VideoUploadController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SubscriptionHistory\\:\\:\\$offlinePaymentMethod\\.$#"
+			count: 3
+			path: app/Http/Controllers/Backend/CustomersController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SubscriptionHistory\\:\\:\\$subscriptionPackage\\.$#"
+			count: 12
+			path: app/Http/Controllers/Backend/CustomersController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SubscriptionHistory\\|Illuminate\\\\Database\\\\Eloquent\\\\Collection\\<int, App\\\\Models\\\\SubscriptionHistory\\>\\:\\:\\$duration\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/CustomersController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SubscriptionHistory\\|Illuminate\\\\Database\\\\Eloquent\\\\Collection\\<int, App\\\\Models\\\\SubscriptionHistory\\>\\:\\:\\$subscriptionPackage\\.$#"
+			count: 5
+			path: app/Http/Controllers/Backend/CustomersController.php
+
+		-
+			message: "#^If condition is always true\\.$#"
+			count: 3
+			path: app/Http/Controllers/Backend/CustomersController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionHistory\\:\\:\\$discount \\(int\\|null\\) does not accept float\\|null\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/CustomersController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionHistory\\:\\:\\$package_price \\(int\\|null\\) does not accept float\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/CustomersController.php
+
+		-
+			message: "#^Relation 'currentPackage' is not found in App\\\\Models\\\\User model\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/CustomersController.php
+
+		-
+			message: "#^Variable \\$data might not be defined\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/CustomersController.php
+
+		-
+			message: "#^Variable \\$history_id might not be defined\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/CustomersController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SystemSetting\\:\\:\\$labels\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/DashboardController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SystemSetting\\:\\:\\$series\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/DashboardController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SystemSetting\\:\\:\\$totalTemplateWordsCount\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/DashboardController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SystemSetting\\:\\:\\$totalWords\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/DashboardController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SystemSetting\\:\\:\\$words\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/DashboardController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$about_company\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/DashboardController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$chat_role_categories\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/DashboardController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$company_address\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/DashboardController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$company_category\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/DashboardController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$company_name\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/DashboardController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$number_employess\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/DashboardController.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Contracts\\\\Auth\\\\Authenticatable\\:\\:\\$id\\.$#"
+			count: 4
+			path: app/Http/Controllers/Backend/DocumentsController.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Contracts\\\\Auth\\\\Authenticatable\\:\\:\\$user_type\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/DocumentsController.php
+
+		-
+			message: "#^Method App\\\\Http\\\\Controllers\\\\Backend\\\\FileStorageManagerController\\:\\:gcp\\(\\) is unused\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/FileStorageManagerController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SubscriptionHistory\\:\\:\\$subscriptionPackage\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Offline/CustomerReSubmitRequestController.php
+
+		-
+			message: "#^Method App\\\\Http\\\\Controllers\\\\Backend\\\\Offline\\\\OfflinePaymentMethodController\\:\\:create\\(\\) should return Illuminate\\\\Http\\\\Response but return statement is missing\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Offline/OfflinePaymentMethodController.php
+
+		-
+			message: "#^Method App\\\\Http\\\\Controllers\\\\Backend\\\\Offline\\\\OfflinePaymentMethodController\\:\\:delete\\(\\) should return Illuminate\\\\Http\\\\Response but returns Illuminate\\\\Http\\\\RedirectResponse\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Offline/OfflinePaymentMethodController.php
+
+		-
+			message: "#^Method App\\\\Http\\\\Controllers\\\\Backend\\\\Offline\\\\OfflinePaymentMethodController\\:\\:edit\\(\\) should return Illuminate\\\\Http\\\\Response but returns Illuminate\\\\View\\\\View\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Offline/OfflinePaymentMethodController.php
+
+		-
+			message: "#^Method App\\\\Http\\\\Controllers\\\\Backend\\\\Offline\\\\OfflinePaymentMethodController\\:\\:index\\(\\) should return Illuminate\\\\Http\\\\Response but returns Illuminate\\\\View\\\\View\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Offline/OfflinePaymentMethodController.php
+
+		-
+			message: "#^Method App\\\\Http\\\\Controllers\\\\Backend\\\\Offline\\\\OfflinePaymentMethodController\\:\\:show\\(\\) should return Illuminate\\\\Http\\\\Response but return statement is missing\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Offline/OfflinePaymentMethodController.php
+
+		-
+			message: "#^Method App\\\\Http\\\\Controllers\\\\Backend\\\\Offline\\\\OfflinePaymentMethodController\\:\\:store\\(\\) should return Illuminate\\\\Http\\\\Response but returns Illuminate\\\\Http\\\\RedirectResponse\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Offline/OfflinePaymentMethodController.php
+
+		-
+			message: "#^Method App\\\\Http\\\\Controllers\\\\Backend\\\\Offline\\\\OfflinePaymentMethodController\\:\\:update\\(\\) should return Illuminate\\\\Http\\\\Response but returns Illuminate\\\\Http\\\\RedirectResponse\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Offline/OfflinePaymentMethodController.php
+
+		-
+			message: "#^PHPDoc tag @param for parameter \\$request with type Illuminate\\\\Http\\\\Request is not subtype of native type App\\\\Http\\\\Requests\\\\OfflinePaymentMethodRequestForm\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Offline/OfflinePaymentMethodController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SubscriptionHistory\\:\\:\\$offlinePaymentMethod\\.$#"
+			count: 3
+			path: app/Http/Controllers/Backend/Offline/PaymentRequestController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SubscriptionHistory\\:\\:\\$subscriptionPackage\\.$#"
+			count: 10
+			path: app/Http/Controllers/Backend/Offline/PaymentRequestController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SubscriptionHistory\\|Illuminate\\\\Database\\\\Eloquent\\\\Collection\\<int, App\\\\Models\\\\SubscriptionHistory\\>\\:\\:\\$duration\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Offline/PaymentRequestController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SubscriptionHistory\\|Illuminate\\\\Database\\\\Eloquent\\\\Collection\\<int, App\\\\Models\\\\SubscriptionHistory\\>\\:\\:\\$offlinePaymentMethod\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Offline/PaymentRequestController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SubscriptionHistory\\|Illuminate\\\\Database\\\\Eloquent\\\\Collection\\<int, App\\\\Models\\\\SubscriptionHistory\\>\\:\\:\\$subscriptionPackage\\.$#"
+			count: 12
+			path: app/Http/Controllers/Backend/Offline/PaymentRequestController.php
+
+		-
+			message: "#^If condition is always true\\.$#"
+			count: 6
+			path: app/Http/Controllers/Backend/Offline/PaymentRequestController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionHistory\\:\\:\\$discount \\(int\\|null\\) does not accept float\\|null\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Offline/PaymentRequestController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionHistory\\:\\:\\$package_price \\(int\\|null\\) does not accept float\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Offline/PaymentRequestController.php
+
+		-
+			message: "#^Relation 'user' is not found in App\\\\Models\\\\SubscriptionHistory model\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Offline/PaymentRequestController.php
+
+		-
+			message: "#^Variable \\$data might not be defined\\.$#"
+			count: 5
+			path: app/Http/Controllers/Backend/Offline/PaymentRequestController.php
+
+		-
+			message: "#^Call to function compact\\(\\) contains undefined variable \\$searchKey\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Pages/PagesController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\PaymentGateway\\:\\:\\$sandbox \\(bool\\|null\\) does not accept int\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/PaymentGateway/PaymentGatewayController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\GrassPeriodPayment\\:\\:\\$subscriptionPackage\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Payments/Duitku/DuitkuController.php
+
+		-
+			message: "#^Method App\\\\Http\\\\Controllers\\\\Backend\\\\Payments\\\\Duitku\\\\DuitkuController\\:\\:paymentCallback\\(\\) should return object but return statement is missing\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Payments/Duitku/DuitkuController.php
+
+		-
+			message: "#^Unreachable statement \\- code above always terminates\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Payments/Duitku/DuitkuController.php
+
+		-
+			message: "#^Access to protected property MercadoPago\\\\Item\\:\\:\\$currency_id\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Payments/Mercadopago/MercadopagoPaymentController.php
+
+		-
+			message: "#^Access to protected property MercadoPago\\\\Item\\:\\:\\$quantity\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Payments/Mercadopago/MercadopagoPaymentController.php
+
+		-
+			message: "#^Access to protected property MercadoPago\\\\Item\\:\\:\\$title\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Payments/Mercadopago/MercadopagoPaymentController.php
+
+		-
+			message: "#^Access to protected property MercadoPago\\\\Item\\:\\:\\$unit_price\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Payments/Mercadopago/MercadopagoPaymentController.php
+
+		-
+			message: "#^Access to protected property MercadoPago\\\\Payer\\:\\:\\$date_created\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Payments/Mercadopago/MercadopagoPaymentController.php
+
+		-
+			message: "#^Access to protected property MercadoPago\\\\Payer\\:\\:\\$email\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Payments/Mercadopago/MercadopagoPaymentController.php
+
+		-
+			message: "#^Access to protected property MercadoPago\\\\Payer\\:\\:\\$name\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Payments/Mercadopago/MercadopagoPaymentController.php
+
+		-
+			message: "#^Access to protected property MercadoPago\\\\Preference\\:\\:\\$auto_return\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Payments/Mercadopago/MercadopagoPaymentController.php
+
+		-
+			message: "#^Access to protected property MercadoPago\\\\Preference\\:\\:\\$back_urls\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Payments/Mercadopago/MercadopagoPaymentController.php
+
+		-
+			message: "#^Access to protected property MercadoPago\\\\Preference\\:\\:\\$init_point\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Payments/Mercadopago/MercadopagoPaymentController.php
+
+		-
+			message: "#^Access to protected property MercadoPago\\\\Preference\\:\\:\\$items\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Payments/Mercadopago/MercadopagoPaymentController.php
+
+		-
+			message: "#^Access to protected property MercadoPago\\\\Preference\\:\\:\\$payer\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Payments/Mercadopago/MercadopagoPaymentController.php
+
+		-
+			message: "#^Access to protected property MercadoPago\\\\Preference\\:\\:\\$sandbox_init_point\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Payments/Mercadopago/MercadopagoPaymentController.php
+
+		-
+			message: "#^Property MercadoPago\\\\Preference\\:\\:\\$back_urls \\(object\\) does not accept array\\<string, string\\>\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Payments/Mercadopago/MercadopagoPaymentController.php
+
+		-
+			message: "#^Static method App\\\\Http\\\\Controllers\\\\Backend\\\\Payments\\\\Mercadopago\\\\MercadopagoPaymentController\\:\\:currencyCode\\(\\) is unused\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Payments/Mercadopago/MercadopagoPaymentController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\GrassPeriodPayment\\:\\:\\$subscriptionPackage\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Payments/Midtrans/MidtransController.php
+
+		-
+			message: "#^Access to an undefined property Midtrans\\\\Notification\\:\\:\\$fraud_status\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Payments/Midtrans/MidtransController.php
+
+		-
+			message: "#^Access to an undefined property Midtrans\\\\Notification\\:\\:\\$order_id\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Payments/Midtrans/MidtransController.php
+
+		-
+			message: "#^Access to an undefined property Midtrans\\\\Notification\\:\\:\\$payment_type\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Payments/Midtrans/MidtransController.php
+
+		-
+			message: "#^Access to an undefined property Midtrans\\\\Notification\\:\\:\\$transaction_status\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Payments/Midtrans/MidtransController.php
+
+		-
+			message: "#^Binary operation \"\\.\" between 'callback notify…' and Midtrans\\\\Notification results in an error\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Payments/Midtrans/MidtransController.php
+
+		-
+			message: "#^Binary operation \"\\.\" between 'callback notify…' and array results in an error\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Payments/Midtrans/MidtransController.php
+
+		-
+			message: "#^Cannot access property \\$transaction_status on array\\.$#"
+			count: 5
+			path: app/Http/Controllers/Backend/Payments/Midtrans/MidtransController.php
+
+		-
+			message: "#^If condition is always true\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Payments/Midtrans/MidtransController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SubscriptionHistory\\:\\:\\$offlinePaymentMethod\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Payments/PaymentsController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SubscriptionHistory\\:\\:\\$subscriptionPackage\\.$#"
+			count: 3
+			path: app/Http/Controllers/Backend/Payments/PaymentsController.php
+
+		-
+			message: "#^If condition is always true\\.$#"
+			count: 3
+			path: app/Http/Controllers/Backend/Payments/PaymentsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionHistory\\:\\:\\$discount \\(int\\|null\\) does not accept float\\|null\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Payments/PaymentsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionHistory\\:\\:\\$package_price \\(int\\|null\\) does not accept float\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Payments/PaymentsController.php
+
+		-
+			message: "#^Unreachable statement \\- code above always terminates\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Payments/PaymentsController.php
+
+		-
+			message: "#^Function isJson not found\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Payments/Paypal/PaypalController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\PaymentgatewayProductHistory\\:\\:\\$is_active \\(bool\\|null\\) does not accept int\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Payments/Paypal/PaypalController.php
+
+		-
+			message: "#^Unreachable statement \\- code above always terminates\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Payments/Paypal/PaypalController.php
+
+		-
+			message: "#^Variable \\$currencyCode on left side of \\?\\? is never defined\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Payments/Paypal/PaypalController.php
+
+		-
+			message: "#^Variable \\$oldProductId might not be defined\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Payments/Paypal/PaypalController.php
+
+		-
+			message: "#^Access to offset 'data' on an unknown class Unicodeveloper\\\\Paystack\\\\json\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Payments/Paystack/PaystackController.php
+
+		-
+			message: "#^Static call to instance method Unicodeveloper\\\\Paystack\\\\Paystack\\:\\:genTranxRef\\(\\)\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Payments/Paystack/PaystackController.php
+
+		-
+			message: "#^Static call to instance method Unicodeveloper\\\\Paystack\\\\Paystack\\:\\:getAuthorizationUrl\\(\\)\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Payments/Paystack/PaystackController.php
+
+		-
+			message: "#^Static call to instance method Unicodeveloper\\\\Paystack\\\\Paystack\\:\\:getPaymentData\\(\\)\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Payments/Paystack/PaystackController.php
+
+		-
+			message: "#^Access to an undefined property Razorpay\\\\Api\\\\Api\\:\\:\\$payment\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Payments/Razorpay/RazorpayController.php
+
+		-
+			message: "#^Call to static method subscribe\\(\\) on an unknown class App\\\\Http\\\\Controllers\\\\Backend\\\\Payments\\\\Stripe\\\\StripeWithAutoRecurringPaymentController\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Payments/Stripe/StripePaymentController.php
+
+		-
+			message: "#^Caught class App\\\\Http\\\\Controllers\\\\Backend\\\\Payments\\\\Yookassa\\\\Exception not found\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Payments/Yookassa/YookassaPaymentController.php
+
+		-
+			message: "#^Access to property \\$banner on an unknown class App\\\\Models\\\\Campaign\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Promotions/CampaignsController.php
+
+		-
+			message: "#^Access to property \\$campaign_id on an unknown class App\\\\Models\\\\CampaignProduct\\.$#"
+			count: 4
+			path: app/Http/Controllers/Backend/Promotions/CampaignsController.php
+
+		-
+			message: "#^Access to property \\$end_date on an unknown class App\\\\Models\\\\Campaign\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Promotions/CampaignsController.php
+
+		-
+			message: "#^Access to property \\$id on an unknown class App\\\\Models\\\\Campaign\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Promotions/CampaignsController.php
+
+		-
+			message: "#^Access to property \\$product_id on an unknown class App\\\\Models\\\\CampaignProduct\\.$#"
+			count: 4
+			path: app/Http/Controllers/Backend/Promotions/CampaignsController.php
+
+		-
+			message: "#^Access to property \\$slug on an unknown class App\\\\Models\\\\Campaign\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Promotions/CampaignsController.php
+
+		-
+			message: "#^Access to property \\$start_date on an unknown class App\\\\Models\\\\Campaign\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Promotions/CampaignsController.php
+
+		-
+			message: "#^Access to property \\$title on an unknown class App\\\\Models\\\\Campaign\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Promotions/CampaignsController.php
+
+		-
+			message: "#^Call to method save\\(\\) on an unknown class App\\\\Models\\\\Campaign\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Promotions/CampaignsController.php
+
+		-
+			message: "#^Call to method save\\(\\) on an unknown class App\\\\Models\\\\CampaignProduct\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Promotions/CampaignsController.php
+
+		-
+			message: "#^Call to static method findOrFail\\(\\) on an unknown class App\\\\Models\\\\Campaign\\.$#"
+			count: 4
+			path: app/Http/Controllers/Backend/Promotions/CampaignsController.php
+
+		-
+			message: "#^Call to static method findOrFail\\(\\) on an unknown class App\\\\Models\\\\Product\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Promotions/CampaignsController.php
+
+		-
+			message: "#^Call to static method latest\\(\\) on an unknown class App\\\\Models\\\\Campaign\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Promotions/CampaignsController.php
+
+		-
+			message: "#^Call to static method where\\(\\) on an unknown class App\\\\Models\\\\Product\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Promotions/CampaignsController.php
+
+		-
+			message: "#^Instantiated class App\\\\Models\\\\Campaign not found\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Promotions/CampaignsController.php
+
+		-
+			message: "#^Instantiated class App\\\\Models\\\\CampaignProduct not found\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Promotions/CampaignsController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$shop_id\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Promotions/CouponsController.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Contracts\\\\Auth\\\\Authenticatable\\:\\:\\$shop_id\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Promotions/CouponsController.php
+
+		-
+			message: "#^Access to property \\$banner on an unknown class App\\\\Models\\\\Coupon\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Promotions/CouponsController.php
+
+		-
+			message: "#^Access to property \\$category_ids on an unknown class App\\\\Models\\\\Coupon\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Promotions/CouponsController.php
+
+		-
+			message: "#^Access to property \\$code on an unknown class App\\\\Models\\\\Coupon\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Promotions/CouponsController.php
+
+		-
+			message: "#^Access to property \\$customer_usage_limit on an unknown class App\\\\Models\\\\Coupon\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Promotions/CouponsController.php
+
+		-
+			message: "#^Access to property \\$discount_type on an unknown class App\\\\Models\\\\Coupon\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Promotions/CouponsController.php
+
+		-
+			message: "#^Access to property \\$discount_value on an unknown class App\\\\Models\\\\Coupon\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Promotions/CouponsController.php
+
+		-
+			message: "#^Access to property \\$end_date on an unknown class App\\\\Models\\\\Coupon\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Promotions/CouponsController.php
+
+		-
+			message: "#^Access to property \\$is_free_shipping on an unknown class App\\\\Models\\\\Coupon\\.$#"
+			count: 4
+			path: app/Http/Controllers/Backend/Promotions/CouponsController.php
+
+		-
+			message: "#^Access to property \\$max_discount_amount on an unknown class App\\\\Models\\\\Coupon\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Promotions/CouponsController.php
+
+		-
+			message: "#^Access to property \\$min_spend on an unknown class App\\\\Models\\\\Coupon\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Promotions/CouponsController.php
+
+		-
+			message: "#^Access to property \\$product_ids on an unknown class App\\\\Models\\\\Coupon\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Promotions/CouponsController.php
+
+		-
+			message: "#^Access to property \\$shop_id on an unknown class App\\\\Models\\\\Coupon\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Promotions/CouponsController.php
+
+		-
+			message: "#^Access to property \\$start_date on an unknown class App\\\\Models\\\\Coupon\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Promotions/CouponsController.php
+
+		-
+			message: "#^Access to property \\$total_usage_limit on an unknown class App\\\\Models\\\\Coupon\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Promotions/CouponsController.php
+
+		-
+			message: "#^Call to method save\\(\\) on an unknown class App\\\\Models\\\\Coupon\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Promotions/CouponsController.php
+
+		-
+			message: "#^Call to static method findOrFail\\(\\) on an unknown class App\\\\Models\\\\Coupon\\.$#"
+			count: 3
+			path: app/Http/Controllers/Backend/Promotions/CouponsController.php
+
+		-
+			message: "#^Call to static method shop\\(\\) on an unknown class App\\\\Models\\\\Coupon\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Promotions/CouponsController.php
+
+		-
+			message: "#^Call to static method where\\(\\) on an unknown class App\\\\Models\\\\Category\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Promotions/CouponsController.php
+
+		-
+			message: "#^Call to static method where\\(\\) on an unknown class App\\\\Models\\\\Coupon\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Promotions/CouponsController.php
+
+		-
+			message: "#^Call to static method where\\(\\) on an unknown class App\\\\Models\\\\Product\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Promotions/CouponsController.php
+
+		-
+			message: "#^Instantiated class App\\\\Models\\\\Coupon not found\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Promotions/CouponsController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SpatieRole\\:\\:\\$created_by\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Roles/RolesController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SpatieRole\\:\\:\\$is_active\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Roles/RolesController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SpatieRole\\|Illuminate\\\\Database\\\\Eloquent\\\\Collection\\<int, App\\\\Models\\\\SpatieRole\\>\\:\\:\\$updated_by\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Roles/RolesController.php
+
+		-
+			message: "#^Variable \\$version might not be defined\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Settings/LicenseController.php
+
+		-
+			message: "#^Variable \\$file_name might not be defined\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Settings/SummerNoteController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SystemSetting\\:\\:\\$value \\(string\\|null\\) does not accept int\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/SettingsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\User\\:\\:\\$email_verified_at \\(Carbon\\\\Carbon\\|null\\) does not accept string\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/StaffsController.php
+
+		-
+			message: "#^Call to static method createProduct\\(\\) on an unknown class App\\\\Http\\\\Controllers\\\\Backend\\\\Payments\\\\Stripe\\\\StripeWithAutoRecurringPaymentController\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionSettingsController.php
+
+		-
+			message: "#^Call to static method showPlanDetails\\(\\) on an unknown class App\\\\Http\\\\Controllers\\\\Backend\\\\Payments\\\\Stripe\\\\StripeWithAutoRecurringPaymentController\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionSettingsController.php
+
+		-
+			message: "#^Method App\\\\Http\\\\Controllers\\\\Backend\\\\Subscription\\\\SubscriptionSettingsController\\:\\:getPaypalProductList\\(\\) is unused\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionSettingsController.php
+
+		-
+			message: "#^Call to static method cancelSubscription\\(\\) on an unknown class App\\\\Http\\\\Controllers\\\\Backend\\\\Payments\\\\Stripe\\\\StripeWithAutoRecurringPaymentController\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionStatusController.php
+
+		-
+			message: "#^Left side of && is always true\\.$#"
+			count: 3
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionStatusController.php
+
+		-
+			message: "#^Unreachable statement \\- code above always terminates\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionStatusController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$allow_ai_chat \\(int\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$allow_ai_code \\(int\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$allow_ai_detector \\(int\\|null\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$allow_ai_image_chat \\(int\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$allow_ai_pdf_chat \\(int\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$allow_ai_plagiarism \\(int\\|null\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$allow_ai_rewriter \\(int\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$allow_ai_vision \\(int\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$allow_blog_wizard \\(int\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$allow_built_in_templates \\(int\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$allow_custom_templates \\(int\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$allow_dall_e_2_image \\(int\\|null\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$allow_dall_e_3_image \\(int\\|null\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$allow_eleven_labs \\(int\\|null\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$allow_image_tools \\(int\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$allow_real_time_data \\(int\\|null\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$allow_sd_images \\(int\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$allow_speech_to_text \\(int\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$allow_text_to_speech \\(int\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$allow_word_tools \\(int\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$discount_status \\(int\\|null\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$has_free_support \\(int\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$has_live_support \\(int\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$is_active \\(int\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$is_featured \\(int\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$show_ai_chat \\(int\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$show_ai_code \\(int\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$show_ai_detector \\(int\\|null\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$show_ai_image_chat \\(int\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$show_ai_pdf_chat \\(int\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$show_ai_plagiarism \\(int\\|null\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$show_ai_rewriter \\(int\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$show_ai_vision \\(int\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$show_blog_wizard \\(int\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$show_built_in_templates \\(int\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$show_custom_templates \\(int\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$show_dall_e_2_image \\(int\\|null\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$show_dall_e_3_image \\(int\\|null\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$show_eleven_labs \\(int\\|null\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$show_free_support \\(int\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$show_image_tools \\(int\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$show_live_support \\(int\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$show_open_ai_model \\(int\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$show_real_time_data \\(int\\|null\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$show_sd_images \\(int\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$show_speech_to_text_tools \\(int\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$show_text_to_speech \\(int\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionPackage\\:\\:\\$show_word_tools \\(int\\) does not accept bool\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Relation 'recurringPayment' is not found in App\\\\Models\\\\SubscriptionHistory model\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Subscription/SubscriptionsController.php
+
+		-
+			message: "#^Method App\\\\Http\\\\Controllers\\\\Backend\\\\SystemUpdateController\\:\\:removeBackupVersion\\(\\) invoked with 1 parameter, 0 required\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/SystemUpdateController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CustomTemplate\\:\\:\\$field\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Templates/CustomTemplatesController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CustomTemplate\\:\\:\\$is_required\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Templates/CustomTemplatesController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CustomTemplate\\:\\:\\$label\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Templates/CustomTemplatesController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CustomTemplate\\:\\:\\$type\\.$#"
+			count: 2
+			path: app/Http/Controllers/Backend/Templates/CustomTemplatesController.php
+
+		-
+			message: "#^Relation 'custom_template_localizations' is not found in App\\\\Models\\\\CustomTemplate model\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Templates/CustomTemplatesController.php
+
+		-
+			message: "#^Relation 'template_localizations' is not found in App\\\\Models\\\\Template model\\.$#"
+			count: 1
+			path: app/Http/Controllers/Backend/Templates/TemplatesController.php
+
+		-
+			message: "#^Access to undefined constant App\\\\Http\\\\Controllers\\\\DemoController\\:\\:SESSION_PDF_CHAT\\.$#"
+			count: 1
+			path: app/Http/Controllers/DemoController.php
+
+		-
+			message: "#^Unreachable statement \\- code above always terminates\\.$#"
+			count: 1
+			path: app/Http/Controllers/DemoController.php
+
+		-
+			message: "#^Method App\\\\Http\\\\Controllers\\\\FilePermissionController\\:\\:getNotEditableFile\\(\\) is unused\\.$#"
+			count: 1
+			path: app/Http/Controllers/FilePermissionController.php
+
+		-
+			message: "#^Call to an undefined method App\\\\Models\\\\User\\:\\:addresses\\(\\)\\.$#"
+			count: 1
+			path: app/Http/Controllers/Frontend/CustomerController.php
+
+		-
+			message: "#^Call to an undefined method App\\\\Models\\\\User\\:\\:orders\\(\\)\\.$#"
+			count: 1
+			path: app/Http/Controllers/Frontend/CustomerController.php
+
+		-
+			message: "#^Call to static method isActive\\(\\) on an unknown class App\\\\Models\\\\Country\\.$#"
+			count: 1
+			path: app/Http/Controllers/Frontend/CustomerController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SubscriptionHistory\\:\\:\\$offlinePaymentMethod\\.$#"
+			count: 1
+			path: app/Http/Controllers/Frontend/SubscriptionsController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SubscriptionHistory\\:\\:\\$subscriptionPackage\\.$#"
+			count: 3
+			path: app/Http/Controllers/Frontend/SubscriptionsController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SubscriptionHistory\\|Illuminate\\\\Database\\\\Eloquent\\\\Collection\\<int, App\\\\Models\\\\SubscriptionHistory\\>\\:\\:\\$duration\\.$#"
+			count: 1
+			path: app/Http/Controllers/Frontend/SubscriptionsController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SubscriptionHistory\\|Illuminate\\\\Database\\\\Eloquent\\\\Collection\\<int, App\\\\Models\\\\SubscriptionHistory\\>\\:\\:\\$subscriptionPackage\\.$#"
+			count: 5
+			path: app/Http/Controllers/Frontend/SubscriptionsController.php
+
+		-
+			message: "#^If condition is always true\\.$#"
+			count: 1
+			path: app/Http/Controllers/Frontend/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionHistory\\:\\:\\$discount \\(int\\|null\\) does not accept float\\|null\\.$#"
+			count: 1
+			path: app/Http/Controllers/Frontend/SubscriptionsController.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SubscriptionHistory\\:\\:\\$package_price \\(int\\|null\\) does not accept float\\.$#"
+			count: 1
+			path: app/Http/Controllers/Frontend/SubscriptionsController.php
+
+		-
+			message: "#^Variable \\$data might not be defined\\.$#"
+			count: 1
+			path: app/Http/Controllers/Frontend/SubscriptionsController.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Contracts\\\\Auth\\\\Authenticatable\\:\\:\\$id\\.$#"
+			count: 2
+			path: app/Http/Controllers/MediaManagerController.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Contracts\\\\Auth\\\\Authenticatable\\:\\:\\$user_type\\.$#"
+			count: 1
+			path: app/Http/Controllers/MediaManagerController.php
+
+		-
+			message: "#^Call to static method subscribeCancel\\(\\) on an unknown class App\\\\Http\\\\Controllers\\\\Backend\\\\Payments\\\\Stripe\\\\StripeWithAutoRecurringPaymentController\\.$#"
+			count: 1
+			path: app/Http/Controllers/TestController.php
+
+		-
+			message: "#^Deprecated in PHP 8\\.0\\: Required parameter \\$content follows optional parameter \\$response_format\\.$#"
+			count: 1
+			path: app/Http/Controllers/TestController.php
+
+		-
+			message: "#^Else branch is unreachable because previous condition is always true\\.$#"
+			count: 1
+			path: app/Http/Controllers/TestController.php
+
+		-
+			message: "#^Elseif branch is unreachable because previous condition is always true\\.$#"
+			count: 3
+			path: app/Http/Controllers/TestController.php
+
+		-
+			message: "#^If condition is always true\\.$#"
+			count: 4
+			path: app/Http/Controllers/TestController.php
+
+		-
+			message: "#^Method App\\\\Http\\\\Controllers\\\\TestController\\:\\:azureVoiceGenerate\\(\\) should return array but returns Illuminate\\\\Http\\\\JsonResponse\\.$#"
+			count: 1
+			path: app/Http/Controllers/TestController.php
+
+		-
+			message: "#^Method App\\\\Http\\\\Controllers\\\\TestController\\:\\:storePage\\(\\) is unused\\.$#"
+			count: 1
+			path: app/Http/Controllers/TestController.php
+
+		-
+			message: "#^Method App\\\\Http\\\\Services\\\\ElevenLabsService\\:\\:voices\\(\\) invoked with 1 parameter, 0 required\\.$#"
+			count: 1
+			path: app/Http/Controllers/TestController.php
+
+		-
+			message: "#^Strict comparison using \\=\\=\\= between \\*NEVER\\* and 'ogg' will always evaluate to false\\.$#"
+			count: 1
+			path: app/Http/Controllers/TestController.php
+
+		-
+			message: "#^Strict comparison using \\=\\=\\= between \\*NEVER\\* and 'wav' will always evaluate to false\\.$#"
+			count: 1
+			path: app/Http/Controllers/TestController.php
+
+		-
+			message: "#^Strict comparison using \\=\\=\\= between \\*NEVER\\* and 'webm' will always evaluate to false\\.$#"
+			count: 1
+			path: app/Http/Controllers/TestController.php
+
+		-
+			message: "#^Unreachable statement \\- code above always terminates\\.$#"
+			count: 2
+			path: app/Http/Controllers/TestController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$profileImage\\.$#"
+			count: 1
+			path: app/Http/Helpers/Constant.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$user_typ\\.$#"
+			count: 1
+			path: app/Http/Helpers/Constant.php
+
+		-
+			message: "#^Comparison operation \"\\=\\=\" between \\(array\\|float\\|int\\) and 0 results in an error\\.$#"
+			count: 3
+			path: app/Http/Helpers/Constant.php
+
+		-
+			message: "#^Comparison operation \"\\>\\=\" between int\\<0, max\\> and 0 is always true\\.$#"
+			count: 1
+			path: app/Http/Helpers/Constant.php
+
+		-
+			message: "#^If condition is always true\\.$#"
+			count: 2
+			path: app/Http/Helpers/Constant.php
+
+		-
+			message: "#^Match expression does not handle remaining value\\: mixed$#"
+			count: 1
+			path: app/Http/Helpers/Constant.php
+
+		-
+			message: "#^Negated boolean expression is always false\\.$#"
+			count: 1
+			path: app/Http/Helpers/Constant.php
+
+		-
+			message: "#^Negated boolean expression is always true\\.$#"
+			count: 1
+			path: app/Http/Helpers/Constant.php
+
+		-
+			message: "#^Result of static method Illuminate\\\\Log\\\\Logger\\:\\:info\\(\\) \\(void\\) is used\\.$#"
+			count: 1
+			path: app/Http/Helpers/Constant.php
+
+		-
+			message: "#^Right side of \\|\\| is always true\\.$#"
+			count: 1
+			path: app/Http/Helpers/Constant.php
+
+		-
+			message: "#^Unreachable statement \\- code above always terminates\\.$#"
+			count: 1
+			path: app/Http/Helpers/Constant.php
+
+		-
+			message: "#^Variable \\$key might not be defined\\.$#"
+			count: 1
+			path: app/Http/Helpers/Constant.php
+
+		-
+			message: "#^Variable \\$text might not be defined\\.$#"
+			count: 1
+			path: app/Http/Helpers/Constant.php
+
+		-
+			message: "#^Method App\\\\Http\\\\Middleware\\\\DemoMiddleware\\:\\:handle\\(\\) should return Illuminate\\\\Http\\\\RedirectResponse\\|Illuminate\\\\Http\\\\Response but returns Illuminate\\\\Http\\\\JsonResponse\\.$#"
+			count: 1
+			path: app/Http/Middleware/DemoMiddleware.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Contracts\\\\Auth\\\\Authenticatable\\:\\:\\$user_type\\.$#"
+			count: 1
+			path: app/Http/Middleware/IsCustomer.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Contracts\\\\Auth\\\\Authenticatable\\:\\:\\$user_type\\.$#"
+			count: 1
+			path: app/Http/Middleware/IsInMaintenance.php
+
+		-
+			message: "#^Variable \\$rules might not be defined\\.$#"
+			count: 1
+			path: app/Http/Requests/FileStorageRequestForm.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\MediaManagerResource\\:\\:\\$id\\.$#"
+			count: 1
+			path: app/Http/Resources/MediaManagerResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\ProductVariationInfoResource\\:\\:\\$id\\.$#"
+			count: 1
+			path: app/Http/Resources/ProductVariationInfoResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\ProductVariationInfoResource\\:\\:\\$product\\.$#"
+			count: 3
+			path: app/Http/Resources/ProductVariationInfoResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\ProductVariationInfoResource\\:\\:\\$product_variation_stock\\.$#"
+			count: 1
+			path: app/Http/Resources/ProductVariationInfoResource.php
+
+		-
+			message: "#^Function variationDiscountedPrice not found\\.$#"
+			count: 1
+			path: app/Http/Resources/ProductVariationInfoResource.php
+
+		-
+			message: "#^Function variationPrice not found\\.$#"
+			count: 1
+			path: app/Http/Resources/ProductVariationInfoResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\UserResource\\:\\:\\$avatar\\.$#"
+			count: 1
+			path: app/Http/Resources/UserResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\UserResource\\:\\:\\$email\\.$#"
+			count: 1
+			path: app/Http/Resources/UserResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\UserResource\\:\\:\\$id\\.$#"
+			count: 1
+			path: app/Http/Resources/UserResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\UserResource\\:\\:\\$name\\.$#"
+			count: 1
+			path: app/Http/Resources/UserResource.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Http\\\\Resources\\\\UserResource\\:\\:\\$phone\\.$#"
+			count: 1
+			path: app/Http/Resources/UserResource.php
+
+		-
+			message: "#^Property App\\\\Http\\\\Services\\\\ElevenLabsService\\:\\:\\$curlInfo is never read, only written\\.$#"
+			count: 1
+			path: app/Http/Services/ElevenLabsService.php
+
+		-
+			message: "#^Property App\\\\Http\\\\Services\\\\ElevenLabsService\\:\\:\\$stream_method is never written, only read\\.$#"
+			count: 1
+			path: app/Http/Services/ElevenLabsService.php
+
+		-
+			message: "#^Variable \\$dataUpscale might not be defined\\.$#"
+			count: 1
+			path: app/Http/Services/GenerateImage.php
+
+		-
+			message: "#^Variable \\$height might not be defined\\.$#"
+			count: 1
+			path: app/Http/Services/GenerateImage.php
+
+		-
+			message: "#^Variable \\$imagePath might not be defined\\.$#"
+			count: 2
+			path: app/Http/Services/GenerateImage.php
+
+		-
+			message: "#^Variable \\$model might not be defined\\.$#"
+			count: 1
+			path: app/Http/Services/GenerateImage.php
+
+		-
+			message: "#^Variable \\$uploadedImageUrl might not be defined\\.$#"
+			count: 1
+			path: app/Http/Services/GenerateImage.php
+
+		-
+			message: "#^Variable \\$width might not be defined\\.$#"
+			count: 1
+			path: app/Http/Services/GenerateImage.php
+
+		-
+			message: "#^Property App\\\\Http\\\\Services\\\\LlamaParseService\\:\\:\\$timeout is never read, only written\\.$#"
+			count: 1
+			path: app/Http/Services/LlamaParseService.php
+
+		-
+			message: "#^Property App\\\\Http\\\\Services\\\\OpenAiCustomService\\:\\:\\$chatModel is never read, only written\\.$#"
+			count: 1
+			path: app/Http/Services/OpenAiCustomService.php
+
+		-
+			message: "#^Property App\\\\Http\\\\Services\\\\OpenAiCustomService\\:\\:\\$curlInfo is never read, only written\\.$#"
+			count: 1
+			path: app/Http/Services/OpenAiCustomService.php
+
+		-
+			message: "#^Property App\\\\Http\\\\Services\\\\OpenAiCustomService\\:\\:\\$engine is never read, only written\\.$#"
+			count: 1
+			path: app/Http/Services/OpenAiCustomService.php
+
+		-
+			message: "#^Property App\\\\Http\\\\Services\\\\OpenAiCustomService\\:\\:\\$model is never read, only written\\.$#"
+			count: 1
+			path: app/Http/Services/OpenAiCustomService.php
+
+		-
+			message: "#^Property App\\\\Http\\\\Services\\\\OpenAiCustomService\\:\\:\\$stream_method is never written, only read\\.$#"
+			count: 1
+			path: app/Http/Services/OpenAiCustomService.php
+
+		-
+			message: "#^Property App\\\\Http\\\\Services\\\\PlagiarismService\\:\\:\\$curlInfo is never read, only written\\.$#"
+			count: 1
+			path: app/Http/Services/PlagiarismService.php
+
+		-
+			message: "#^Property App\\\\Http\\\\Services\\\\SerperService\\:\\:\\$curlInfo is never read, only written\\.$#"
+			count: 1
+			path: app/Http/Services/SerperService.php
+
+		-
+			message: "#^Undefined variable\\: \\$file_name$#"
+			count: 2
+			path: app/Http/Services/StorageService.php
+
+		-
+			message: "#^Undefined variable\\: \\$file_path$#"
+			count: 1
+			path: app/Http/Services/StorageService.php
+
+		-
+			message: "#^Undefined variable\\: \\$image$#"
+			count: 2
+			path: app/Http/Services/StorageService.php
+
+		-
+			message: "#^Property App\\\\Http\\\\Services\\\\SystemUpdateService\\:\\:\\$curlInfo is never read, only written\\.$#"
+			count: 1
+			path: app/Http/Services/SystemUpdateService.php
+
+		-
+			message: "#^Unreachable statement \\- code above always terminates\\.$#"
+			count: 1
+			path: app/Http/Services/SystemUpdateService.php
+
+		-
+			message: "#^Variable \\$fields might not be defined\\.$#"
+			count: 1
+			path: app/Imports/TemplatesImport.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SubscriptionRecurringPayment\\:\\:\\$subscription_package_id\\.$#"
+			count: 1
+			path: app/Listeners/PayPalWebhookListener.php
+
+		-
+			message: "#^Cannot access property \\$error on array\\.$#"
+			count: 1
+			path: app/Listeners/PayPalWebhookListener.php
+
+		-
+			message: "#^Class App\\\\Events\\\\PayPalWebhookEvent referenced with incorrect case\\: App\\\\Events\\\\PaypalWebhookEvent\\.$#"
+			count: 2
+			path: app/Listeners/PayPalWebhookListener.php
+
+		-
+			message: "#^PHPDoc tag @param for parameter \\$event with type object is not subtype of native type App\\\\Events\\\\PayPalWebhookEvent\\.$#"
+			count: 1
+			path: app/Listeners/PayPalWebhookListener.php
+
+		-
+			message: "#^Method App\\\\Mail\\\\User\\\\EmailConfirmationMail\\:\\:build\\(\\) should return \\$this\\(App\\\\Mail\\\\User\\\\EmailConfirmationMail\\) but return statement is missing\\.$#"
+			count: 1
+			path: app/Mail/User/EmailConfirmationMail.php
+
+		-
+			message: "#^Method App\\\\Mail\\\\User\\\\EmailConfirmationMail\\:\\:build\\(\\) should return \\$this\\(App\\\\Mail\\\\User\\\\EmailConfirmationMail\\) but returns false\\.$#"
+			count: 1
+			path: app/Mail/User/EmailConfirmationMail.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AdSense\\:\\:\\$ad_sense_localizations\\.$#"
+			count: 1
+			path: app/Models/AdSense.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Blog\\:\\:\\$blog_localizations\\.$#"
+			count: 1
+			path: app/Models/Blog.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CustomTemplate\\:\\:\\$custom_template_localizations\\.$#"
+			count: 1
+			path: app/Models/CustomTemplate.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CustomTemplateCategory\\:\\:\\$category_localizations\\.$#"
+			count: 1
+			path: app/Models/CustomTemplateCategory.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Faq\\:\\:\\$faq_localizations\\.$#"
+			count: 1
+			path: app/Models/Faq.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\FeatureCategory\\:\\:\\$feature_category_localizations\\.$#"
+			count: 1
+			path: app/Models/FeatureCategory.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\FeatureCategoryDetail\\:\\:\\$feature_category_detail_localizations\\.$#"
+			count: 1
+			path: app/Models/FeatureCategoryDetail.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Page\\:\\:\\$page_localizations\\.$#"
+			count: 1
+			path: app/Models/Page.php
+
+		-
+			message: "#^Variable \\$limi in empty\\(\\) is never defined\\.$#"
+			count: 1
+			path: app/Models/PdfChat.php
+
+		-
+			message: "#^Property App\\\\Models\\\\SpatieRole\\:\\:\\$table \\(string\\) does not accept default value of type array\\<int, string\\>\\.$#"
+			count: 1
+			path: app/Models/SpatieRole.php
+
+		-
+			message: "#^Class App\\\\Models\\\\SubscriptionHistory referenced with incorrect case\\: App\\\\Models\\\\subscriptionHistory\\.$#"
+			count: 1
+			path: app/Models/SubscriptionRecurringPayment.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SystemSetting\\:\\:\\$systemSettingsLocalization\\.$#"
+			count: 1
+			path: app/Models/SystemSetting.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Template\\:\\:\\$template_localizations\\.$#"
+			count: 1
+			path: app/Models/Template.php
+
+		-
+			message: "#^PHPDoc tag @var above a method has no effect\\.$#"
+			count: 1
+			path: app/Providers/RouteServiceProvider.php
+
+		-
+			message: "#^PHPDoc tag @var does not specify variable name\\.$#"
+			count: 1
+			path: app/Providers/RouteServiceProvider.php
+
+		-
+			message: "#^PHPDoc tag @var above a method has no effect\\.$#"
+			count: 1
+			path: app/Providers/SetupServiceComplete.php
+
+		-
+			message: "#^PHPDoc tag @var does not specify variable name\\.$#"
+			count: 1
+			path: app/Providers/SetupServiceComplete.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AiBlogWizardArticle\\:\\:\\$aiBlogWizard\\.$#"
+			count: 1
+			path: app/Services/AI/ClaudeAiService.php
+
+		-
+			message: "#^Method App\\\\Services\\\\AI\\\\ClaudeAiService\\:\\:rawCompletion\\(\\) invoked with 1 parameter, 0 required\\.$#"
+			count: 1
+			path: app/Services/AI/ClaudeAiService.php
+
+		-
+			message: "#^Property App\\\\Models\\\\AiBlogWizardArticleLog\\:\\:\\$prompt_tokens \\(string\\|null\\) does not accept int\\<1, max\\>\\.$#"
+			count: 1
+			path: app/Services/AI/ClaudeAiService.php
+
+		-
+			message: "#^Unreachable statement \\- code above always terminates\\.$#"
+			count: 4
+			path: app/Services/AI/ClaudeAiService.php
+
+		-
+			message: "#^Using nullsafe property access on non\\-nullable type Anthropic\\\\Responses\\\\Messages\\\\CreateResponse\\. Use \\-\\> instead\\.$#"
+			count: 2
+			path: app/Services/AI/ClaudeAiService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AiBlogWizardArticle\\:\\:\\$aiBlogWizard\\.$#"
+			count: 1
+			path: app/Services/AI/DeepseekAiService.php
+
+		-
+			message: "#^Method App\\\\Services\\\\AI\\\\DeepseekAiService\\:\\:rawCompletion\\(\\) invoked with 1 parameter, 0 required\\.$#"
+			count: 1
+			path: app/Services/AI/DeepseekAiService.php
+
+		-
+			message: "#^Property App\\\\Models\\\\AiBlogWizardArticleLog\\:\\:\\$prompt_tokens \\(string\\|null\\) does not accept int\\<1, max\\>\\.$#"
+			count: 1
+			path: app/Services/AI/DeepseekAiService.php
+
+		-
+			message: "#^Unreachable statement \\- code above always terminates\\.$#"
+			count: 4
+			path: app/Services/AI/DeepseekAiService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AiBlogWizardArticle\\:\\:\\$aiBlogWizard\\.$#"
+			count: 1
+			path: app/Services/AI/OpenAiService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AiChat\\:\\:\\$category\\.$#"
+			count: 1
+			path: app/Services/AI/OpenAiService.php
+
+		-
+			message: "#^Anonymous function has an unused use \\$prompt\\.$#"
+			count: 1
+			path: app/Services/AI/OpenAiService.php
+
+		-
+			message: "#^Anonymous function has an unused use \\$user\\.$#"
+			count: 2
+			path: app/Services/AI/OpenAiService.php
+
+		-
+			message: "#^Expression on left side of \\?\\? is not nullable\\.$#"
+			count: 1
+			path: app/Services/AI/OpenAiService.php
+
+		-
+			message: "#^Method App\\\\Services\\\\AI\\\\OpenAiService\\:\\:rawCompletion\\(\\) invoked with 1 parameter, 0 required\\.$#"
+			count: 1
+			path: app/Services/AI/OpenAiService.php
+
+		-
+			message: "#^Property App\\\\Models\\\\AiBlogWizardArticleLog\\:\\:\\$prompt_tokens \\(string\\|null\\) does not accept int\\<1, max\\>\\.$#"
+			count: 1
+			path: app/Services/AI/OpenAiService.php
+
+		-
+			message: "#^Unreachable statement \\- code above always terminates\\.$#"
+			count: 4
+			path: app/Services/AI/OpenAiService.php
+
+		-
+			message: "#^Variable \\$history might not be defined\\.$#"
+			count: 3
+			path: app/Services/AI/OpenAiService.php
+
+		-
+			message: "#^Deprecated in PHP 8\\.0\\: Required parameter \\$prompt follows optional parameter \\$numberOfResults\\.$#"
+			count: 1
+			path: app/Services/AiService.php
+
+		-
+			message: "#^Array has 2 duplicate keys with value 'purpose' \\(\"purpose\", \"purpose\"\\)\\.$#"
+			count: 1
+			path: app/Services/FineTune/FineTuneService.php
+
+		-
+			message: "#^Call to static method disk\\(\\) on an unknown class App\\\\Traits\\\\Storage\\.$#"
+			count: 2
+			path: app/Services/FineTune/FineTuneService.php
+
+		-
+			message: "#^Match expression does not handle remaining value\\: mixed$#"
+			count: 2
+			path: app/Services/Integration/IntegrationService.php
+
+		-
+			message: "#^Function setReferralCode not found\\.$#"
+			count: 1
+			path: app/Services/UserService.php
+
+		-
+			message: "#^Relation 'aiBlogWizardArticle' is not found in App\\\\Models\\\\AiBlogWizard model\\.$#"
+			count: 1
+			path: app/Services/WriteBotService.php
+
+		-
+			message: "#^Relation 'aiBlogWizardKeyword' is not found in App\\\\Models\\\\AiBlogWizard model\\.$#"
+			count: 1
+			path: app/Services/WriteBotService.php
+
+		-
+			message: "#^Relation 'category' is not found in App\\\\Models\\\\FeatureCategoryDetail model\\.$#"
+			count: 1
+			path: app/Services/WriteBotService.php
+
+		-
+			message: "#^Relation 'customTemplates' is not found in App\\\\Models\\\\CustomTemplateCategory model\\.$#"
+			count: 1
+			path: app/Services/WriteBotService.php
+
+		-
+			message: "#^Relation 'feature_category_detail' is not found in App\\\\Models\\\\FeatureCategory model\\.$#"
+			count: 1
+			path: app/Services/WriteBotService.php
+
+		-
+			message: "#^Relation 'subscription_package_templates' is not found in App\\\\Models\\\\SubscriptionPackage model\\.$#"
+			count: 1
+			path: app/Services/WriteBotService.php
+
+		-
+			message: "#^Relation 'templates' is not found in App\\\\Models\\\\TemplateGroup model\\.$#"
+			count: 1
+			path: app/Services/WriteBotService.php
+
+		-
+			message: "#^Relation 'feature_category_detail' is not found in App\\\\Models\\\\FeatureCategory model\\.$#"
+			count: 1
+			path: app/View/Components/RaderComponent.php
