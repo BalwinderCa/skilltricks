@@ -1340,6 +1340,12 @@ public function users_new_chat_ask(Request $request)
         // But continue with the request
     }
 
+    // First message in a session sends the FULL document text (needed to build
+    // the GoalSync analysis). Follow-ups send only the document NAMES so we
+    // don't resend the entire corpus on every turn (large token / latency cost).
+    $isFirstMessage = (($previousContext && ($previousContext->status1 == '0' || $previousContext->status1 == 0))
+        || ($chectdata->status1 == '0' || $chectdata->status1 == 0));
+
     // Get user's documents for company context with document metadata
     $documents = Document::where('user_id', $user->id)
         ->whereNotNull('parsed_text')
@@ -1348,11 +1354,14 @@ public function users_new_chat_ask(Request $request)
         ->get();
     
     $documentContext = '';
+    $documentNamesList = '';
     $documentMetadata = [];
     if ($documents->count() > 0) {
         $documentContext = "\n\n--- COMPANY DOCUMENTS CONTEXT ---\n";
         $documentContext .= "The following information is from uploaded company documents. Use this context to provide accurate and relevant responses about the company:\n\n";
-        
+
+        $documentNamesList = "\n\nAvailable Documents:\n";
+
         foreach ($documents as $doc) {
             $documentMetadata[] = [
                 'name' => $doc->name,
@@ -1361,13 +1370,24 @@ public function users_new_chat_ask(Request $request)
             ];
             $documentContext .= "--- Document: {$doc->name} (Type: {$doc->file_type}) ---\n";
             $documentContext .= $doc->parsed_text . "\n\n";
+            $documentNamesList .= "- {$doc->name} ({$doc->file_type})\n";
         }
         $documentContext .= "--- END COMPANY DOCUMENTS CONTEXT ---\n";
     }
 
     $systemMessage = 'You are a strategy assistant. Respond only using structured ChatGPT-style text with emojis and clean formatting based on the GoalSync method.';
-    if (!empty($documentContext)) {
-        $systemMessage .= $documentContext;
+    // First message: inject the full document text (needed to build the analysis).
+    // Follow-ups: inject only the document names so we don't resend the whole
+    // corpus on every turn — this is the dominant token/latency cost in chat.
+    if ($isFirstMessage) {
+        if (!empty($documentContext)) {
+            $systemMessage .= $documentContext;
+        }
+    } elseif (!empty($documentNamesList)) {
+        $systemMessage .= "\n\n--- COMPANY DOCUMENTS (names only) ---\n"
+            . "Full document text was provided earlier in this session. The available company documents are:\n"
+            . $documentNamesList
+            . "--- END COMPANY DOCUMENTS ---\n";
     }
 
     // Process additional context from request (if provided in this request)
@@ -1410,13 +1430,6 @@ public function users_new_chat_ask(Request $request)
                     'additional_details' => $additionalContext['additional_details'] ?? '',
                     'created_at' => now()->toDateTimeString()
                 ];
-                
-                // Try to add column if it doesn't exist
-                try {
-                    DB::statement("ALTER TABLE search_user_chat ADD COLUMN additional_context TEXT NULL");
-                } catch (\Exception $e) {
-                    // Column might already exist
-                }
                 
                 DB::table('search_user_chat')
                     ->where('id', $chatId)
@@ -1467,16 +1480,9 @@ public function users_new_chat_ask(Request $request)
 
  $aiProvider = $this->aiProviderLabel();
 
- if(($previousContext && ($previousContext->status1 == '0' || $previousContext->status1 == 0)) || ($chectdata->status1 == '0' || $chectdata->status1 == 0)){
-    // Build prompt to return GOALSYNC output in natural ChatGPT-style format
-    // Build document names list for prompt
-    $documentNamesList = '';
-    if (count($documentMetadata) > 0) {
-        $documentNamesList = "\n\nAvailable Documents:\n";
-        foreach ($documentMetadata as $meta) {
-            $documentNamesList .= "- {$meta['name']} ({$meta['type']})\n";
-        }
-    }
+ if ($isFirstMessage) {
+    // Build prompt to return GOALSYNC output in natural ChatGPT-style format.
+    // $documentNamesList was built above alongside the full document context.
 
     // Structured GoalSync JSON contract (rendered client-side by renderAnswer).
     $prompt = $this->goalSyncJsonPrompt($question, $documentNamesList);
@@ -2267,53 +2273,25 @@ EOT;
 
         $additionalContext = implode("\n", $contextParts);
 
-        // Check if additional_context column exists, if not we'll store in a JSON field or create migration
-        // For now, let's store it in a JSON format in a new column or use existing structure
+        // The additional_context column is provisioned by migration, so we can
+        // update it directly (no per-request SHOW COLUMNS / ALTER TABLE needed).
         try {
-            // Check if column exists
-            $columns = DB::select("SHOW COLUMNS FROM search_user_chat LIKE 'additional_context'");
-            if (count($columns) > 0) {
-                // Column exists, update it
-                $existingContext = $chatData->additional_context ?? '';
-                $contextArray = !empty($existingContext) ? json_decode($existingContext, true) : [];
-                $contextArray[] = [
-                    'field1' => $field1,
-                    'field2' => $field2,
-                    'field3' => $field3,
-                    'additional_details' => $additionalDetails,
-                    'created_at' => now()->toDateTimeString()
-                ];
-                
-                DB::table('search_user_chat')
-                    ->where('id', $chatId)
-                    ->update(['additional_context' => json_encode($contextArray)]);
-            } else {
-                // Column doesn't exist, store in a text field or create it
-                // For now, we'll use a simple approach: store as JSON in a text field
-                // You may want to create a migration to add 'additional_context' column
-                $contextData = [
-                    'field1' => $field1,
-                    'field2' => $field2,
-                    'field3' => $field3,
-                    'additional_details' => $additionalDetails,
-                    'created_at' => now()->toDateTimeString()
-                ];
-                
-                // Try to add column if it doesn't exist (for development - in production use migrations)
-                try {
-                    DB::statement("ALTER TABLE search_user_chat ADD COLUMN additional_context TEXT NULL");
-                } catch (\Exception $e) {
-                    // Column might already exist or other error, continue
-                }
-                
-                $existingContext = $chatData->additional_context ?? '';
-                $contextArray = !empty($existingContext) ? json_decode($existingContext, true) : [];
-                $contextArray[] = $contextData;
-                
-                DB::table('search_user_chat')
-                    ->where('id', $chatId)
-                    ->update(['additional_context' => json_encode($contextArray)]);
+            $existingContext = $chatData->additional_context ?? '';
+            $contextArray = !empty($existingContext) ? json_decode($existingContext, true) : [];
+            if (!is_array($contextArray)) {
+                $contextArray = [];
             }
+            $contextArray[] = [
+                'field1' => $field1,
+                'field2' => $field2,
+                'field3' => $field3,
+                'additional_details' => $additionalDetails,
+                'created_at' => now()->toDateTimeString()
+            ];
+
+            DB::table('search_user_chat')
+                ->where('id', $chatId)
+                ->update(['additional_context' => json_encode($contextArray)]);
         } catch (\Exception $e) {
             Log::error('Error saving additional context', [
                 'error' => $e->getMessage(),
