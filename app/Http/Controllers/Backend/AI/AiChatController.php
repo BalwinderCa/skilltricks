@@ -2438,17 +2438,91 @@ public function chat_question_store(Request $request)
     /**
      * Generate Leadership Alignment Brief
      */
+    /**
+     * Resolve the chosen strategy name and scenario label for a chat from its
+     * stored GoalSync JSON contract. Returns [strategyName|null, scenarioLabel|null].
+     * Used as a fallback when the request doesn't carry the live UI selection.
+     */
+    private function resolveSelectionFromContract($chatId): array
+    {
+        // The first message stores the JSON contract; later follow-ups may overwrite
+        // search_user_chat.response with markdown, so scan the per-message history too.
+        $candidates = DB::table('search_user_chat_data')
+            ->where('search_user_chat_id', $chatId)
+            ->orderBy('id')
+            ->pluck('response')
+            ->all();
+
+        $main = DB::table('search_user_chat')->where('id', $chatId)->value('response');
+        if ($main) {
+            $candidates[] = $main;
+        }
+
+        foreach ($candidates as $resp) {
+            $data = $this->extractJson((string) $resp);
+            if (!is_array($data) || empty($data['strategyMap']) || !is_array($data['strategyMap'])) {
+                continue;
+            }
+
+            $selStratId = $data['selectedStrategyId'] ?? ($data['strategyMap'][0]['id'] ?? null);
+
+            $strategyName = null;
+            foreach ($data['strategyMap'] as $s) {
+                if (is_array($s) && ($s['id'] ?? null) === $selStratId) {
+                    $strategyName = $s['name'] ?? null;
+                    break;
+                }
+            }
+            if ($strategyName === null) {
+                $strategyName = $data['strategyMap'][0]['name'] ?? null;
+            }
+
+            $scenarioLabel = null;
+            $variant = $data['strategyVariants'][$selStratId] ?? null;
+            if (is_array($variant)) {
+                $selScenId = $variant['selectedScenarioId'] ?? ($variant['scenarios'][0]['id'] ?? null);
+                foreach (($variant['scenarios'] ?? []) as $sc) {
+                    if (is_array($sc) && ($sc['id'] ?? null) === $selScenId) {
+                        $scenarioLabel = $sc['label'] ?? null;
+                        break;
+                    }
+                }
+                if ($scenarioLabel === null) {
+                    $scenarioLabel = $variant['scenarios'][0]['label'] ?? null;
+                }
+            }
+
+            return [$strategyName, $scenarioLabel];
+        }
+
+        return [null, null];
+    }
+
     public function generate_leadership_alignment_brief(Request $request)
     {
         $user = auth()->user();
         $chatId = $request->input('chat_id');
-        $selectedStrategy = $request->input('selected_strategy');
-        $selectedScenario = $request->input('selected_scenario');
+        $selectedStrategy = trim((string) $request->input('selected_strategy'));
+        $selectedScenario = trim((string) $request->input('selected_scenario'));
         $originalQuestion = $request->input('original_question');
         $fullResponse = $request->input('full_response');
 
         if (!$chatId || !$originalQuestion) {
             return response()->json(['error' => 'Chat ID and original question are required.'], 400);
+        }
+
+        // The frontend only sends the selection from in-page JS state, which can be
+        // empty (e.g. a chat reopened from history), and the selection is not
+        // persisted as its own column. Fall back to the names recorded in the
+        // stored GoalSync contract so the brief never shows "Not provided".
+        if ($selectedStrategy === '' || $selectedScenario === '') {
+            [$stratFromContract, $scenFromContract] = $this->resolveSelectionFromContract($chatId);
+            if ($selectedStrategy === '' && $stratFromContract) {
+                $selectedStrategy = $stratFromContract;
+            }
+            if ($selectedScenario === '' && $scenFromContract) {
+                $selectedScenario = $scenFromContract;
+            }
         }
 
         // Get user's documents
@@ -2519,6 +2593,7 @@ Format:
 - No fluff - be concise and actionable
 - Executive-ready language
 - Consulting-style format
+- For "Decision Chosen" and "Scenario Selected", use the Context values above when present; if either is blank, infer the most likely chosen path/scenario from the Full Analysis Context. NEVER output "Not provided" or leave them blank.
 EOT;
 
         try {
