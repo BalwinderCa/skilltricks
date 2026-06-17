@@ -99,14 +99,9 @@ class DuitkuController extends DuitkuBaseController
                 // FAILED
               return  $this->failed();
             }
-
-            if($pendingRecord && empty($signature) && $merchantOrderId) {
-                return (new PaymentsController)->payment_success(null, $user, $pendingRecord->subscription_package_id, $pendingRecord->subscriptionPackage->price, 'duitku', $data);
-            }
-
         } catch (\Exception $ex) {
             Log::info("Duitku payment callback :" .$ex->getMessage());
-            $this->failed();
+            return $this->failed();
         }
     }
     # success
@@ -156,11 +151,9 @@ class DuitkuController extends DuitkuBaseController
 
         if ($request->resultCode) {
             if ($request->resultCode == DuitkuCallbackCode::SUCCESS) {
-                if($pendingRecord) {
-                    return (new PaymentsController)->payment_success(null, $user, $pendingRecord->subscription_package_id, $pendingRecord->subscriptionPackage->price, 'duitku', $data);
-                }else {
-                  return $this->success();
-                }
+                flash(localize('Payment is being processed. Your subscription will activate once confirmed.'))->info();
+                clearPaymentSession();
+                return redirect()->route('subscriptions.index');
             }
         }else if($request->resultCode == '01') {
 

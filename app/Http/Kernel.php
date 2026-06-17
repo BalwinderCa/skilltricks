@@ -79,6 +79,7 @@ class Kernel extends HttpKernel
         'isBanned' => IsBanned::class,
         'affiliate' => AffiliateMiddleWare::class,
         'demo'      => DemoMiddleware::class,
+        'ensureDemoMode' => \App\Http\Middleware\EnsureDemoMode::class,
         'frontendAllow'      => IsFrontendEnable::class,
         // 3rd party
         'role' => \Spatie\Permission\Middlewares\RoleMiddleware::class,

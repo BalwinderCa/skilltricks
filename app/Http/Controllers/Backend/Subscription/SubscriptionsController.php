@@ -17,6 +17,16 @@ use Str;
 
 class SubscriptionsController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware(['permission:subscriptions'])->only([
+            'update',
+            'updateTemplates',
+            'newPackage',
+            'delete',
+        ]);
+    }
+
     # all subscription packages
     public function index(Request $request)
     {

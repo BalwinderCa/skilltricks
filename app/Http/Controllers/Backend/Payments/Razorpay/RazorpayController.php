@@ -57,30 +57,44 @@ class RazorpayController extends Controller
     # make payment
     public function payment(Request $request)
     {
-        //Input items of form
         $input = $request->all();
-        //get API Configuration
+
+        if (empty($input['razorpay_payment_id'])) {
+            return (new PaymentsController)->payment_failed();
+        }
+
         $api = new Api(config('custom.razorpay_key'), config('custom.razorpay_secret'));
 
-        //Fetch payment information by razorpay_payment_id
-        $payment = $api->payment->fetch($input['razorpay_payment_id']);
+        try {
+            if (! empty($input['razorpay_order_id']) && ! empty($input['razorpay_signature'])) {
+                $api->utility->verifyPaymentSignature([
+                    'razorpay_order_id' => $input['razorpay_order_id'],
+                    'razorpay_payment_id' => $input['razorpay_payment_id'],
+                    'razorpay_signature' => $input['razorpay_signature'],
+                ]);
+            }
 
-        if (count($input)  && !empty($input['razorpay_payment_id'])) {
-            $payment_details = null;
-            try {
+            $payment = $api->payment->fetch($input['razorpay_payment_id']);
 
-                $response = $api->payment->fetch($input['razorpay_payment_id'])->capture(array('amount' => $payment['amount']));
-                $payment_details = json_encode(array(
-                    'id' => $response['id'],
-                    'method' => $response['method'],
-                    'amount' => $response['amount'],
-                    'currency' => $response['currency']
-                ));
-            } catch (\Exception $e) {
+            if ($payment['status'] === 'authorized') {
+                $response = $payment->capture(['amount' => $payment['amount']]);
+            } else {
+                $response = $payment;
+            }
+
+            if (! in_array($response['status'], ['captured', 'paid'], true)) {
                 return (new PaymentsController)->payment_failed();
             }
+
+            $payment_details = json_encode([
+                'id' => $response['id'],
+                'method' => $response['method'],
+                'amount' => $response['amount'],
+                'currency' => $response['currency'],
+            ]);
+
             return (new PaymentsController)->payment_success(json_encode($payment_details));
-        } else {
+        } catch (\Exception $e) {
             return (new PaymentsController)->payment_failed();
         }
     }

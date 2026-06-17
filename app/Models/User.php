@@ -32,8 +32,29 @@ class User extends Authenticatable implements MustVerifyEmail
         $this->notify(new WelcomeNotification());
     }
 
-    # guarded
-    protected $guarded = ['id'];
+    # guarded — use explicit fillable to prevent privilege escalation via mass assignment
+    protected $fillable = [
+        'name',
+        'email',
+        'phone',
+        'password',
+        'avatar',
+        'postal_code',
+        'provider_id',
+        'email_or_otp_verified',
+        'verification_code',
+        'new_email_verification_code',
+        'email_verified_at',
+        'remember_token',
+        'company',
+        'company_name',
+        'company_address',
+        'number_employess',
+        'chat_role_categories',
+        'company_category',
+        'about_company',
+        'referral_code',
+    ];
 
     # hidden for serializations
     protected $hidden = [

@@ -54,7 +54,7 @@ class PaymentsController extends Controller
             return (new MidtransController)->initPayment();
         }
         # todo::[update versions] more gateways
-        return $this->payment_success();
+        return $this->payment_failed();
     }
 
     # payment successful

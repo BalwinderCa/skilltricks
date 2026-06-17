@@ -10,7 +10,7 @@ class ContactUsMessagesController extends Controller
     # construct
     public function __construct()
     {
-        $this->middleware(['permission:contact_us_messages'])->only(['index', 'delete']);
+        $this->middleware(['permission:contact_us_messages'])->only(['index', 'read', 'delete', 'deleteAll']);
     }
 
     # get all query messages

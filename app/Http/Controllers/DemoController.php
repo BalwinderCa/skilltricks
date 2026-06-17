@@ -62,6 +62,10 @@ class DemoController extends Controller
 
     public function cron_1()
     {
+        if (! app()->environment('local') || config('custom.demo_mode') !== 'On') {
+            abort(404);
+        }
+
         $this->drop_all_tables();
         $this->import_demo_sql();
 
@@ -96,9 +100,10 @@ class DemoController extends Controller
 
     public function cron_2()
     {
-        if (config('custom.demo_mode') != 'On') {
-            return back();
+        if (! app()->environment('local') || config('custom.demo_mode') !== 'On') {
+            abort(404);
         }
+
         $this->remove_folder();
         $this->extract_uploads();
     }

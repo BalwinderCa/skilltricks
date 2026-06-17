@@ -17,7 +17,16 @@ class FaqsController extends Controller
     public function __construct()
     {
         $this->middleware(['permission:faqs'])->only([
-            'index','store',"edit","update","delete"
+            'index', 'store', 'edit', 'update', 'delete',
+            'chat_rolecategories', 'chatrolecategories_update', 'chat_rolecategories_store',
+            'chatrolecategory_updatestatus', 'chat_rolecategories_edit',
+            'chat_categories', 'chat_categories_edit', 'chat_categories_store',
+            'chatcategories_update', 'chatcategory_updatestatus',
+            'chat_subcategory', 'get_parent_categories', 'chat_subcategories_store',
+            'chatsubcategories_update', 'chatsubcategory_updatestatus', 'chat_subcategories_edit',
+            'subcategory_menu', 'getSubcategories', 'subcategory_menu_edit', 'subcategory_menu_store',
+            'subcategory_menu_update', 'subcategory_menu_question', 'subcategorymenu_questionupdate_status',
+            'subcategory_menu_question_edit', 'sub_question_update',
         ]);
     }
 

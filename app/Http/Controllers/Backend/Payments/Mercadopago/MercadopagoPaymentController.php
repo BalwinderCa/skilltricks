@@ -131,12 +131,23 @@ class MercadopagoPaymentController extends Controller
     public function redirect()
     {
         $response = Request()->all();
-        if ($response['status'] == 'approved') {
+        $paymentId = $response['payment_id'] ?? $response['collection_id'] ?? null;
 
-            $payment = ["status" => "Success"];
-            return (new PaymentsController)->payment_success(json_encode($payment));
-        } else {
+        if (! $paymentId) {
+            return (new PaymentsController)->payment_failed();
+        }
 
+        try {
+            MercadoPago\SDK::setAccessToken(config('custom.mercadopago_secret_key'));
+            $payment = MercadoPago\Payment::find_by_id($paymentId);
+
+            if ($payment->status !== 'approved') {
+                return (new PaymentsController)->payment_failed();
+            }
+
+            $paymentData = ["status" => "Success", 'payment_id' => $paymentId];
+            return (new PaymentsController)->payment_success(json_encode($paymentData));
+        } catch (\Throwable $th) {
             return (new PaymentsController)->payment_failed();
         }
     }

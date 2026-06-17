@@ -76,8 +76,17 @@ class PaypalController extends Controller
     {
         try {
             $orderId = $request->orderID;
+            if (! $orderId) {
+                return (new PaymentsController)->payment_failed();
+            }
+
             $provider = self::getPaypalProvider();
             $order = $provider->capturePaymentOrder($orderId);
+
+            if (! isset($order['status']) || $order['status'] !== 'COMPLETED') {
+                return (new PaymentsController)->payment_failed();
+            }
+
             $amount = self::currencyAmount();
             $package_id = session()->get('package_id');
             $data = [
@@ -86,7 +95,7 @@ class PaypalController extends Controller
             $paymentController =   new PaymentsController;
             return $paymentController->payment_success(null, null, $package_id, $amount, 'paypal', $data);
         } catch (\Throwable $th) {
-            throw $th;
+            return (new PaymentsController)->payment_failed();
         }
     }
     # order success
@@ -94,11 +103,23 @@ class PaypalController extends Controller
     {
 
         try {
+            $subscriptionId = $request->paypalSubscriptionID;
+            if (! $subscriptionId) {
+                return (new PaymentsController)->payment_failed();
+            }
+
+            $provider = self::getPaypalProvider();
+            $subscription = $provider->showSubscriptionDetails($subscriptionId);
+
+            if (! isset($subscription['status']) || ! in_array($subscription['status'], ['ACTIVE', 'APPROVED'], true)) {
+                return (new PaymentsController)->payment_failed();
+            }
+
             $data = [
                 'billing_id' => $request->billingPlanId,
                 'product_id' => $request->productId,
-                'gateway_subscription_id' => $request->paypalSubscriptionID,
-                'json' => true, 
+                'gateway_subscription_id' => $subscriptionId,
+                'json' => true,
                 'gateway'=>'paypal',
             ];
 

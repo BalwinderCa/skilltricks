@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Stripe\Stripe;
 use App\Http\Controllers\Backend\Payments\PaymentsController;
 use App\Models\SubscriptionPackage;
+use Illuminate\Http\Request;
 use Session;
 
 class StripePaymentController extends Controller
@@ -91,17 +92,34 @@ class StripePaymentController extends Controller
                 ]
             ],
             'mode' => 'payment',
-            'success_url' => route('stripe.success'),
+            'success_url' => route('stripe.success') . '?session_id={CHECKOUT_SESSION_ID}',
             'cancel_url' => route('stripe.cancel'),
         ]);
         return response()->json(['id' => $session->id, 'status' => 200]);
     }
 
     # successful payment
-    public function success()
+    public function success(Request $request)
     {
         try {
-            $payment = ["status" => "Success"];
+            $sessionId = $request->query('session_id');
+            if (! $sessionId) {
+                return (new PaymentsController)->payment_failed();
+            }
+
+            Stripe::setApiKey(config('custom.stripe_secret'));
+            $session = \Stripe\Checkout\Session::retrieve($sessionId);
+
+            if ($session->payment_status !== 'paid') {
+                return (new PaymentsController)->payment_failed();
+            }
+
+            $payment = [
+                'status' => 'Success',
+                'session_id' => $session->id,
+                'payment_intent' => $session->payment_intent,
+            ];
+
             return (new PaymentsController)->payment_success(json_encode($payment));
         } catch (\Exception $e) {
             return (new PaymentsController)->payment_failed();

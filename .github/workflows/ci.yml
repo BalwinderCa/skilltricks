@@ -42,6 +42,12 @@ jobs:
       - name: PHPStan (baseline = only new issues fail)
         run: vendor/bin/phpstan analyse --no-progress --memory-limit=2G
 
+      - name: Composer audit
+        run: composer audit --no-ansi
+
+      - name: PHPUnit security suite
+        run: vendor/bin/phpunit tests/Feature/Security/
+
       - name: PHPUnit
         run: vendor/bin/phpunit
 

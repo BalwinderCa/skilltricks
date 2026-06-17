@@ -38,11 +38,12 @@ use App\Http\Controllers\Backend\Payments\Stripe\StripeWithAutoRecurringPaymentC
 |
 */
 
-Route::get("stream", [DemoController::class, "eventTry"]);
-
-# demo
-Route::get('/demo/db-cron', [DemoController::class, 'cron_1']);
-Route::get('/demo/folder-cron', [DemoController::class, 'cron_2']);
+# demo routes — local + DEMO_MODE=On only (see EnsureDemoMode middleware)
+Route::middleware('ensureDemoMode')->group(function () {
+    Route::get('stream', [DemoController::class, 'eventTry']);
+    Route::get('/demo/db-cron', [DemoController::class, 'cron_1']);
+    Route::get('/demo/folder-cron', [DemoController::class, 'cron_2']);
+});
 
 Auth::routes(['verify' => true]);
 

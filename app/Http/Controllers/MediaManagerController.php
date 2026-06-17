@@ -84,13 +84,18 @@ class MediaManagerController extends Controller
     public function delete($id)
     {
         $mediaFile = MediaManager::findOrFail($id);
+        $user = Auth::user();
+
+        if ($user->user_type !== 'admin' && (int) $mediaFile->user_id !== (int) $user->id) {
+            abort(403);
+        }
+
         if (!is_null($mediaFile)) {
             fileDelete($mediaFile->media_file);
-            # todo:: check auth user, media user -- 
             $mediaFile->delete();
         }
 
-        flash(localize('File has been deleted successfully'))->success(); 
+        flash(localize('File has been deleted successfully'))->success();
         return redirect()->route('admin.mediaManager.index');
     }
 }

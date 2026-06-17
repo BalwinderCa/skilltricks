@@ -56,22 +56,22 @@ class MidtransController extends Controller
     public function callback(Request $request)
     {
         try {
-            $notification_body = json_decode($request->getContent());
-            Log::info('callback notification :' . $notification_body);
             \Midtrans\Config::$serverKey = config('custom.midtrans_server_key');
+            \Midtrans\Config::$isProduction = paymentGateway('midtrans')->sandbox == 1 ? false : true;
             $notif = new \Midtrans\Notification();
-            Log::info('callback notify notification :' . $notif);
-            Log::info('callback notify request :' . $request->all());
+            $transaction_status = $notif->transaction_status;
         } catch (\Exception $e) {
             Log::info('midtranse notification :' . $e->getMessage());
-        }
-        $transaction_status =  'capture';
-        if ($transaction_status == 'capture') {
-            $payment = ["status" => "Success"];
-            return (new PaymentsController)->payment_success(json_encode($payment));
-        } else {
+
             return (new PaymentsController)->payment_failed();
         }
+
+        if (in_array($transaction_status, ['capture', 'settlement', 'success'], true)) {
+            $payment = ["status" => "Success"];
+            return (new PaymentsController)->payment_success(json_encode($payment));
+        }
+
+        return (new PaymentsController)->payment_failed();
     }
 
     # successful payment

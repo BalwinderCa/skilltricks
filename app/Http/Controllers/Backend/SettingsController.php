@@ -71,13 +71,40 @@ class SettingsController extends Controller
     # update env values
     public function envKeyUpdate(Request $request)
     {
-      
         foreach ($request->types as $key => $type) {
+            if (! $this->isAllowedEnvKey($type)) {
+                abort(403, 'Updating this environment key is not permitted.');
+            }
+
             writeToEnvFile($type, $request[$type]);
         }
         cacheClear();
         flash(localize("Settings updated successfully"))->success();
         return back();
+    }
+
+    private function isAllowedEnvKey(string $key): bool
+    {
+        $blockedPrefixes = ['DB_', 'REDIS_', 'AWS_', 'STRIPE_'];
+        foreach ($blockedPrefixes as $prefix) {
+            if (str_starts_with($key, $prefix)) {
+                return false;
+            }
+        }
+
+        if ($key === 'APP_KEY' || str_ends_with($key, '_SECRET') || str_ends_with($key, '_PASSWORD')) {
+            return false;
+        }
+
+        $allowedKeys = [
+            'ENABLE_GOOGLE_ANALYTICS',
+            'TRACKING_ID',
+            'TWILIO_SID',
+            'TWILIO_AUTH_TOKEN',
+            'VALID_TWILIO_NUMBER',
+        ];
+
+        return in_array($key, $allowedKeys, true);
     }
 
     # test email

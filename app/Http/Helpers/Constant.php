@@ -30,6 +30,7 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Str;
 use App\Models\GeneralSetupLocalization;
 use App\Models\SubscriptionRecurringPayment;
 use Lunaweb\RecaptchaV3\Facades\RecaptchaV3;
@@ -822,22 +823,50 @@ function countWords($text)
 if (!function_exists('fileUpload')) {
     function fileUpload($path, $file, $change_name = false)
     {
-
         $fileName = '';
         if (!$file) {
             return $fileName;
         }
 
-        $original_name = $file->getClientOriginalName();
-        if ($change_name) {
-            $name = $original_name;
-        } else {
-            $str = str_replace(' ', '-', $original_name);
-            $name = time() . '_' . $str;
+        $allowedExtensions = [
+            'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg',
+            'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+            'txt', 'csv', 'zip',
+            'mp3', 'wav', 'ogg', 'mp4', 'webm',
+        ];
+
+        $allowedMimes = [
+            'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+            'application/pdf',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/vnd.ms-powerpoint',
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'text/plain', 'text/csv',
+            'application/zip', 'application/x-zip-compressed',
+            'audio/mpeg', 'audio/wav', 'audio/ogg',
+            'video/mp4', 'video/webm',
+        ];
+
+        $extension = strtolower($file->getClientOriginalExtension());
+        $mime = $file->getMimeType();
+
+        if (! in_array($extension, $allowedExtensions, true) || ! in_array($mime, $allowedMimes, true)) {
+            return $fileName;
         }
 
-        if (!file_exists($path)) {
-            mkdir($path, 0777, true);
+        $original_name = $file->getClientOriginalName();
+        if ($change_name) {
+            $baseName = preg_replace('/[^a-zA-Z0-9_-]/', '', pathinfo($original_name, PATHINFO_FILENAME));
+            $name = ($baseName ?: 'file') . '_' . Str::random(16) . '.' . $extension;
+        } else {
+            $name = Str::random(40) . '.' . $extension;
+        }
+
+        if (! file_exists($path)) {
+            mkdir($path, 0755, true);
         }
 
         $file->move($path, $name);

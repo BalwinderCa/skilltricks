@@ -107,37 +107,53 @@ class YookassaPaymentController extends Controller
         $requestBody = json_decode($source, true);
 
         try {
-            if ($requestBody['event'] === NotificationEventType::PAYMENT_SUCCEEDED) {
-                $notification = new NotificationSucceeded($requestBody);
-                $payment = $notification->getObject();
-                $metadata = $payment->getMetadata();
-
-                $user = User::find($metadata['user_id']);
-                $package_id = $metadata['package_id'];
-                $amount = $metadata['amount'];
-
-                $payment_id = $payment->getId();
-                \Illuminate\Support\Facades\Log::info("Yookassa payment id: $payment_id");
-
-                // SECURITY: This webhook is unauthenticated and the metadata
-                // (user_id, package_id, amount) is attacker-controllable. Before
-                // re-enabling payment_success below, re-fetch the payment from
-                // Yookassa by $payment_id via _getAuthClient()->getPaymentInfo()
-                // and confirm status === 'succeeded' and amount matches the
-                // server-side package price. Do NOT trust $metadata as-is.
-
-                // (new PaymentsController)->payment_success(
-                //     json_encode(["status" => "Success"]),
-                //     $user,
-                //     $package_id,
-                //     $amount,
-                //     'yookassa'
-                // );
+            if (($requestBody['event'] ?? null) !== NotificationEventType::PAYMENT_SUCCEEDED) {
+                return response()->json(['message' => 'Ignored'], 200);
             }
+
+            $notification = new NotificationSucceeded($requestBody);
+            $payment = $notification->getObject();
+            $paymentId = $payment->getId();
+
+            $client = $this->_getAuthClient();
+            $verifiedPayment = $client->getPaymentInfo($paymentId);
+
+            if ($verifiedPayment->getStatus() !== 'succeeded') {
+                return response()->json(['message' => 'Payment not succeeded'], 200);
+            }
+
+            $metadata = $verifiedPayment->getMetadata();
+            $userId = $metadata['user_id'] ?? null;
+            $packageId = $metadata['package_id'] ?? null;
+
+            if (! $userId || ! $packageId) {
+                return response()->json(['message' => 'Missing metadata'], 200);
+            }
+
+            $user = User::find($userId);
+            $package = SubscriptionPackage::find($packageId);
+
+            if (! $user || ! $package) {
+                return response()->json(['message' => 'Invalid metadata'], 200);
+            }
+
+            $paidAmount = (float) $verifiedPayment->getAmount()->getValue();
+            $expectedAmount = (float) str_replace(',', '', (string) $package->price);
+
+            if (abs($paidAmount - $expectedAmount) > 0.01) {
+                \Illuminate\Support\Facades\Log::warning("Yookassa amount mismatch for payment {$paymentId}");
+
+                return response()->json(['message' => 'Amount mismatch'], 200);
+            }
+
+            (new PaymentsController)->payment_success(
+                json_encode(['status' => 'Success', 'payment_id' => $paymentId]),
+                $user,
+                $packageId,
+                $paidAmount,
+                'yookassa'
+            );
         } catch (\Throwable $e) {
-            // Malformed/incomplete notification: log and ack so the gateway
-            // does not retry indefinitely. (Was `catch (Exception $e)`, which in
-            // this namespace resolved to a non-existent class and never caught.)
             \Illuminate\Support\Facades\Log::warning('Yookassa webhook ignored: ' . $e->getMessage());
         }
 
@@ -146,14 +162,26 @@ class YookassaPaymentController extends Controller
 
     public function finish(Request $request)
     {
-        $client = $this->_getAuthClient();
-        $payment = $client->getPaymentInfo(session('yookassa_payment_id'));
-
-        if ($payment->getStatus() == 'succeeded') {
-            return (new PaymentsController)->payment_success();
-        } else {
+        $paymentId = session('yookassa_payment_id');
+        if (! $paymentId) {
             return (new PaymentsController)->payment_failed();
         }
+
+        $client = $this->_getAuthClient();
+        $payment = $client->getPaymentInfo($paymentId);
+
+        if ($payment->getStatus() !== 'succeeded') {
+            return (new PaymentsController)->payment_failed();
+        }
+
+        $paidAmount = (float) $payment->getAmount()->getValue();
+        $expectedAmount = (float) str_replace(',', '', (string) session('amount'));
+
+        if (abs($paidAmount - $expectedAmount) > 0.01) {
+            return (new PaymentsController)->payment_failed();
+        }
+
+        return (new PaymentsController)->payment_success();
     }
 
     private function _getAuthClient()
