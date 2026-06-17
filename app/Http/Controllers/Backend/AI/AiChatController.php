@@ -1490,7 +1490,7 @@ public function users_new_chat_ask(Request $request)
                 'prompt_length' => strlen($prompt),
                 'system_message_length' => strlen($systemMessage),
                 'documents_count' => $documents->count(),
-                'has_api_key' => !empty(env($aiProvider === 'OpenAI' ? 'OPENAI_API_KEY' : 'GEMINI_API_KEY')),
+                'has_api_key' => !empty($aiProvider === 'OpenAI' ? config('custom.openai_api_key') : config('custom.gemini_api_key')),
             ]);
 
             // Always request the structured GoalSync JSON contract.
@@ -1592,7 +1592,7 @@ EOT;
                 'question_length' => strlen($question),
                 'system_message_length' => strlen($systemMessage),
                 'documents_count' => $documents->count(),
-                'has_api_key' => !empty(env($aiProvider === 'OpenAI' ? 'OPENAI_API_KEY' : 'GEMINI_API_KEY')),
+                'has_api_key' => !empty($aiProvider === 'OpenAI' ? config('custom.openai_api_key') : config('custom.gemini_api_key')),
             ]);
 
             $openAiResponse = $this->aiGenerate($systemMessage, $followUpPrompt, 1200);
@@ -1863,7 +1863,7 @@ EOT;
                'prompt_length' => strlen($prompt),
                'system_message_length' => strlen($systemMessage),
                'selected_strategy' => $selectedStrategy,
-               'has_api_key' => !empty(env($aiProvider === 'OpenAI' ? 'OPENAI_API_KEY' : 'GEMINI_API_KEY')),
+               'has_api_key' => !empty($aiProvider === 'OpenAI' ? config('custom.openai_api_key') : config('custom.gemini_api_key')),
            ]);
 
            $openAiResponse = $this->aiGenerate($systemMessage, $prompt, 3000);
@@ -2116,7 +2116,7 @@ EOT;
                 'scenario' => $selectedScenario,
                 'strategy' => $selectedStrategy,
                 'prompt_length' => strlen($prompt),
-                'has_api_key' => !empty(env($aiProvider === 'OpenAI' ? 'OPENAI_API_KEY' : 'GEMINI_API_KEY')),
+                'has_api_key' => !empty($aiProvider === 'OpenAI' ? config('custom.openai_api_key') : config('custom.gemini_api_key')),
             ]);
 
             $openAiResponse = $this->aiGenerate($systemMessage, $prompt, 2500);
