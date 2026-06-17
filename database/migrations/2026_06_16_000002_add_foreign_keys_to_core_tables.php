@@ -99,12 +99,51 @@ return new class extends Migration
             return;
         }
 
+        // A FK column must match the referenced PK exactly (type + signedness)
+        // or MySQL/MariaDB rejects the constraint with errno 150. Some child
+        // columns are int(11) while the *.id PKs are bigint unsigned — align
+        // the child column's type to the parent before adding the constraint.
+        $this->alignColumnToReference($table, $column, $referencedTable, $referencedColumn);
+
         Schema::table($table, function (Blueprint $blueprint) use ($column, $referencedTable, $referencedColumn, $constraintName) {
             $blueprint->foreign($column, $constraintName)
                 ->references($referencedColumn)
                 ->on($referencedTable)
                 ->restrictOnDelete();
         });
+    }
+
+    /**
+     * Ensure $table.$column has the same column type as $referencedTable.$referencedColumn,
+     * preserving the child column's nullability. No-op if they already match.
+     */
+    private function alignColumnToReference(
+        string $table,
+        string $column,
+        string $referencedTable,
+        string $referencedColumn
+    ): void {
+        $dbName = DB::getDatabaseName();
+
+        $ref = DB::selectOne(
+            'SELECT COLUMN_TYPE AS type FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+            [$dbName, $referencedTable, $referencedColumn]
+        );
+
+        $child = DB::selectOne(
+            'SELECT COLUMN_TYPE AS type, IS_NULLABLE AS nullable FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+            [$dbName, $table, $column]
+        );
+
+        if (! $ref || ! $child || strcasecmp($child->type, $ref->type) === 0) {
+            return; // missing column, or types already match
+        }
+
+        $nullClause = strcasecmp($child->nullable, 'YES') === 0 ? 'NULL' : 'NOT NULL';
+
+        DB::statement("ALTER TABLE `{$table}` MODIFY `{$column}` {$ref->type} {$nullClause}");
     }
 
     private function dropForeignKeyIfExists(string $table, string $constraintName): void
