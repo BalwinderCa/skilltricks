@@ -95,7 +95,10 @@ fi
 
 # --- rsync -----------------------------------------------------------------
 # --stats / --itemize-changes work on both stock macOS rsync (2.6.x) and modern 3.x.
-RSYNC_OPTS=(-az --delete --stats --itemize-changes
+# --chmod=D755,F644 forces web-safe perms on the server regardless of local perms.
+# Without it, -a preserves the local dir mode (often 700 on macOS), which makes
+# LiteSpeed return 403 because it can't traverse the document root.
+RSYNC_OPTS=(-az --delete --stats --itemize-changes --chmod=D755,F644
             --exclude-from="$SCRIPT_DIR/.deployignore"
             -e "ssh ${SSH_OPTS[*]}")
 if [[ "$DRY_RUN" -eq 1 ]]; then
