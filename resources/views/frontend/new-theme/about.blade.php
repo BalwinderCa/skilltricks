@@ -299,7 +299,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
-    <script src="https://d3js.org/d3-geo.v3.min.js"></script>
     <script src="{{ asset('newfronted/Javascript/globe.js') }}"></script>
     <script src="{{ asset('newfronted/Javascript/animation.js') }}"></script>
 </body>
