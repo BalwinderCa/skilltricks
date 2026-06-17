@@ -23,12 +23,12 @@
 /vendor/
 /node_modules/
 
-# --- Server-managed runtime state (preserve the server's copies) ------------
-/storage/app/public/*
-/storage/framework/cache/*
-/storage/framework/sessions/*
-/storage/framework/views/*
-/storage/logs/*
+# --- Server-managed runtime state -------------------------------------------
+# Exclude ALL of storage/ — the server owns its uploads, logs, sessions, cache
+# and debugbar dumps. deploy-staging.sh recreates the framework dir skeleton on
+# the server for first-time deploys. Excluded paths are also protected from
+# rsync --delete, so the server's storage is never touched.
+/storage/
 /bootstrap/cache/*.php
 /public/storage
 

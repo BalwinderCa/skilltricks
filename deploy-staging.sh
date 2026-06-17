@@ -94,11 +94,12 @@ if [[ "$DRY_RUN" -eq 0 ]]; then
 fi
 
 # --- rsync -----------------------------------------------------------------
-RSYNC_OPTS=(-az --delete --human-readable --info=stats1,progress2
+# --stats / --itemize-changes work on both stock macOS rsync (2.6.x) and modern 3.x.
+RSYNC_OPTS=(-az --delete --stats --itemize-changes
             --exclude-from="$SCRIPT_DIR/.deployignore"
             -e "ssh ${SSH_OPTS[*]}")
 if [[ "$DRY_RUN" -eq 1 ]]; then
-    RSYNC_OPTS+=(--dry-run --itemize-changes)
+    RSYNC_OPTS+=(--dry-run)
     log "DRY RUN — rsync will only report what it would do"
 fi
 
@@ -127,6 +128,11 @@ set -euo pipefail
 APP_DIR="$1"; PHP="$2"; COMPOSER="$3"; DO_MIGRATE="$4"
 
 cd "$HOME/$APP_DIR" || { echo "ERROR: $HOME/$APP_DIR not found on server"; exit 1; }
+
+# storage/ and bootstrap/cache are excluded from rsync (server-owned). Make sure
+# the skeleton exists so artisan can boot on a first-time deploy.
+mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views \
+         storage/logs storage/app/public bootstrap/cache
 
 # Always lift maintenance mode on exit (success or failure).
 trap '$PHP artisan up >/dev/null 2>&1 || true' EXIT
