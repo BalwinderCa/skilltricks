@@ -1,0 +1,69 @@
+# rsync exclude list for deploy-staging.sh (rsync filter patterns).
+# Leading "/" anchors to the project root. Excluded paths are also protected
+# from --delete, so the server's copies of .env, vendor/, storage/ are never
+# touched by a deploy.
+
+# --- VCS & CI ---------------------------------------------------------------
+/.git/
+/.github/
+.gitignore
+.gitattributes
+
+# --- Secrets / keys / env (managed on the server, never overwrite) ----------
+.env
+.env.*
+*.pem
+/id_skilltricks_new*
+/id_rsa_skilltricks*
+/id_ed25519*
+/PUBLIC_KEY.txt
+/deploy.config
+
+# --- Dependencies (rebuilt on the server via composer install) --------------
+/vendor/
+/node_modules/
+
+# --- Server-managed runtime state (preserve the server's copies) ------------
+/storage/app/public/*
+/storage/framework/cache/*
+/storage/framework/sessions/*
+/storage/framework/views/*
+/storage/logs/*
+/bootstrap/cache/*.php
+/public/storage
+
+# --- Build tooling & frontend sources (only the built public/ assets ship) --
+/package.json
+/package-lock.json
+/webpack.mix.js
+/.editorconfig
+
+# --- Tests & static analysis (not needed in production) ---------------------
+/tests/
+/phpunit.xml
+/.phpunit.result.cache
+/phpstan.neon
+/phpstan-baseline.neon
+/pint.json
+
+# --- Docs & local notes -----------------------------------------------------
+/docs/
+/README.md
+/readme-to-update.txt
+*.md
+/change-list.text
+/run_migrations.py
+
+# --- Server-managed dirs we should not clobber ------------------------------
+/cgi-bin/
+
+# --- Deploy artifacts & local junk ------------------------------------------
+/deploy-staging.sh
+/.deployignore
+/deploy.config.example
+*.sql
+*.sql.gz
+*.zip
+*.log
+upload_log.txt
+.DS_Store
