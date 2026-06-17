@@ -95,10 +95,12 @@ fi
 
 # --- rsync -----------------------------------------------------------------
 # --stats / --itemize-changes work on both stock macOS rsync (2.6.x) and modern 3.x.
-# --chmod=D755,F644 forces web-safe perms on the server regardless of local perms.
-# Without it, -a preserves the local dir mode (often 700 on macOS), which makes
-# LiteSpeed return 403 because it can't traverse the document root.
-RSYNC_OPTS=(-az --delete --stats --itemize-changes --chmod=D755,F644
+# NOTE: we deliberately do NOT use --chmod here — stock macOS rsync (2.6.x)
+# rejects the D/F class prefixes. Web-safe perms are normalized over SSH after
+# the transfer instead (see "Normalizing remote permissions" below). Without
+# that, -a preserves the local dir mode (often 700 on macOS) and LiteSpeed
+# returns 403 because it cannot traverse the document root.
+RSYNC_OPTS=(-az --delete --stats --itemize-changes
             --exclude-from="$SCRIPT_DIR/.deployignore"
             -e "ssh ${SSH_OPTS[*]}")
 if [[ "$DRY_RUN" -eq 1 ]]; then
@@ -114,6 +116,13 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
     warn "Dry run finished — no files changed and no remote steps ran."
     exit 0
 fi
+
+# Normalize remote permissions so LiteSpeed can serve the tree: directories 755,
+# files 644. Done over SSH (not via rsync --chmod) for old-rsync compatibility.
+log "Normalizing remote permissions (dirs 755, files 644)"
+ssh "${SSH_OPTS[@]}" "$REMOTE" \
+    "cd \"\$HOME/${REMOTE_PATH}\" && find . -type d -exec chmod 755 {} + && find . -type f -exec chmod 644 {} +"
+ok "Permissions normalized"
 
 # --- post-deploy steps on the server --------------------------------------
 if [[ "$FILES_ONLY" -eq 1 ]]; then
