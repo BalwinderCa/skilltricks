@@ -45,7 +45,10 @@ Route::middleware('ensureDemoMode')->group(function () {
     Route::get('/demo/folder-cron', [DemoController::class, 'cron_2']);
 });
 
-Auth::routes(['verify' => true]);
+// logout => false: we register our own GET /logout below (named 'logout');
+// letting Auth::routes() also add a POST /logout named 'logout' creates a
+// duplicate route name that breaks `php artisan route:cache`.
+Auth::routes(['verify' => true, 'logout' => false]);
 
 Route::controller(LoginController::class)->group(function () {
     Route::get('/logout', 'logout')->name('logout');
@@ -55,7 +58,9 @@ Route::controller(LoginController::class)->group(function () {
 
 Route::controller(VerificationController::class)->group(function () {
     Route::get('/verify-phone', 'verifyPhone')->name('verification.phone');
-    Route::get('/email/resend', 'resend')->name('verification.resend');
+    // 'verification.resend' (POST email/resend) is provided by Auth::routes(['verify'=>true]).
+    // The verify.blade.php forms POST to it, so we don't redefine it here — a second
+    // route with the same name breaks `php artisan route:cache`.
     Route::get('/verification-confirmation/{code}', 'verification_confirmation')->name('email.verification.confirmation');
     Route::post('/verification-confirmation', 'phone_verification_confirmation')->name('phone.verification.confirmation');
 });
