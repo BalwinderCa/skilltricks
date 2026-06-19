@@ -720,7 +720,8 @@
                     @endif
                     {{-- Lifetime token total for THIS chat across all sections. --}}
                     @php $chatTotalTokens = $chatTotalTokens ?? 0; @endphp
-                    <span id="token-usage-badge" class="badge bg-secondary text-white" style="{{ $chatTotalTokens > 0 ? '' : 'display:none;' }}"
+                    <span id="token-usage-badge" class="badge"
+                        style="{{ $chatTotalTokens > 0 ? '' : 'display:none;' }}background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;font-weight:600;"
                         data-chat-total="{{ $chatTotalTokens }}"
                         data-bs-toggle="tooltip" data-bs-placement="top"
                         title="{{ localize('Total tokens used in this chat across all sections.') }}">
