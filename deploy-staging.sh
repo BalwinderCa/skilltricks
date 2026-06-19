@@ -182,7 +182,21 @@ else
 fi
 
 echo ">> php artisan storage:link"
-$PHP artisan storage:link 2>/dev/null || true
+if [ -L public/storage ]; then
+    echo "   public/storage symlink already present"
+elif $PHP artisan storage:link 2>/dev/null && [ -L public/storage ]; then
+    echo "   public/storage created via artisan"
+else
+    # Some shared hosts (e.g. Hostinger) disable PHP's symlink(), so artisan
+    # storage:link fails with "Call to undefined function symlink()". Fall back
+    # to a relative shell symlink: public/storage -> ../storage/app/public.
+    rm -f public/storage 2>/dev/null || true
+    if ln -s ../storage/app/public public/storage; then
+        echo "   public/storage created via shell ln -s (artisan symlink() unavailable)"
+    else
+        echo "   WARNING: could not create public/storage symlink; uploaded files may 404"
+    fi
+fi
 
 echo ">> Rebuilding caches (config:cache intentionally skipped — see docs/DEPLOYMENT.md)"
 $PHP artisan route:clear  || true
