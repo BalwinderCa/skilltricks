@@ -712,12 +712,19 @@
                     </div>
                     <div class="header-actions">
                     @if(isset($documentCount) && $documentCount > 0)
-                        <span class="badge bg-info text-white me-2" data-bs-toggle="tooltip" data-bs-placement="top" 
+                        <span class="badge bg-info text-white me-2" data-bs-toggle="tooltip" data-bs-placement="top"
                             title="{{ localize('Company documents are being used as context for AI responses') }}">
                             <i data-feather="file-text" class="icon-14 me-1"></i>
                             {{ $documentCount }} {{ localize('Document') }}{{ $documentCount > 1 ? 's' : '' }}
                         </span>
                     @endif
+                    {{-- Token usage for the last AI request + running session total. Hidden until the first reply. --}}
+                    <span id="token-usage-badge" class="badge bg-secondary text-white" style="display:none;"
+                        data-bs-toggle="tooltip" data-bs-placement="top"
+                        title="{{ localize('Tokens used by the last AI request (prompt + response). Session total in parentheses.') }}">
+                        <i data-feather="activity" class="icon-14 me-1"></i>
+                        <span id="token-usage-text">0</span>
+                    </span>
                     </div>
                 </div>
                 
@@ -1496,6 +1503,35 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+// Running total of tokens used in this chat session (this page load).
+window.sessionTokenTotal = window.sessionTokenTotal || 0;
+
+// Update the header token-usage badge with the last request's usage and the
+// accumulated session total. `usage` is { prompt_tokens, completion_tokens, total_tokens }.
+window.updateTokenUsage = function (usage) {
+    if (!usage) return;
+    const last = parseInt(usage.total_tokens, 10) || 0;
+    window.sessionTokenTotal += last;
+
+    const badge = document.getElementById('token-usage-badge');
+    const text = document.getElementById('token-usage-text');
+    if (!badge || !text) return;
+
+    const fmt = (n) => (parseInt(n, 10) || 0).toLocaleString();
+    text.textContent = `${fmt(last)} tokens (session: ${fmt(window.sessionTokenTotal)})`;
+    badge.style.display = '';
+
+    // Refresh the tooltip with the prompt/response breakdown.
+    badge.setAttribute('title',
+        `Last request: ${fmt(usage.prompt_tokens)} prompt + ${fmt(usage.completion_tokens)} response = ${fmt(last)} tokens. ` +
+        `Session total: ${fmt(window.sessionTokenTotal)} tokens.`);
+    if (window.bootstrap && window.bootstrap.Tooltip) {
+        const inst = window.bootstrap.Tooltip.getInstance(badge);
+        if (inst) inst.dispose();
+        new window.bootstrap.Tooltip(badge);
+    }
+};
+
 document.getElementById('ask-form').addEventListener('submit', async function (e) {
     e.preventDefault();
 
@@ -1623,6 +1659,9 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
             }
 
             const data = await res.json();
+
+            // Surface token usage (last request + running session total) in the header.
+            if (data.usage) window.updateTokenUsage(data.usage);
 
             // JSON contract path (Phase 2): render via the structured wizard
             // instead of the markdown split/collapse pipeline. Falls through to

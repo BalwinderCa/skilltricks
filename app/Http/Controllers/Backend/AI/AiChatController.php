@@ -247,6 +247,24 @@ class AiChatController extends Controller
         return implode("\n", $thought);
     }
 
+    # Pull token usage from a generateContent response. Handles Gemini/Vertex
+    # (usageMetadata) and OpenAI (usage, mapped onto usageMetadata in
+    # openAiGenerate) so the chat can surface token cost in the UI.
+    private function extractUsage($response): array
+    {
+        $meta = $response->json('usageMetadata', []);
+
+        $prompt     = (int) ($meta['promptTokenCount'] ?? 0);
+        $completion = (int) ($meta['candidatesTokenCount'] ?? 0);
+        $total      = (int) ($meta['totalTokenCount'] ?? ($prompt + $completion));
+
+        return [
+            'prompt_tokens'     => $prompt,
+            'completion_tokens' => $completion,
+            'total_tokens'      => $total,
+        ];
+    }
+
     # AI provider dispatcher. Choose model via .env:
     #   AI_PROVIDER="vertex"  -> Vertex AI Gemini (vertexGenerate, OAuth/project-based)
     #   AI_PROVIDER="gemini"  -> AI Studio Gemini API key (geminiGenerate)
@@ -315,7 +333,17 @@ class AiChatController extends Controller
 
         if ($response->successful()) {
             $text = $response->json('choices.0.message.content', '');
-            $normalized = ['candidates' => [['content' => ['parts' => [['text' => $text]]]]]];
+            $usage = $response->json('usage', []);
+            $normalized = [
+                'candidates'    => [['content' => ['parts' => [['text' => $text]]]]],
+                // Map OpenAI usage onto Gemini's usageMetadata shape so
+                // extractUsage() is provider-agnostic.
+                'usageMetadata' => [
+                    'promptTokenCount'     => (int) ($usage['prompt_tokens'] ?? 0),
+                    'candidatesTokenCount' => (int) ($usage['completion_tokens'] ?? 0),
+                    'totalTokenCount'      => (int) ($usage['total_tokens'] ?? 0),
+                ],
+            ];
 
             return new \Illuminate\Http\Client\Response(
                 new \GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/json'], json_encode($normalized))
@@ -1733,6 +1761,7 @@ EOT;
         }
 
         $responseContent = $this->extractGeminiResponseText($openAiResponse);
+        $usage = $this->extractUsage($openAiResponse);
 
         if ($openAiResponse->successful() && $responseContent === '') {
             Log::error($aiProvider . ' API returned empty text', [
@@ -1783,6 +1812,7 @@ EOT;
             'question' => $question,
             'answer' => $responseContent,
             'format' => $responseFormat, // 'json' (structured contract) | 'markdown'
+            'usage' => $usage, // token usage for this request (prompt/completion/total)
             'chat_id' => $chatId, // Include chat_id in case it was created
             'previousContext' => $previousContext ? (object)[
                 'status1' => $previousContext->status1 ?? null,
