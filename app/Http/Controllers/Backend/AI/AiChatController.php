@@ -265,6 +265,30 @@ class AiChatController extends Controller
         ];
     }
 
+    # Add this request's token usage to the chat's running lifetime total and
+    # return the new cumulative total. Called by every AI endpoint that spends
+    # tokens for a chat, so the header reflects the whole chat, not one section.
+    private function recordChatTokens($chatId, $response): int
+    {
+        $usage = $this->extractUsage($response);
+        $total = (int) ($usage['total_tokens'] ?? 0);
+
+        if (!$chatId) {
+            return 0;
+        }
+
+        try {
+            if ($total > 0) {
+                DB::table('search_user_chat')->where('id', $chatId)->increment('total_tokens', $total);
+            }
+
+            return (int) (DB::table('search_user_chat')->where('id', $chatId)->value('total_tokens') ?? 0);
+        } catch (\Exception $e) {
+            Log::warning('Failed to record chat tokens', ['chat_id' => $chatId, 'error' => $e->getMessage()]);
+            return 0;
+        }
+    }
+
     # AI provider dispatcher. Choose model via .env:
     #   AI_PROVIDER="vertex"  -> Vertex AI Gemini (vertexGenerate, OAuth/project-based)
     #   AI_PROVIDER="gemini"  -> AI Studio Gemini API key (geminiGenerate)
@@ -1195,6 +1219,8 @@ class AiChatController extends Controller
         
         $selectedStrategyFromDB = null;
         $leadershipBriefFromDB = null;
+        // Chat's lifetime token total (all sections), shown in the header on load.
+        $chatTotalTokens = (int) ($chatRecord->total_tokens ?? 0);
         if ($chatRecord) {
             // Try to get selected_strategy column if it exists
             try {
@@ -1249,7 +1275,7 @@ class AiChatController extends Controller
             ]);
         }
 
-        return view('backend.pages.aiChat.users-new-chat', compact('user','promptGroups', 'prompts','searchKey','searchuserchatdata','id','searchuserchatdatanew', 'documentCount', 'selectedStrategyFromDB', 'leadershipBriefFromDB'));
+        return view('backend.pages.aiChat.users-new-chat', compact('user','promptGroups', 'prompts','searchKey','searchuserchatdata','id','searchuserchatdatanew', 'documentCount', 'selectedStrategyFromDB', 'leadershipBriefFromDB', 'chatTotalTokens'));
     }
 
 
@@ -1762,6 +1788,7 @@ EOT;
 
         $responseContent = $this->extractGeminiResponseText($openAiResponse);
         $usage = $this->extractUsage($openAiResponse);
+        $chatTotalTokens = $this->recordChatTokens($chatId, $openAiResponse);
 
         if ($openAiResponse->successful() && $responseContent === '') {
             Log::error($aiProvider . ' API returned empty text', [
@@ -1813,6 +1840,7 @@ EOT;
             'answer' => $responseContent,
             'format' => $responseFormat, // 'json' (structured contract) | 'markdown'
             'usage' => $usage, // token usage for this request (prompt/completion/total)
+            'chat_total_tokens' => $chatTotalTokens, // chat lifetime token total
             'chat_id' => $chatId, // Include chat_id in case it was created
             'previousContext' => $previousContext ? (object)[
                 'status1' => $previousContext->status1 ?? null,
@@ -2022,6 +2050,7 @@ EOT;
        }
 
        $updatedSections = $this->extractGeminiResponseText($openAiResponse);
+       $chatTotalTokens = $this->recordChatTokens($chatId, $openAiResponse);
 
        // Only update database if this is a user selection (not just eager loading)
        if ($isUserSelection) {
@@ -2094,6 +2123,7 @@ EOT;
        return response()->json([
            'updated_sections' => $updatedSections,
            'selected_strategy' => $selectedStrategy,
+           'chat_total_tokens' => $chatTotalTokens,
        ]);
    }
 
@@ -2261,6 +2291,7 @@ EOT;
         }
 
         $updatedSections = $this->extractGeminiResponseText($openAiResponse);
+        $chatTotalTokens = $this->recordChatTokens($chatId, $openAiResponse);
 
         if ($isUserSelection) {
             try {
@@ -2275,6 +2306,7 @@ EOT;
         return response()->json([
             'updated_sections' => $updatedSections,
             'selected_scenario' => $selectedScenario,
+            'chat_total_tokens' => $chatTotalTokens,
         ]);
     }
 
@@ -2640,7 +2672,8 @@ EOT;
 
             if ($openAiResponse->successful()) {
                 $brief = $this->extractGeminiResponseText($openAiResponse);
-                
+                $chatTotalTokens = $this->recordChatTokens($chatId, $openAiResponse);
+
                 // Save brief to database
                 try {
                     // Check if leadership_brief column exists, if not add it
@@ -2675,6 +2708,7 @@ EOT;
                         return response()->json([
                             'success' => true,
                             'brief' => $brief,
+                            'chat_total_tokens' => $chatTotalTokens,
                             'warning' => 'Brief generated but could not be saved - chat record not found'
                         ]);
                     }
@@ -2753,13 +2787,15 @@ EOT;
                     return response()->json([
                         'success' => true,
                         'brief' => $brief,
+                        'chat_total_tokens' => $chatTotalTokens,
                         'warning' => 'Brief generated but could not be saved: ' . $e->getMessage()
                     ]);
                 }
                 
                 return response()->json([
                     'success' => true,
-                    'brief' => $brief
+                    'brief' => $brief,
+                    'chat_total_tokens' => $chatTotalTokens
                 ]);
             } else {
                 return response()->json([
@@ -2845,6 +2881,7 @@ EOT;
 
             if ($aiResponse->successful()) {
                 $text = $this->extractGeminiResponseText($aiResponse);
+                $chatTotalTokens = $this->recordChatTokens($chatId, $aiResponse);
                 $rows = $this->parseRecommendedActionRows($text);
 
                 if (empty($rows)) {
@@ -2854,7 +2891,7 @@ EOT;
                     ], 500);
                 }
 
-                return response()->json(['success' => true, 'rows' => $rows]);
+                return response()->json(['success' => true, 'rows' => $rows, 'chat_total_tokens' => $chatTotalTokens]);
             }
 
             return response()->json([

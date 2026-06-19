@@ -718,12 +718,14 @@
                             {{ $documentCount }} {{ localize('Document') }}{{ $documentCount > 1 ? 's' : '' }}
                         </span>
                     @endif
-                    {{-- Token usage for the last AI request + running session total. Hidden until the first reply. --}}
-                    <span id="token-usage-badge" class="badge bg-secondary text-white" style="display:none;"
+                    {{-- Lifetime token total for THIS chat across all sections. --}}
+                    @php $chatTotalTokens = $chatTotalTokens ?? 0; @endphp
+                    <span id="token-usage-badge" class="badge bg-secondary text-white" style="{{ $chatTotalTokens > 0 ? '' : 'display:none;' }}"
+                        data-chat-total="{{ $chatTotalTokens }}"
                         data-bs-toggle="tooltip" data-bs-placement="top"
-                        title="{{ localize('Tokens used by the last AI request (prompt + response). Session total in parentheses.') }}">
+                        title="{{ localize('Total tokens used in this chat across all sections.') }}">
                         <i data-feather="activity" class="icon-14 me-1"></i>
-                        <span id="token-usage-text">0</span>
+                        <span id="token-usage-text">{{ number_format($chatTotalTokens) }} {{ localize('tokens') }}</span>
                     </span>
                     </div>
                 </div>
@@ -1503,28 +1505,34 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Running total of tokens used in this chat session (this page load).
-window.sessionTokenTotal = window.sessionTokenTotal || 0;
+// Chat lifetime token total (authoritative value from the server, persisted in
+// the DB across all sections and page reloads). Seeded from the badge on load.
+(function () {
+    const badge = document.getElementById('token-usage-badge');
+    window.chatTokenTotal = badge ? (parseInt(badge.getAttribute('data-chat-total'), 10) || 0) : 0;
+})();
 
-// Update the header token-usage badge with the last request's usage and the
-// accumulated session total. `usage` is { prompt_tokens, completion_tokens, total_tokens }.
-window.updateTokenUsage = function (usage) {
-    if (!usage) return;
-    const last = parseInt(usage.total_tokens, 10) || 0;
-    window.sessionTokenTotal += last;
-
+// Update the header badge with the chat's lifetime token total. Pass the server's
+// chat_total_tokens; optionally lastUsage { prompt_tokens, completion_tokens,
+// total_tokens } to show the last request's breakdown in the tooltip.
+window.setChatTokenTotal = function (total, lastUsage) {
     const badge = document.getElementById('token-usage-badge');
     const text = document.getElementById('token-usage-text');
     if (!badge || !text) return;
 
+    const parsed = parseInt(total, 10);
+    if (!isNaN(parsed)) window.chatTokenTotal = parsed;
+
     const fmt = (n) => (parseInt(n, 10) || 0).toLocaleString();
-    text.textContent = `${fmt(last)} tokens (session: ${fmt(window.sessionTokenTotal)})`;
+    text.textContent = `${fmt(window.chatTokenTotal)} tokens`;
     badge.style.display = '';
 
-    // Refresh the tooltip with the prompt/response breakdown.
-    badge.setAttribute('title',
-        `Last request: ${fmt(usage.prompt_tokens)} prompt + ${fmt(usage.completion_tokens)} response = ${fmt(last)} tokens. ` +
-        `Session total: ${fmt(window.sessionTokenTotal)} tokens.`);
+    let title = `Total tokens used in this chat (all sections): ${fmt(window.chatTokenTotal)}.`;
+    if (lastUsage) {
+        title += ` Last request: ${fmt(lastUsage.prompt_tokens)} prompt + `
+            + `${fmt(lastUsage.completion_tokens)} response = ${fmt(lastUsage.total_tokens)} tokens.`;
+    }
+    badge.setAttribute('title', title);
     if (window.bootstrap && window.bootstrap.Tooltip) {
         const inst = window.bootstrap.Tooltip.getInstance(badge);
         if (inst) inst.dispose();
@@ -1660,8 +1668,8 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
 
             const data = await res.json();
 
-            // Surface token usage (last request + running session total) in the header.
-            if (data.usage) window.updateTokenUsage(data.usage);
+            // Surface the chat's lifetime token total (all sections) in the header.
+            if (data.chat_total_tokens !== undefined) window.setChatTokenTotal(data.chat_total_tokens, data.usage);
 
             // JSON contract path (Phase 2): render via the structured wizard
             // instead of the markdown split/collapse pipeline. Falls through to
@@ -2229,6 +2237,7 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
 
                     if (scenarioRes.ok) {
                         const updateData = await scenarioRes.json();
+                        if (updateData.chat_total_tokens !== undefined) window.setChatTokenTotal(updateData.chat_total_tokens);
                         const response = window.collapseActions(updateData.updated_sections || '');
                         if (!window.scenarioResponsesCache) {
                             window.scenarioResponsesCache = {};
@@ -2672,7 +2681,9 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                                         console.log('=== STRATEGY SELECTED DEBUG ===');
                                         console.log('Strategy:', exactStrategy);
                                         console.log('Response data:', data);
-                                        
+
+                                        if (data.chat_total_tokens !== undefined) window.setChatTokenTotal(data.chat_total_tokens);
+
                                         // Cache the strategy-specific content
                                         if (!window.strategyResponsesCache) {
                                             window.strategyResponsesCache = {};
@@ -3351,7 +3362,9 @@ document.addEventListener('click', function (e) {
         })
         .then(data => {
             console.log('📡 API Response data:', { success: data.success, hasBrief: !!data.brief, error: data.error });
-            
+
+            if (data.chat_total_tokens !== undefined) window.setChatTokenTotal(data.chat_total_tokens);
+
             // Mark as no longer in progress
             window.briefGenerationInProgress = false;
             setBriefLoadingState(false); // re-enable Finish
@@ -3665,6 +3678,7 @@ document.addEventListener('click', function (e) {
         .then(r => r.json())
         .then(data => {
             genBtn.disabled = false;
+            if (data.chat_total_tokens !== undefined) window.setChatTokenTotal(data.chat_total_tokens);
             if (data.success && Array.isArray(data.rows) && data.rows.length) {
                 window.renderRecommendedActionTable(data.rows, resultDiv);
             } else {
