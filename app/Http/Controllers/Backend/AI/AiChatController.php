@@ -1234,6 +1234,55 @@ class AiChatController extends Controller
      * sections + per-strategy variants (scenarios + roles for the selected
      * scenario). Scenario switching is handled later by a JSON update call.
      */
+    /**
+     * Per-document text used as company context. Prefers the compact stored
+     * summary; falls back to (capped) parsed_text for documents uploaded before
+     * summaries existed or whose summary failed to generate.
+     */
+    private function documentContextText($doc, int $maxChars = 6000): string
+    {
+        $text = !empty($doc->summary) ? $doc->summary : (string) $doc->parsed_text;
+
+        return mb_substr(trim($text), 0, $maxChars);
+    }
+
+    /**
+     * Build the "COMPANY DOCUMENTS CONTEXT" block injected into the system
+     * message. Uses per-document summaries (or capped parsed_text) and enforces
+     * a hard TOTAL character budget, so the prompt cost stays bounded no matter
+     * how many — or how large — the user's documents are.
+     */
+    private function buildCompanyDocumentContext($documents, int $maxChars = 24000): string
+    {
+        if ($documents->count() === 0) {
+            return '';
+        }
+
+        $perDoc = max(800, intdiv($maxChars, max($documents->count(), 1)));
+        $budget = $maxChars;
+
+        $context  = "\n\n--- COMPANY DOCUMENTS CONTEXT ---\n";
+        $context .= "The following are summaries of uploaded company documents. "
+            . "Use this context to provide accurate, company-specific responses:\n\n";
+
+        foreach ($documents as $doc) {
+            if ($budget <= 0) {
+                break;
+            }
+            $text = $this->documentContextText($doc, min($perDoc, $budget));
+            if ($text === '') {
+                continue;
+            }
+            $budget -= mb_strlen($text);
+            $context .= "--- Document: {$doc->name} (Type: {$doc->file_type}) ---\n";
+            $context .= $text . "\n\n";
+        }
+
+        $context .= "--- END COMPANY DOCUMENTS CONTEXT ---\n";
+
+        return $context;
+    }
+
     private function goalSyncJsonPrompt($question, $documentNamesList)
     {
         return <<<EOT
@@ -1353,26 +1402,14 @@ public function users_new_chat_ask(Request $request)
         ->latest()
         ->get();
     
-    $documentContext = '';
+    // Inject compact per-document summaries (capped), not the full corpus.
+    $documentContext = $this->buildCompanyDocumentContext($documents);
     $documentNamesList = '';
-    $documentMetadata = [];
     if ($documents->count() > 0) {
-        $documentContext = "\n\n--- COMPANY DOCUMENTS CONTEXT ---\n";
-        $documentContext .= "The following information is from uploaded company documents. Use this context to provide accurate and relevant responses about the company:\n\n";
-
         $documentNamesList = "\n\nAvailable Documents:\n";
-
         foreach ($documents as $doc) {
-            $documentMetadata[] = [
-                'name' => $doc->name,
-                'type' => $doc->file_type,
-                'text' => $doc->parsed_text
-            ];
-            $documentContext .= "--- Document: {$doc->name} (Type: {$doc->file_type}) ---\n";
-            $documentContext .= $doc->parsed_text . "\n\n";
             $documentNamesList .= "- {$doc->name} ({$doc->file_type})\n";
         }
-        $documentContext .= "--- END COMPANY DOCUMENTS CONTEXT ---\n";
     }
 
     $systemMessage = 'You are a strategy assistant. Respond only using structured ChatGPT-style text with emojis and clean formatting based on the GoalSync method.';
@@ -1788,13 +1825,8 @@ EOT;
            ->latest()
            ->get();
        
-       $documentContext = '';
-       if ($documents->count() > 0) {
-           $documentContext = "\n\n--- COMPANY DOCUMENTS CONTEXT ---\n";
-           $documentContext .= "The following information is from uploaded company documents. Use this context to provide accurate and relevant responses about the company:\n\n";
-           $documentContext .= $documents->pluck('parsed_text')->filter()->implode("\n\n--- Document Separator ---\n\n");
-           $documentContext .= "\n--- END COMPANY DOCUMENTS CONTEXT ---\n";
-       }
+       // Inject compact per-document summaries (capped), not the full corpus.
+       $documentContext = $this->buildCompanyDocumentContext($documents);
 
        $systemMessage = 'You are a strategy assistant. Respond only using structured ChatGPT-style text with emojis and clean formatting based on the GoalSync method.';
        if (!empty($documentContext)) {
@@ -2056,27 +2088,12 @@ EOT;
             ->latest()
             ->get();
         
-        $documentContext = '';
-        if ($documents->count() > 0) {
-            $documentContext = "\n\n--- COMPANY DOCUMENTS CONTEXT ---\n";
-            $documentContext .= "The following information is from uploaded company documents. Use this context to provide accurate and relevant responses about the company:\n\n";
-            $documentContext .= $documents->pluck('parsed_text')->filter()->implode("\n\n--- Document Separator ---\n\n");
-            $documentContext .= "\n--- END COMPANY DOCUMENTS CONTEXT ---\n";
-        }
+        // Inject compact per-document summaries (capped), not the full corpus.
+        $documentContext = $this->buildCompanyDocumentContext($documents);
 
         $systemMessage = 'You are a strategy assistant. Respond only using structured ChatGPT-style text with emojis and clean formatting based on the GoalSync method.';
         if (!empty($documentContext)) {
             $systemMessage .= $documentContext;
-        }
-
-        // Get document metadata for role extraction
-        $documentMetadata = [];
-        foreach ($documents as $doc) {
-            $documentMetadata[] = [
-                'name' => $doc->name,
-                'type' => $doc->file_type,
-                'text' => $doc->parsed_text
-            ];
         }
 
         $prompt = <<<EOT
@@ -2532,16 +2549,8 @@ public function chat_question_store(Request $request)
             ->latest()
             ->get();
         
-        $documentContext = '';
-        if ($documents->count() > 0) {
-            $documentContext = "\n\n--- COMPANY DOCUMENTS CONTEXT ---\n";
-            $documentContext .= "The following information is from uploaded company documents:\n\n";
-            foreach ($documents as $doc) {
-                $documentContext .= "--- Document: {$doc->name} (Type: {$doc->file_type}) ---\n";
-                $documentContext .= $doc->parsed_text . "\n\n";
-            }
-            $documentContext .= "--- END COMPANY DOCUMENTS CONTEXT ---\n";
-        }
+        // Inject compact per-document summaries (capped), not the full corpus.
+        $documentContext = $this->buildCompanyDocumentContext($documents);
 
         $systemMessage = 'You are an executive strategy assistant. Provide executive-ready, consulting-style summaries.';
         if (!empty($documentContext)) {
@@ -2768,15 +2777,8 @@ EOT;
             ->latest()
             ->get();
 
-        $documentContext = '';
-        if ($documents->count() > 0) {
-            $documentContext = "\n\n--- COMPANY DOCUMENTS CONTEXT ---\n";
-            foreach ($documents as $doc) {
-                $documentContext .= "--- Document: {$doc->name} (Type: {$doc->file_type}) ---\n";
-                $documentContext .= $doc->parsed_text . "\n\n";
-            }
-            $documentContext .= "--- END COMPANY DOCUMENTS CONTEXT ---\n";
-        }
+        // Inject compact per-document summaries (capped), not the full corpus.
+        $documentContext = $this->buildCompanyDocumentContext($documents);
 
         $systemMessage = 'You are an executive strategy assistant. Return ONLY valid JSON. No markdown, no code fences, no commentary.';
         if (!empty($documentContext)) {

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Document;
 use App\Http\Services\LlamaParseService;
 use App\Http\Services\DocumentParserService;
+use App\Services\AI\DocumentSummaryService;
 use Illuminate\Http\Request;
 use Auth;
 
@@ -72,11 +73,15 @@ class DocumentsController extends Controller
                     $document->save(); // Save first so user sees status
                     
                     $parsedText = $parser->parseDocument($uploadedPath, $extension);
-                    
+
                     // Clean and limit parsed text
                     $parsedText = mb_convert_encoding($parsedText, 'UTF-8', mb_detect_encoding($parsedText));
                     $document->parsed_text = mb_substr($parsedText, 0, 50000);
                     $document->parse_status = 'completed';
+
+                    // Build a compact summary once, so the chat can inject that
+                    // instead of the full text (keeps token cost bounded).
+                    $this->generateSummary($document);
                 } catch (\Exception $e) {
                     // If parsing fails, log but don't fail the upload
                     \Log::warning('Document parsing failed for ' . $fileType . ': ' . $e->getMessage());
@@ -99,6 +104,40 @@ class DocumentsController extends Controller
             
             flash(localize('Failed to upload document: ') . $th->getMessage())->error();
             return back();
+        }
+    }
+
+    /**
+     * Generate and store a compact summary for a freshly parsed document.
+     * Best-effort: failures are logged and leave summary_status = 'failed' so
+     * the chat falls back to (capped) parsed_text. Does not save the model.
+     */
+    private function generateSummary(Document $document): void
+    {
+        if (empty($document->parsed_text)) {
+            $document->summary_status = 'failed';
+            return;
+        }
+
+        try {
+            $summary = app(DocumentSummaryService::class)->summarize(
+                $document->parsed_text,
+                (string) $document->name,
+                (string) $document->file_type
+            );
+
+            if (!empty($summary)) {
+                $document->summary = $summary;
+                $document->summary_status = 'completed';
+            } else {
+                $document->summary_status = 'failed';
+            }
+        } catch (\Throwable $e) {
+            \Log::warning('Document summary generation failed', [
+                'document_id' => $document->id,
+                'error'       => $e->getMessage(),
+            ]);
+            $document->summary_status = 'failed';
         }
     }
 
@@ -174,12 +213,16 @@ class DocumentsController extends Controller
             $document->save();
             
             $parsedText = $parser->parseDocument($filePath, $extension);
-            
+
             // Clean and limit parsed text
             $parsedText = mb_convert_encoding($parsedText, 'UTF-8', mb_detect_encoding($parsedText));
             $document->parsed_text = mb_substr($parsedText, 0, 50000);
             $document->parse_status = 'completed';
-            
+
+            // Build a compact summary once, so the chat can inject that instead
+            // of the full text (keeps token cost bounded).
+            $this->generateSummary($document);
+
             $document->save();
 
             flash(localize('Document parsed successfully'))->success();
