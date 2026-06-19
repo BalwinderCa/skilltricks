@@ -61,3 +61,7 @@ info.php
 phpinfo.php
 # Live deploy config (real host/user/paths)
 deploy.config
+
+# Local editor/agent state
+/.claude/
+/.cursor/

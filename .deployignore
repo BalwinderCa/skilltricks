@@ -9,6 +9,10 @@
 .gitignore
 .gitattributes
 
+# --- Local editor/agent state ----------------------------------------------
+/.claude/
+/.cursor/
+
 # --- Secrets / keys / env (managed on the server, never overwrite) ----------
 .env
 .env.*
