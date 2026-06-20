@@ -71,7 +71,10 @@
     @endforeach
 
 
-    @if (!empty($errors->all()))
+    {{-- $errors is shared by the web middleware; guard with isset() so this
+         partial also renders when pre-rendered outside that stack (e.g. the
+         artisan down --render maintenance page during deploys). --}}
+    @if (isset($errors) && !empty($errors->all()))
         @foreach ($errors->all() as $error)
             notifyMe("error", '{{ $error }}')
         @endforeach
