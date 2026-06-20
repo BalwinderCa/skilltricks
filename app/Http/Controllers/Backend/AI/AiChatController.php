@@ -1398,14 +1398,122 @@ Return a SINGLE valid JSON object (no markdown, no code fences, no commentary) w
 
 Rules:
 - "strategyMap": 3 decision paths, each with a UNIQUE id (s1, s2, s3) and a descriptive name (never "Path A/1").
-- "strategyVariants": MUST contain one key for EACH strategy id in strategyMap (s1, s2 AND s3) — never omit s2 or s3. Each strategy's variant must be fully populated with its own scenarios and scenarioVariants.
-- Each variant has 3 "scenarios" (ids sc1, sc2, sc3) and a "scenarioVariants" object that MUST contain ALL THREE keys sc1, sc2 AND sc3 — never omit sc2 or sc3. Each scenario's rolesGoals/complementaryGoals/finalOutcome must reflect THAT scenario (Best Case vs Expected vs Risk) and differ from the others.
+- "strategyVariants": include ONLY the selected strategy "s1". Do NOT generate variants for s2 or s3 — those are produced on demand when the user selects them. The object must contain exactly one key: "s1".
+- The "s1" variant has 3 "scenarios" (ids sc1, sc2, sc3) and a "scenarioVariants" object that MUST contain ALL THREE keys sc1, sc2 AND sc3 — never omit sc2 or sc3. Each scenario's rolesGoals/complementaryGoals/finalOutcome must reflect THAT scenario (Best Case vs Expected vs Risk) and differ from the others.
 - "acknowledgement" must be a non-empty 1-2 sentence string.
 - Each scenarioVariant's "rolesGoals": 5 to 7 DISTINCT roles (never repeat a role title within the same list), using ONLY exact role titles found in the documents (do not prefix or invent titles). "action" is EXACTLY one sentence (no lists, no line breaks).
-- "selectedStrategyId" = first strategy id. Each variant's "selectedScenarioId" = its first scenario id.
-- Keep every string concise to fit the response in one valid JSON object.
+- "selectedStrategyId" = "s1". The s1 variant's "selectedScenarioId" = "sc1".
 - Output VALID JSON only: double-quoted keys/strings, no trailing commas, no comments, no markdown.
 EOT;
+    }
+
+    /**
+     * Lazily generate ONE strategy's full variant (3 scenarios + their roles/
+     * goals/outcome) on demand, when the user selects a strategy the first
+     * message did not pre-generate. Returns the same nested shape the wizard's
+     * data.strategyVariants[id] expects, so the client can merge it in place.
+     */
+    public function generate_strategy_variant(Request $request)
+    {
+        $user = auth()->user();
+        $chatId = $request->input('chat_id');
+        $question = $request->input('original_question');
+        $strategyName = trim((string) $request->input('strategy_name'));
+        $strategyRationale = trim((string) $request->input('strategy_rationale'));
+
+        if (!$chatId || !$question || $strategyName === '') {
+            return response()->json(['error' => 'Chat ID, original question and strategy name are required.'], 400);
+        }
+
+        // Same company-document context the first message uses (capped summaries).
+        $documents = Document::where('user_id', $user->id)
+            ->whereNotNull('parsed_text')
+            ->where('parse_status', 'completed')
+            ->latest()
+            ->get();
+
+        $systemMessage = 'You are an executive strategy assistant trained in the GoalSync framework. Return ONLY valid JSON. No markdown, no code fences, no commentary.';
+        $documentContext = $this->buildCompanyDocumentContext($documents);
+        if (!empty($documentContext)) {
+            $systemMessage .= $documentContext;
+        }
+
+        $rationaleLine = $strategyRationale !== '' ? "Strategy rationale: \"{$strategyRationale}\"\n" : '';
+
+        $prompt = <<<EOT
+User Goal: "{$question}"
+Selected strategy: "{$strategyName}"
+{$rationaleLine}
+Generate the GoalSync variant for THIS strategy as a SINGLE valid JSON object with EXACTLY this shape:
+
+{
+  "scenarios": [
+    {"id": "sc1", "label": "Best Case", "text": "one sentence"},
+    {"id": "sc2", "label": "Expected", "text": "one sentence"},
+    {"id": "sc3", "label": "Risk", "text": "one sentence"}
+  ],
+  "selectedScenarioId": "sc1",
+  "scenarioVariants": {
+    "sc1": {
+      "rolesGoals": [{"role": "Role title from documents", "goal": "1-2 sentences", "action": "EXACTLY one sentence"}],
+      "complementaryGoals": ["goal one", "goal two"],
+      "finalOutcome": "two sentences for this strategy + scenario"
+    },
+    "sc2": {
+      "rolesGoals": [{"role": "Role title from documents", "goal": "1-2 sentences", "action": "EXACTLY one sentence"}],
+      "complementaryGoals": ["goal one", "goal two"],
+      "finalOutcome": "two sentences for this strategy + scenario"
+    },
+    "sc3": {
+      "rolesGoals": [{"role": "Role title from documents", "goal": "1-2 sentences", "action": "EXACTLY one sentence"}],
+      "complementaryGoals": ["goal one", "goal two"],
+      "finalOutcome": "two sentences for this strategy + scenario"
+    }
+  }
+}
+
+Rules:
+- "scenarioVariants" MUST contain ALL THREE keys sc1, sc2 AND sc3. Each scenario (Best Case vs Expected vs Risk) must differ and reflect THIS strategy.
+- Each "rolesGoals": 5 to 7 DISTINCT roles, using ONLY exact role titles found in the documents (do not invent or prefix titles). "action" is EXACTLY one sentence (no lists, no line breaks).
+- Output VALID JSON only: double-quoted keys/strings, no trailing commas, no comments, no markdown.
+EOT;
+
+        try {
+            $response = $this->aiGenerate($systemMessage, $prompt, 3000, 0.7, true);
+
+            if (!$response->successful()) {
+                return response()->json([
+                    'error' => 'Failed to generate strategy variant.',
+                    'details' => $response->body(),
+                ], 500);
+            }
+
+            $text = $this->extractGeminiResponseText($response);
+            $chatTotalTokens = $this->recordChatTokens($chatId, $response);
+            $variant = $this->extractJson($text);
+
+            if ($variant === null) {
+                Log::warning('Strategy variant JSON parse failed', [
+                    'user_id' => $user->id,
+                    'chat_id' => $chatId,
+                    'preview' => substr((string) $text, 0, 300),
+                ]);
+                return response()->json(['error' => 'Could not parse strategy variant.'], 502);
+            }
+
+            return response()->json([
+                'success' => true,
+                'variant' => $variant,
+                'chat_total_tokens' => $chatTotalTokens,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('generate_strategy_variant failed', [
+                'user_id' => $user->id,
+                'chat_id' => $chatId,
+                'error' => $e->getMessage(),
+            ]);
+            return response()->json(['error' => 'An unexpected error occurred while generating the strategy variant.'], 500);
+        }
     }
 
 public function users_new_chat_ask(Request $request)
@@ -1590,8 +1698,10 @@ public function users_new_chat_ask(Request $request)
                 'has_api_key' => !empty($aiProvider === 'OpenAI' ? config('custom.openai_api_key') : config('custom.gemini_api_key')),
             ]);
 
-            // Always request the structured GoalSync JSON contract.
-            $openAiResponse = $this->aiGenerate($systemMessage, $prompt, 8192, 0.7, true);
+            // Always request the structured GoalSync JSON contract. Only the
+            // selected strategy (s1) is generated now — other strategies are
+            // produced on demand — so a smaller output budget is sufficient.
+            $openAiResponse = $this->aiGenerate($systemMessage, $prompt, 4096, 0.7, true);
 
             Log::info($aiProvider . ' API Response - First Chat', [
                 'user_id' => $user->id,

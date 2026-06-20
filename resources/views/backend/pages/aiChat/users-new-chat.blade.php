@@ -1227,10 +1227,54 @@
                 return sc ? sc.label : '';
             }
 
+            // Show a lightweight spinner in the wizard body while a strategy
+            // variant is generated on demand.
+            function showWizardLoading(msg) {
+                loadingDiv.innerHTML = `<div class="text-center text-muted py-4">
+                    <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>
+                    ${esc(msg || 'Generating…')}</div>`;
+            }
+
+            // Only the selected strategy is generated up front; other strategies
+            // are produced on demand here. Fetches the variant, merges it into
+            // `data`, and caches it so re-selecting is instant. On failure the
+            // wizard still works (flattenContract falls back to the first strategy).
+            async function ensureStrategyVariant(sid) {
+                const existing = data.strategyVariants && data.strategyVariants[sid];
+                if (existing && existing.scenarioVariants && Object.keys(existing.scenarioVariants).length) {
+                    return; // already have it
+                }
+                const strat = (data.strategyMap || []).find(s => s.id === sid) || {};
+                showWizardLoading(`Generating “${strat.name || 'strategy'}” analysis…`);
+                try {
+                    const res = await fetch('/dashboard/users-new-chat-generate-strategy-variant', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+                        body: JSON.stringify({
+                            chat_id: window.chatChatId || (document.getElementById('chat_id') || {}).value,
+                            original_question: window.chatQuestion || '',
+                            strategy_name: strat.name || '',
+                            strategy_rationale: strat.rationale || ''
+                        })
+                    });
+                    const d = await res.json();
+                    if (d && d.chat_total_tokens !== undefined) window.setChatTokenTotal(d.chat_total_tokens);
+                    if (d && d.success && d.variant) {
+                        data.strategyVariants = data.strategyVariants || {};
+                        data.strategyVariants[sid] = d.variant;
+                    } else {
+                        console.warn('Strategy variant fetch failed:', d && d.error);
+                    }
+                } catch (e) {
+                    console.error('Strategy variant fetch error:', e);
+                }
+            }
+
             function wireSelection() {
                 loadingDiv.querySelectorAll('input[name="gs-strategy"]').forEach(r => {
-                    r.addEventListener('change', function () {
+                    r.addEventListener('change', async function () {
                         selStrategy = this.value;
+                        await ensureStrategyVariant(selStrategy);
                         selScenario = variant().selectedScenarioId || (scenarioList()[0] || {}).id;
                         inFinal ? renderFinal() : renderStep();
                     });
