@@ -762,20 +762,10 @@
                                 </div>
                             </div>
                             <script>
-                                console.log('📋 BRIEF FROM DATABASE (Blade Template):');
-                                console.log('📍 Brief exists:', true);
-                                console.log('📍 Brief length:', {{ strlen($leadershipBriefFromDB) }});
-                                console.log('📍 Brief preview (first 200 chars):', {!! json_encode(substr($leadershipBriefFromDB, 0, 200)) !!});
-                                console.log('📍 Full brief (truncated for console):', {!! json_encode(strlen($leadershipBriefFromDB) > 500 ? substr($leadershipBriefFromDB, 0, 500) . '...' : $leadershipBriefFromDB) !!});
                             </script>
                         @else
                             <script>
-                                console.log('📋 BRIEF FROM DATABASE (Blade Template):');
-                                console.log('📍 Brief exists:', false);
-                                console.log('📍 leadershipBriefFromDB isset:', {{ isset($leadershipBriefFromDB) ? 'true' : 'false' }});
                                 @if(isset($leadershipBriefFromDB))
-                                    console.log('📍 leadershipBriefFromDB is empty:', {{ empty($leadershipBriefFromDB) ? 'true' : 'false' }});
-                                    console.log('📍 leadershipBriefFromDB value:', {!! json_encode($leadershipBriefFromDB) !!});
                                 @endif
                             </script>
                         @endif
@@ -923,7 +913,6 @@
                     }
                 }
             } catch (e) {
-                console.error('Markdown render failed:', e);
             }
         });
     }
@@ -1263,10 +1252,8 @@
                         data.strategyVariants = data.strategyVariants || {};
                         data.strategyVariants[sid] = d.variant;
                     } else {
-                        console.warn('Strategy variant fetch failed:', d && d.error);
                     }
                 } catch (e) {
-                    console.error('Strategy variant fetch error:', e);
                 }
             }
 
@@ -1509,20 +1496,15 @@ async function submitContextFromModal() {
             body: JSON.stringify({
                 chat_id: currentChatId,
                 user_id: currentUserId,
-                field1: '',
-                field2: '',
-                field3: '',
                 additional_details: contextField
             })
         });
         // Don't wait for response, just log it
         response.json().then(data => {
             if (data.success) {
-                console.log('Context saved to database');
             }
-        }).catch(err => console.error('Error saving context:', err));
+        }).catch(() => {});
     } catch (error) {
-        console.error('Error saving context to database:', error);
         // Continue anyway, context will still be sent to StrategiStudio
     }
 
@@ -1648,8 +1630,10 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
     currentUserCard = userCard;
     currentContextOptionsDiv = contextOptionsDiv;
 
-    // Function to actually send the request to StrategiStudio
-    window.sendToChatGPT = async function(contextData = null) {
+    // Capture a stable local reference so these context buttons always
+    // call THIS submission's handler, even if a second submit fires before
+    // the user clicks. The global is kept so the modal can reach it.
+    const sendToChatGPT = async function(contextData = null) {
         // Validate required fields
         if (!currentQuestion || !currentQuestion.trim()) {
             alert('Please enter a question or goal.');
@@ -1828,28 +1812,6 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                 return before + out.join('\n') + after;
             };
 
-            // Phase 1: extract per-strategy JSON bundles emitted by the first call.
-            // These let strategy/scenario selection render client-side with no extra
-            // AI calls. If parsing fails we strip nothing and fall back to fetches.
-            window.strategyBundles = null;
-            try {
-                const bundleMatch = fullAnswer.match(/%%%BUNDLES_JSON%%%([\s\S]*?)%%%END_BUNDLES_JSON%%%/);
-                if (bundleMatch) {
-                    // Remove the data block from what we display to the user
-                    fullAnswer = fullAnswer.replace(bundleMatch[0], '').trim();
-                    let raw = bundleMatch[1].trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
-                    window.strategyBundles = JSON.parse(raw);
-                    // Collapse Actions inside every bundle value too
-                    Object.keys(window.strategyBundles).forEach(k => {
-                        window.strategyBundles[k] = window.collapseActions(window.strategyBundles[k]);
-                    });
-                    console.log('✅ Parsed strategy bundles:', Object.keys(window.strategyBundles));
-                }
-            } catch (e) {
-                window.strategyBundles = null;
-                console.warn('⚠️ Could not parse strategy bundles, falling back to per-selection AI calls:', e);
-            }
-
             // Collapse Actions in the visible first-response text
             fullAnswer = window.collapseActions(fullAnswer);
             
@@ -1890,7 +1852,6 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
             // Check if there's a selected strategy from database (page reload)
             @if(isset($selectedStrategyFromDB) && $selectedStrategyFromDB)
                 window.selectedStrategy = @json($selectedStrategyFromDB);
-                console.log('Loaded selected strategy from DB:', window.selectedStrategy);
             @endif
             
             // Initialize selectedStrategy globally if not set
@@ -1952,13 +1913,11 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                 
                 // Enforce maximum of 4 strategies (take first 4 if more are found)
                 if (strategyPoints.length > 4) {
-                    console.log(`Found ${strategyPoints.length} strategies, limiting to 4`);
                     strategyPoints = strategyPoints.slice(0, 4);
                 }
                 
                 // Ensure minimum of 3 strategies (if less than 3, keep what we have)
                 if (strategyPoints.length < 3) {
-                    console.log(`Warning: Only found ${strategyPoints.length} strategies (minimum is 3)`);
                 }
             }
 
@@ -2020,12 +1979,10 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                 }).filter(item => item.length > 0);
 
                 if (scenarioOptions.length > 4) {
-                    console.log(`Found ${scenarioOptions.length} scenarios, limiting to 4`);
                     scenarioOptions = scenarioOptions.slice(0, 4);
                 }
 
                 if (scenarioOptions.length < 3 && scenarioOptions.length > 0) {
-                    console.log(`Warning: Only ${scenarioOptions.length} scenarios detected (minimum expected is 3).`);
                 }
             }
 
@@ -2044,46 +2001,6 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                 window.scenarioResponsesCache = {};
             }
             const strategyResponsesCache = window.strategyResponsesCache;
-
-            // Phase 1: pre-fill strategy + scenario caches from the bundles returned
-            // by the first call. With caches warm, selecting a strategy/scenario
-            // renders client-side and never fires an extra AI call.
-            if (window.strategyBundles && typeof window.strategyBundles === 'object') {
-                const bundleKeys = Object.keys(window.strategyBundles);
-                const matchBundle = (point) => {
-                    if (window.strategyBundles[point]) return window.strategyBundles[point];
-                    const p = point.substring(0, 30).toLowerCase();
-                    const k = bundleKeys.find(bk =>
-                        bk.toLowerCase().includes(p) ||
-                        point.toLowerCase().includes(bk.substring(0, 30).toLowerCase()));
-                    return k ? window.strategyBundles[k] : null;
-                };
-                (window.strategyPoints || []).forEach(point => {
-                    const block = matchBundle(point);
-                    if (!block) return;
-                    window.strategyResponsesCache[point] = block;
-
-                    // 👥📌✅ portion is what the scenario cache serves
-                    const rolesIdx = block.indexOf('👥');
-                    const rolesPart = rolesIdx !== -1 ? block.substring(rolesIdx) : block;
-
-                    // this strategy's own scenarios (from its 🔮 section)
-                    const scenMatch = block.match(/🔮[\s\S]*?(?=👥|📌|✅|$)/);
-                    const strategyKey = point.substring(0, 50);
-                    if (scenMatch) {
-                        scenMatch[0].split('\n').forEach(line => {
-                            const t = line.trim();
-                            if (t && (t.startsWith('-') || t.startsWith('•') || t.startsWith('*'))) {
-                                const sc = t.replace(/^[-•*]\s*/, '')
-                                            .replace(/\*\*([^*]+)\*\*/g, '$1')
-                                            .replace(/\*\*/g, '').trim();
-                                if (sc) window.scenarioResponsesCache[`${strategyKey}||${sc}`] = rolesPart;
-                            }
-                        });
-                    }
-                });
-                console.log('✅ Pre-filled caches from bundles. Strategies cached:', Object.keys(window.strategyResponsesCache));
-            }
 
             let currentStep = 0;
 
@@ -2128,10 +2045,8 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                         const strategyKey = window.selectedStrategy ? window.selectedStrategy.substring(0, 50) : 'no-strategy';
                         const scenarioCacheKey = `${strategyKey}||${selectedScenario}`;
                         if (!window.scenarioResponsesCache || !window.scenarioResponsesCache[scenarioCacheKey]) {
-                            console.log('⚠️ Scenario data not ready - cache key:', scenarioCacheKey);
                             return false;
                         }
-                        console.log('✅ Scenario data ready - cache key:', scenarioCacheKey);
                     }
                 }
                 
@@ -2176,26 +2091,6 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
             // Strategies are already in the first response - no need to pre-load them
             // We only load strategy-specific content when user selects a strategy
             
-            // Scenarios are already in the first response - no need to pre-load them
-            // We only load scenario-specific content when user actually selects a scenario
-            
-            // Don't pre-load strategies - strategies are already in the first response
-            // Only load strategy-specific content when user actually selects a strategy
-            function startLoadingStrategiesIfNeeded() {
-                // Strategies are already in the response, no need to pre-load
-                // We'll load strategy-specific content only when user selects one
-                return;
-            }
-            
-            // Scenarios are already in the first response - no need to pre-load them
-            // We only load scenario-specific content when user actually selects a scenario
-            function startLoadingScenariosIfNeeded() {
-                // Scenarios are already in the response, no need to pre-load
-                // We'll load scenario-specific content only when user selects one
-                return;
-            }
-
-
             function getUpdatedSectionParts(responseText, emojiOrder = ['🔮', '👥', '📌', '✅']) {
                 if (!responseText) {
                     return [];
@@ -2238,19 +2133,14 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                 const strategyKey = window.selectedStrategy ? window.selectedStrategy.substring(0, 50) : 'no-strategy';
                 const cacheKey = `${strategyKey}||${scenarioText}`;
                 
-                console.log('🔑 Scenario cache key:', cacheKey);
-                console.log('🔑 Strategy:', strategyKey);
-                console.log('🔑 Scenario:', scenarioText.substring(0, 50));
 
                 if (window.scenarioResponsesCache[cacheKey]) {
-                    console.log('✅ Using cached scenario response');
                     if (currentStep > scenarioIndex && typeof renderStep === 'function') {
                         renderStep();
                     }
                     return;
                 }
                 
-                console.log('🔄 Fetching new scenario response (not in cache)');
 
                 // Track API call
                 window.pendingApiCalls++;
@@ -2291,7 +2181,6 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                         const strategyKey = window.selectedStrategy ? window.selectedStrategy.substring(0, 50) : 'no-strategy';
                         const cacheKey = `${strategyKey}||${scenarioText}`;
                         window.scenarioResponsesCache[cacheKey] = response;
-                        console.log('💾 Cached scenario response with key:', cacheKey);
                         if (currentStep > scenarioIndex && typeof renderStep === 'function') {
                             renderStep();
                         }
@@ -2299,7 +2188,6 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                         updateNextButtonState();
                     }
                 } catch (error) {
-                    console.error(`Error loading scenario "${scenarioText}":`, error);
                 } finally {
                     // Update API call state
                     window.pendingApiCalls = Math.max(0, window.pendingApiCalls - 1);
@@ -2312,10 +2200,6 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                 const step = sections[currentStep];
                 let stepHtml = '';
                 
-                console.log('Rendering step:', currentStep, 'of', sections.length);
-                console.log('Strategy Map Index:', strategyMapIndex);
-                console.log('Selected Strategy:', window.selectedStrategy);
-                console.log('Cache keys:', window.strategyResponsesCache ? Object.keys(window.strategyResponsesCache) : 'No cache');
                 
                 // Check if this is the Strategy Map section
                 if (currentStep === strategyMapIndex && strategyPoints.length > 0) {
@@ -2386,16 +2270,8 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                     // Use window.scenarioOptions which gets updated when strategy is selected
                     // CRITICAL: Always use the latest window.scenarioOptions (updated when strategy changes)
                     const currentScenarioOptions = window.scenarioOptions || [];
-                    console.log('🔍 ===== RENDERING SCENARIO PAGE =====');
-                    console.log('🔍 Current step:', currentStep);
-                    console.log('🔍 Scenario index:', scenarioIndex);
-                    console.log('🔍 window.scenarioOptions:', currentScenarioOptions);
-                    console.log('🔍 window.scenarioOptions length:', currentScenarioOptions.length);
-                    console.log('🔍 Current selectedScenario:', window.selectedScenario);
-                    console.log('🔍 Selected strategy:', window.selectedStrategy);
                     
                     if (currentScenarioOptions.length === 0) {
-                        console.error('❌ ERROR: window.scenarioOptions is empty!');
                     }
                     
                     const scenarioLines = (window.scenarioSection || '').split('\n');
@@ -2410,7 +2286,6 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                         // Try exact match first
                         if (currentScenarioOptions.includes(window.selectedScenario)) {
                             activeScenario = window.selectedScenario;
-                            console.log('🔍 Exact match found for selectedScenario');
                         } else {
                             // Try fuzzy match - check if any scenario starts with selected scenario or vice versa
                             const match = currentScenarioOptions.find(opt => 
@@ -2420,9 +2295,7 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                             );
                             if (match) {
                                 activeScenario = match;
-                                console.log('🔍 Fuzzy match found for selectedScenario');
                             } else {
-                                console.log('🔍 No match found, using first scenario:', activeScenario);
                             }
                         }
                     }
@@ -2432,8 +2305,6 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                         window.selectedScenario = activeScenario;
                     }
                     
-                    console.log('🔍 Active scenario selected:', activeScenario);
-                    console.log('🔍 ===== END SCENARIO PAGE RENDER =====');
 
                     if (!window.selectedScenario && activeScenario) {
                         window.selectedScenario = activeScenario;
@@ -2497,10 +2368,8 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                         const strategyKey = window.selectedStrategy ? window.selectedStrategy.substring(0, 50) : 'no-strategy';
                         const activeScenarioCacheKey = `${strategyKey}||${activeScenario}`;
                         if (!window.scenarioResponsesCache || !window.scenarioResponsesCache[activeScenarioCacheKey]) {
-                            console.log('🔄 Auto-loading active scenario:', activeScenario.substring(0, 50));
                             fetchScenarioResponse(activeScenario, false);
                         } else {
-                            console.log('✅ Active scenario already cached');
                         }
                     }
                 } else {
@@ -2519,7 +2388,6 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
 
                     if (scenarioIndex !== -1 && currentStep > scenarioIndex && scenarioCache) {
                         const updatedIndex = currentStep - scenarioIndex - 1;
-                        console.log('Using cached scenario response. Updated index:', updatedIndex);
                         const updatedParts = getUpdatedSectionParts(scenarioCache, ['👥', '📌', '✅']);
 
                         if (updatedIndex >= 0 && updatedIndex < updatedParts.length) {
@@ -2535,7 +2403,6 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
 
                     } else if (currentStep > strategyMapIndex && strategyCache) {
                         const updatedIndex = currentStep - strategyMapIndex - 1;
-                        console.log('Using cached strategy response. Updated index:', updatedIndex);
                         const updatedParts = getUpdatedSectionParts(strategyCache, ['🔮', '👥', '📌', '✅']);
 
                         if (updatedIndex >= 0 && updatedIndex < updatedParts.length) {
@@ -2550,12 +2417,8 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                         }
                     } else {
                         if (!currentSelectedStrategy) {
-                            console.log('No strategy selected');
                         } else if (!window.strategyResponsesCache) {
-                            console.log('No cache object');
                         } else if (!window.strategyResponsesCache[currentSelectedStrategy]) {
-                            console.log('Strategy not in cache:', currentSelectedStrategy);
-                            console.log('Available strategies:', Object.keys(window.strategyResponsesCache));
                         }
                         // Show original content if no strategy selected or not loaded yet
                         stepHtml = `<div class="response-text">${marked.parse(step)}</div>`;
@@ -2570,10 +2433,6 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                         </button>
                     </div>
                 `;
-                
-                // Start loading data 1 step ahead if needed
-                startLoadingStrategiesIfNeeded();
-                startLoadingScenariosIfNeeded();
                 
                 // Update button state after rendering (checks if next step's data is ready)
                 updateNextButtonState();
@@ -2595,46 +2454,19 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                                 window.selectedStrategy = exactStrategy;
                                 selectedStrategy = exactStrategy;
                                 
-                                // Scenarios are strategy-specific. Reset the scenario cache,
-                                // then (Phase 1) immediately repopulate it for THIS strategy
-                                // from its bundle so scenario selection stays client-side.
+                                // Scenarios are strategy-specific — clear the cache so
+                                // the next scenario selection fetches fresh content.
                                 window.scenarioResponsesCache = {};
-                                if (window.strategyBundles) {
-                                    const block = window.strategyResponsesCache[exactStrategy];
-                                    if (block) {
-                                        const rolesIdx = block.indexOf('👥');
-                                        const rolesPart = rolesIdx !== -1 ? block.substring(rolesIdx) : block;
-                                        const scenMatch = block.match(/🔮[\s\S]*?(?=👥|📌|✅|$)/);
-                                        const sKey = exactStrategy.substring(0, 50);
-                                        if (scenMatch) {
-                                            scenMatch[0].split('\n').forEach(line => {
-                                                const t = line.trim();
-                                                if (t && (t.startsWith('-') || t.startsWith('•') || t.startsWith('*'))) {
-                                                    const sc = t.replace(/^[-•*]\s*/, '')
-                                                                .replace(/\*\*([^*]+)\*\*/g, '$1')
-                                                                .replace(/\*\*/g, '').trim();
-                                                    if (sc) window.scenarioResponsesCache[`${sKey}||${sc}`] = rolesPart;
-                                                }
-                                            });
-                                        }
-                                    }
-                                }
                                 
-                                console.log('Strategy selected:', exactStrategy);
-                                console.log('Available cache keys:', Object.keys(window.strategyResponsesCache || {}));
-                                console.log('Cache available for exact strategy:', window.strategyResponsesCache && window.strategyResponsesCache[exactStrategy] ? 'Yes' : 'No');
                                 
                                 if (window.strategyResponsesCache && window.strategyResponsesCache[exactStrategy]) {
-                                    console.log('Cached response preview for selected strategy:', window.strategyResponsesCache[exactStrategy].substring(0, 200));
                                 }
                                 
                                 // Immediately update subsequent sections using cached response
                                 if (window.strategyResponsesCache && window.strategyResponsesCache[exactStrategy]) {
-                                    console.log('Using cached response for exact strategy - no API call needed');
                                     
                                     // CRITICAL: Extract scenarios from cached response too!
                                     const cachedStrategyContent = window.strategyResponsesCache[exactStrategy];
-                                    console.log('Extracting scenarios from cached strategy content...');
                                     
                                     if (cachedStrategyContent && cachedStrategyContent.includes('🔮')) {
                                         // Find scenario section in cached strategy content
@@ -2672,7 +2504,6 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                                             if (newScenarioOptions.length > 0) {
                                                 // Clear scenario cache when scenarios change
                                                 if (window.scenarioResponsesCache) {
-                                                    console.log('🗑️ Clearing scenario responses cache - new scenarios from cached strategy');
                                                     window.scenarioResponsesCache = {};
                                                 }
                                                 
@@ -2683,15 +2514,12 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                                                 // Reset selected scenario to first one
                                                 window.selectedScenario = newScenarioOptions[0];
                                                 
-                                                console.log('✅ Updated window.scenarioOptions from cache:', window.scenarioOptions);
-                                                console.log('New scenarios count:', newScenarioOptions.length);
                                             }
                                         }
                                     }
                                     
                                     // If we're viewing a section after strategy map, update it immediately
                                     if (currentStep >= strategyMapIndex) {
-                                        console.log('Re-rendering to show updated scenarios from cache');
                                         renderStep();
                                     }
                                     
@@ -2699,7 +2527,6 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                                     updateNextButtonState();
                                 } else {
                                     // Strategy-specific content not cached - load it now when user selects
-                                    console.log('Loading strategy-specific content for selected strategy:', exactStrategy);
                                     
                                     window.pendingApiCalls++;
                                     window.apiCallInProgress = true;
@@ -2723,9 +2550,6 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                                     })
                                     .then(response => response.json())
                                     .then(data => {
-                                        console.log('=== STRATEGY SELECTED DEBUG ===');
-                                        console.log('Strategy:', exactStrategy);
-                                        console.log('Response data:', data);
 
                                         if (data.chat_total_tokens !== undefined) window.setChatTokenTotal(data.chat_total_tokens);
 
@@ -2737,18 +2561,14 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                                         
                                         // Extract scenarios from strategy-specific content
                                         const strategyContent = data.updated_sections || '';
-                                        console.log('Strategy content length:', strategyContent.length);
-                                        console.log('Strategy content preview:', strategyContent.substring(0, 500));
                                         
                                         if (strategyContent && strategyContent.includes('🔮')) {
-                                            console.log('Found 🔮 emoji in strategy content');
                                             
                                             // Find scenario section in strategy-specific content - use a better regex
                                             // Match from 🔮 until we hit 👥, 📌, or ✅ (non-greedy)
                                             const scenarioMatch = strategyContent.match(/🔮[\s\S]*?(?=\n\s*(?:👥|📌|✅)|$)/);
                                             if (scenarioMatch) {
                                                 const newScenarioSection = scenarioMatch[0];
-                                                console.log('Extracted scenario section:', newScenarioSection.substring(0, 300));
                                                 
                                                 const scenarioLines = newScenarioSection.split('\n');
                                                 let foundScenarioHeader = false;
@@ -2760,7 +2580,6 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                                                     
                                                     if (line.includes('🔮') || line.toLowerCase().includes('scenario')) {
                                                         foundScenarioHeader = true;
-                                                        console.log('Found scenario header:', line);
                                                         continue;
                                                     }
                                                     
@@ -2769,11 +2588,9 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                                                          line.startsWith('•') || 
                                                          line.startsWith('*'))) {
                                                         newScenarioItems.push(line);
-                                                        console.log('Found scenario item:', line);
                                                     }
                                                 }
                                                 
-                                                console.log('Total scenario items found:', newScenarioItems.length);
                                                 
                                                 const newScenarioOptions = newScenarioItems.map(line => {
                                                     let cleaned = line.replace(/^[-•*]\s*/, '').trim();
@@ -2784,13 +2601,11 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                                                     return cleaned.trim();
                                                 }).filter(item => item.length > 0);
                                                 
-                                                console.log('Cleaned scenario options:', newScenarioOptions);
                                                 
                                                 if (newScenarioOptions.length > 0) {
                                                     // CRITICAL: Clear scenario cache when scenarios change
                                                     // Old cached scenario responses are invalid for new strategy
                                                     if (window.scenarioResponsesCache) {
-                                                        console.log('🗑️ Clearing scenario responses cache - new scenarios for new strategy');
                                                         window.scenarioResponsesCache = {};
                                                     }
                                                     
@@ -2803,39 +2618,27 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                                                     // Update scenarios
                                                     window.scenarioOptions = newScenarioOptions;
                                                     
-                                                    console.log('✅ Updated window.scenarioOptions:', window.scenarioOptions);
-                                                    console.log('Old scenarios:', oldScenarios);
-                                                    console.log('Scenarios changed?', JSON.stringify(oldScenarios) !== JSON.stringify(newScenarioOptions));
                                                     
                                                     // Always reset selected scenario to first one when strategy changes
                                                     // This ensures we're using the new scenarios
                                                     window.selectedScenario = newScenarioOptions[0];
                                                     
-                                                    console.log('Reset selectedScenario to first option:', window.selectedScenario);
-                                                    console.log('Updated scenarios for strategy:', exactStrategy);
-                                                    console.log('New scenarios count:', newScenarioOptions.length);
                                                 } else {
-                                                    console.warn('⚠️ No scenarios extracted from strategy content');
                                                 }
                                             } else {
-                                                console.warn('⚠️ Could not match scenario section with regex');
                                             }
                                         } else {
-                                            console.warn('⚠️ No 🔮 emoji found in strategy content');
                                         }
                                         
-                                        console.log('=== END DEBUG ===');
                                         
                                         // Force re-render if viewing any section from strategy map onwards (including scenario page)
                                         if (currentStep >= strategyMapIndex) {
-                                            console.log('Re-rendering to show updated scenarios for strategy:', exactStrategy);
                                             renderStep();
                                         }
                                         
                                         updateNextButtonState();
                                     })
                                     .catch(err => {
-                                        console.error('Error loading strategy-specific content:', err);
                                     })
                                     .finally(() => {
                                         window.pendingApiCalls = Math.max(0, window.pendingApiCalls - 1);
@@ -2865,12 +2668,10 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                                 
                                 // Prevent duplicate calls - check if already processing
                                 if (window.scenarioSelectionInProgress) {
-                                    console.log('⚠️ Scenario selection already in progress, ignoring duplicate click');
                                     return;
                                 }
                                 
                                 window.scenarioSelectionInProgress = true;
-                                console.log('📌 Scenario selected:', scenarioValue.substring(0, 50));
                                 
                                 window.selectedScenario = scenarioValue;
                                 
@@ -3044,7 +2845,6 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                 // Add export button and auto-generate brief after final answer is rendered
                 // Use longer timeout to ensure DOM is fully updated
                 setTimeout(() => {
-                    console.log('🎯 renderFinalAnswer: Adding export button and generating brief...');
                     addExportButtonToRoleGoals();
                     
                     // renderFinalAnswer rebuilds the DOM, wiping any brief that was
@@ -3058,7 +2858,6 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                     );
 
                     if (window.briefGenerationCompleted && window.generatedBriefHtml) {
-                        console.log('♻️ Re-inserting cached Leadership Alignment Brief (no regeneration)');
                         const cardContainer = (finalOutcomeSection || loadingDiv).closest('.tt-template-carddads') || loadingDiv;
                         if (!cardContainer.querySelector('.leadership-alignment-brief')) {
                             const briefDiv = document.createElement('div');
@@ -3198,18 +2997,19 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
             // }
         }
 
-        // Add event listeners for context buttons (outside the function so they're available immediately)
+        // Expose globally so the modal helper (showAddContextModal) can reach it;
+        // the local const is what the buttons below close over.
+        window.sendToChatGPT = sendToChatGPT;
+
         const addContextBtn = contextOptionsDiv.querySelector('.add-context-btn');
         const skipContextBtn = contextOptionsDiv.querySelector('.skip-context-btn');
 
         addContextBtn.addEventListener('click', function() {
-            showAddContextModal(userCard, chat_id, user_id, window.sendToChatGPT);
+            showAddContextModal(userCard, chat_id, user_id, sendToChatGPT);
         });
 
         skipContextBtn.addEventListener('click', function() {
-            if (window.sendToChatGPT) {
-                window.sendToChatGPT(null); // Send without context
-            }
+            sendToChatGPT(null);
         });
 
     questionInput.value = '';
@@ -3235,34 +3035,10 @@ document.addEventListener('click', function (e) {
 
 
 
-<!-- Copy Script -->
+<!-- Export / misc scripts -->
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        document.querySelectorAll('.copy-btn').forEach(button => {
-            button.addEventListener('click', function () {
-                const card = this.closest('.tt-template-carddads');
-                const sections = card ? card.querySelectorAll('.response-text') : [];
-                const answer = sections.length
-                    ? Array.from(sections).map(section => section.innerText.trim()).filter(Boolean).join('\n\n')
-                    : '';
-
-                if (!answer.trim()) {
-                    alert('Nothing to copy!');
-                    return;
-                }
-
-                navigator.clipboard.writeText(answer).then(() => {
-                    alert('Answer copied to clipboard!');
-                }).catch(() => {
-                    alert('Failed to copy!');
-                });
-            });
-        });
-    });
-
     // Export Role Goals to Spreadsheet
     window.exportRoleGoals = function(roleGoalsText, goal, scenario, strategy) {
-        console.log('Starting export...', { roleGoalsTextLength: roleGoalsText.length, goal, scenario, strategy });
         
         // Show loading indicator
         const loadingMsg = document.createElement('div');
@@ -3289,25 +3065,21 @@ document.addEventListener('click', function (e) {
             }
         })
         .then(response => {
-            console.log('Export response status:', response.status, response.statusText);
             
             if (response.ok) {
                 // Check if response is actually a file
                 const contentType = response.headers.get('content-type');
-                console.log('Response content-type:', contentType);
                 
                 if (contentType && (contentType.includes('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') || contentType.includes('application/octet-stream'))) {
                     return response.blob();
                 } else {
                     // If not a blob, try to get as text to see error
                     return response.text().then(text => {
-                        console.error('Unexpected response:', text);
                         throw new Error('Server returned non-file response: ' + text.substring(0, 200));
                     });
                 }
             } else {
                 return response.text().then(text => {
-                    console.error('Export failed:', response.status, text);
                     throw new Error('Export failed: ' + response.status + ' - ' + text.substring(0, 200));
                 });
             }
@@ -3327,13 +3099,11 @@ document.addEventListener('click', function (e) {
                 if (loadingMsg) loadingMsg.remove();
                 if (exportBtn) exportBtn.disabled = false;
                 
-                console.log('Export completed successfully');
             } else {
                 throw new Error('Invalid response format');
             }
         })
         .catch(error => {
-            console.error('Export error:', error);
             if (loadingMsg) loadingMsg.remove();
             if (exportBtn) exportBtn.disabled = false;
             alert('Failed to export role goals: ' + error.message + '\n\nPlease check the browser console for details.');
@@ -3347,8 +3117,6 @@ document.addEventListener('click', function (e) {
         
         // Re-find final outcome section (DOM might have changed after renderFinalAnswer)
         const allResponseTexts = Array.from(document.querySelectorAll('.response-text'));
-        console.log('🔍 generateLeadershipAlignmentBrief: Searching for Final Outcome section...');
-        console.log('📍 Total response-text elements:', allResponseTexts.length);
         
         const finalOutcomeSection = allResponseTexts.find(el => {
             const text = el.textContent || el.innerText;
@@ -3358,35 +3126,18 @@ document.addEventListener('click', function (e) {
         });
         
         if (!finalOutcomeSection) {
-            console.error('❌ Final Outcome section not found in generateLeadershipAlignmentBrief');
-            console.log('📍 Available response-text elements:', allResponseTexts.map(el => {
-                const text = el.textContent || el.innerText;
-                return text.substring(0, 80).replace(/\n/g, ' ');
-            }));
             if (loadingIndicator) loadingIndicator.remove();
             return;
         }
         
-        console.log('✅ Final Outcome section found:', finalOutcomeSection);
-        console.log('📍 Final Outcome section text preview:', (finalOutcomeSection.textContent || finalOutcomeSection.innerText).substring(0, 100));
         
         const cardContainer = finalOutcomeSection.closest('.tt-template-carddads');
         if (!cardContainer) {
-            console.error('❌ Card container not found for Final Outcome section');
             if (loadingIndicator) loadingIndicator.remove();
             return;
         }
         
-        console.log('✅ Card container found:', cardContainer);
 
-        console.log('🔄 Calling API to generate Leadership Alignment Brief...', {
-            chatId,
-            hasStrategy: !!selectedStrategy,
-            hasScenario: !!selectedScenario,
-            hasQuestion: !!originalQuestion,
-            responseLength: fullResponse.length
-        });
-        
         fetch('{{ route("users-new-chat-generate-alignment-brief.index") }}', {
             method: 'POST',
             headers: {
@@ -3402,11 +3153,9 @@ document.addEventListener('click', function (e) {
             })
         })
         .then(response => {
-            console.log('📡 API Response status:', response.status);
             return response.json();
         })
         .then(data => {
-            console.log('📡 API Response data:', { success: data.success, hasBrief: !!data.brief, error: data.error });
 
             if (data.chat_total_tokens !== undefined) window.setChatTokenTotal(data.chat_total_tokens);
 
@@ -3418,20 +3167,14 @@ document.addEventListener('click', function (e) {
             if (loadingIndicator) loadingIndicator.remove();
             
             if (data.success && data.brief) {
-                console.log('✅ Brief generated successfully, length:', data.brief.length);
-                console.log('💾 Brief should be saved to database with chat_id:', chatId);
-                console.log('💾 Brief preview (first 200 chars):', data.brief.substring(0, 200));
                 
                 // Check for warning about save failure
                 if (data.warning) {
-                    console.error('⚠️ WARNING:', data.warning);
-                    console.error('⚠️ Brief was generated but may not be saved to database!');
                 }
                 
                 // Check if brief already exists
                 const existingBrief = cardContainer.querySelector('.leadership-alignment-brief');
                 if (existingBrief) {
-                    console.log('⚠️ Brief already exists in card container, skipping insertion');
                     window.briefGenerationCompleted = true;
                     return; // Already displayed
                 }
@@ -3441,7 +3184,6 @@ document.addEventListener('click', function (e) {
                 
                 // Check if marked is available
                 if (typeof marked === 'undefined') {
-                    console.error('❌ marked library is not loaded!');
                     // Fallback: use plain text with basic formatting
                     const briefText = data.brief.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
                                                 .replace(/\n/g, '<br>');
@@ -3453,13 +3195,10 @@ document.addEventListener('click', function (e) {
                     finalOutcomeSection.insertAdjacentElement('afterend', briefDiv);
                 } else {
                     // Create brief section with markdown parsing
-                    console.log('📝 Parsing brief with marked library...');
                     let parsedBrief;
                     try {
                         parsedBrief = marked.parse(data.brief);
-                        console.log('✅ Brief parsed successfully, HTML length:', parsedBrief.length);
                     } catch (parseError) {
-                        console.error('❌ Error parsing brief with marked:', parseError);
                         // Fallback to plain text
                         parsedBrief = data.brief.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
                                                 .replace(/\n/g, '<br>');
@@ -3479,10 +3218,6 @@ document.addEventListener('click', function (e) {
                     briefDiv.appendChild(responseTextDiv);
                     
                     // Insert after final outcome section, inside the same card container
-                    console.log('📍 Inserting brief after final outcome section...');
-                    console.log('📍 Final outcome section:', finalOutcomeSection);
-                    console.log('📍 Card container:', cardContainer);
-                    console.log('📍 Brief div HTML length:', briefDiv.innerHTML.length);
                     
                     finalOutcomeSection.insertAdjacentElement('afterend', briefDiv);
                     
@@ -3491,21 +3226,11 @@ document.addEventListener('click', function (e) {
                         const insertedBrief = cardContainer.querySelector('.leadership-alignment-brief');
                         if (insertedBrief) {
                             const responseText = insertedBrief.querySelector('.response-text');
-                            console.log('✅ Brief successfully inserted and visible in DOM');
-                            console.log('📍 Brief element:', insertedBrief);
-                            console.log('📍 Response text element:', responseText);
-                            console.log('📍 Brief innerHTML length:', insertedBrief.innerHTML.length);
-                            console.log('📍 Brief textContent length:', insertedBrief.textContent.length);
-                            console.log('📍 Response text innerHTML length:', responseText ? responseText.innerHTML.length : 0);
-                            console.log('📍 Response text textContent length:', responseText ? responseText.textContent.length : 0);
                             
                             if (!responseText || responseText.innerHTML.trim().length === 0) {
-                                console.error('❌ Response text is empty! Re-inserting content...');
                                 responseText.innerHTML = parsedBrief;
                             }
                             
-                            console.log('💾 IMPORTANT: Brief is now in DOM. After page reload, it should load from database.');
-                            console.log('💾 To verify: Reload the page and check console for "📋 BRIEF FROM DATABASE" logs');
                             
                             // Scroll the brief into view
                             insertedBrief.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -3517,7 +3242,6 @@ document.addEventListener('click', function (e) {
                                 insertedBrief.style.backgroundColor = '';
                             }, 2000);
                         } else {
-                            console.error('❌ Brief insertion failed - not found in DOM after insertion');
                         }
                     }, 100);
                 }
@@ -3545,7 +3269,6 @@ document.addEventListener('click', function (e) {
             // Remove loading indicator
             if (loadingIndicator) loadingIndicator.remove();
             
-            console.error('Error generating brief:', error);
             // Don't show alert for automatic generation - just log it
             const errorDiv = document.createElement('div');
             errorDiv.className = 'alert alert-warning mt-3';
@@ -3566,21 +3289,18 @@ document.addEventListener('click', function (e) {
         );
         
         if (!roleGoalsSection) {
-            console.log('🔍 No Role Goals section found - export button not needed');
             return; // No role goals section, no export button needed
         }
         
         // Find the parent card container
         const cardContainer = roleGoalsSection.closest('.tt-template-carddads');
         if (!cardContainer) {
-            console.log('⚠️ Role Goals section found but no card container');
             return;
         }
         
         // Don't add export button if this card contains Leadership Alignment Brief
         const hasLeadershipBrief = cardContainer.querySelector('.leadership-alignment-brief');
         if (hasLeadershipBrief) {
-            console.log('⚠️ Skipping export button - Leadership Alignment Brief found in this card');
             return; // Don't add export button to final message
         }
         
@@ -3592,13 +3312,11 @@ document.addEventListener('click', function (e) {
                                      cardContainer.textContent.includes('Goals by Role'));
         
         if (!roleGoalsInThisCard) {
-            console.log('⚠️ Skipping export button - Role Goals not in this card container');
             return;
         }
         
         const existingExportBtn = cardContainer.querySelector('.export-role-goals-btn');
         if (!existingExportBtn) {
-            console.log('✅ Adding export button after Role Goals section');
             
             // Find where the Role Goals section ends
             // Look for the next section marker (📌, ✅, or 📋) or end of the response-text
@@ -3636,13 +3354,6 @@ document.addEventListener('click', function (e) {
                 const goal = window.chatQuestion || '';
                 const scenario = window.selectedScenario || '';
                 const strategy = window.selectedStrategy || '';
-                
-                console.log('Exporting role goals:', { 
-                    roleGoalsText: roleGoalsOnly.substring(0, 100), 
-                    goal, 
-                    scenario, 
-                    strategy 
-                });
                 
                 window.exportRoleGoals(roleGoalsOnly, goal, scenario, strategy);
             });
@@ -3794,7 +3505,6 @@ document.addEventListener('click', function (e) {
         const firstChat = @json($searchuserchatdata[0]);
         if (firstChat && firstChat.search) {
             window.chatQuestion = firstChat.search;
-            console.log('📝 Loaded chatQuestion from database:', window.chatQuestion);
         }
         
         // Get chat ID and user ID from hidden inputs
@@ -3809,61 +3519,29 @@ document.addEventListener('click', function (e) {
     @endif
     
     // Check if brief already exists from database (page load)
-    console.log('🔍 CHECKING BRIEF FROM DATABASE...');
-    console.log('📍 PHP Variable Check:');
-    console.log('  - isset($leadershipBriefFromDB):', {{ isset($leadershipBriefFromDB) ? 'true' : 'false' }});
     @if(isset($leadershipBriefFromDB))
-        console.log('  - leadershipBriefFromDB is set');
-        console.log('  - empty($leadershipBriefFromDB):', {{ empty($leadershipBriefFromDB) ? 'true' : 'false' }});
-        console.log('  - strlen($leadershipBriefFromDB):', {{ strlen($leadershipBriefFromDB) }});
-        console.log('  - Brief preview (first 300 chars):', {!! json_encode(substr($leadershipBriefFromDB, 0, 300)) !!});
     @else
-        console.log('  - leadershipBriefFromDB is NOT set');
     @endif
     
     @if(isset($leadershipBriefFromDB) && !empty($leadershipBriefFromDB))
-        console.log('✅ BRIEF EXISTS IN DATABASE - Length:', {{ strlen($leadershipBriefFromDB) }});
         window.briefGenerationCompleted = true;
         // Wait for DOM to be ready, then verify brief is visible
         setTimeout(() => {
-            console.log('🔍 Checking DOM for brief element...');
             const briefInDOM = document.querySelector('.leadership-alignment-brief');
             if (briefInDOM) {
-                console.log('✅ Leadership Alignment Brief found in DOM from database');
                 const briefContent = briefInDOM.querySelector('.response-text');
                 if (briefContent && briefContent.textContent.trim().length > 0) {
-                    console.log('✅ Brief content found in DOM');
-                    console.log('  - Content length:', briefContent.textContent.length);
-                    console.log('  - Content preview (first 200 chars):', briefContent.textContent.substring(0, 200) + '...');
-                    console.log('  - Brief element:', briefInDOM);
-                    console.log('  - Brief parent:', briefInDOM.parentElement);
-                    console.log('  - Brief is visible:', briefInDOM.offsetHeight > 0 && briefInDOM.offsetWidth > 0);
-                    console.log('  - Brief computed style display:', window.getComputedStyle(briefInDOM).display);
-                    console.log('  - Brief computed style visibility:', window.getComputedStyle(briefInDOM).visibility);
                 } else {
-                    console.warn('⚠️ Brief element found but no response-text content or content is empty');
-                    console.log('  - Brief element HTML:', briefInDOM.innerHTML.substring(0, 200));
-                    console.log('  - Brief element children:', briefInDOM.children.length);
                 }
             } else {
-                console.error('❌ Leadership Alignment Brief NOT found in DOM even though it should be loaded from DB');
-                console.log('  - Searching for all .leadership-alignment-brief elements:', document.querySelectorAll('.leadership-alignment-brief').length);
-                console.log('  - All .response-text elements:', document.querySelectorAll('.response-text').length);
-                console.log('  - All .tt-template-carddads elements:', document.querySelectorAll('.tt-template-carddads').length);
                 
                 // Try to find any element containing "LEADERSHIP ALIGNMENT BRIEF"
                 const allText = Array.from(document.querySelectorAll('*')).map(el => el.textContent).join(' ');
                 if (allText.includes('LEADERSHIP ALIGNMENT BRIEF') || allText.includes('Leadership Alignment Brief')) {
-                    console.log('  - ⚠️ Found text "LEADERSHIP ALIGNMENT BRIEF" in page, but element not found with class');
                 }
             }
         }, 1000);
     @else
-        console.log('❌ No Leadership Alignment Brief in database for this chat');
-        console.log('  - This means either:');
-        console.log('    1. Brief was never generated');
-        console.log('    2. Brief was generated but not saved to database');
-        console.log('    3. Brief exists but variable is not set correctly');
     @endif
 
     // Automatically generate and display Leadership Alignment Brief after final outcome
@@ -3896,54 +3574,38 @@ document.addEventListener('click', function (e) {
     function autoGenerateAlignmentBrief() {
         // Prevent multiple simultaneous calls
         if (window.briefGenerationInProgress || window.briefGenerationCompleted) {
-            console.log('⏭️ Skipping brief generation - already in progress or completed');
             return;
         }
         
-        console.log('🔍 autoGenerateAlignmentBrief: Starting...');
         
         // Check if brief already exists in DOM (from database)
         const existingBriefInDOM = document.querySelector('.leadership-alignment-brief');
         if (existingBriefInDOM) {
             const briefContent = existingBriefInDOM.querySelector('.response-text');
             if (briefContent && briefContent.textContent.trim().length > 0) {
-                console.log('✅ Leadership Alignment Brief found in DOM from database');
-                console.log('📋 Brief content preview:', briefContent.textContent.substring(0, 150) + '...');
                 window.briefGenerationCompleted = true;
                 return;
             } else {
-                console.warn('⚠️ Brief element found but content is empty');
             }
         } else {
-            console.log('🔍 No brief found in DOM, will check if it needs to be generated');
         }
         
         // Search for Final Outcome section - check both in all documents and within specific card containers
         const allResponseTexts = Array.from(document.querySelectorAll('.response-text'));
-        console.log('🔍 Searching for Final Outcome section...');
-        console.log('📍 Total response-text elements found:', allResponseTexts.length);
         
         const finalOutcomeSection = allResponseTexts.find(el => {
             const text = el.textContent || el.innerText;
             const hasCheckmark = text.includes('✅');
             const hasFinalOutcome = text.includes('Final Outcome');
             if (hasCheckmark && hasFinalOutcome) {
-                console.log('✅ Found Final Outcome section:', text.substring(0, 100));
             }
             return hasCheckmark && hasFinalOutcome;
         });
         
         if (!finalOutcomeSection) {
-            console.warn('⚠️ Final Outcome section not found. Available sections:', 
-                allResponseTexts.map(el => {
-                    const text = el.textContent || el.innerText;
-                    return text.substring(0, 50).replace(/\n/g, ' ');
-                })
-            );
             return;
         }
         
-        console.log('✅ Final Outcome section found:', finalOutcomeSection);
         
         // Find the parent card container
         const cardContainer = finalOutcomeSection.closest('.tt-template-carddads');
@@ -3987,25 +3649,12 @@ document.addEventListener('click', function (e) {
         
         // Validate required data before calling API
         if (!chatId) {
-            console.error('❌ Cannot generate brief: chat_id is missing');
-            console.log('📍 chat_id element value:', document.getElementById('chat_id')?.value);
-            console.log('📍 window.chatChatId:', window.chatChatId);
             return;
         }
         
         if (!originalQuestion) {
-            console.error('❌ Cannot generate brief: original question is missing');
-            console.log('📍 window.chatQuestion:', window.chatQuestion);
             return;
         }
-        
-        console.log('📋 Data validation passed:', {
-            chatId,
-            hasStrategy: !!selectedStrategy,
-            hasScenario: !!selectedScenario,
-            hasQuestion: !!originalQuestion,
-            responseLength: fullResponse.length
-        });
         
         // Generate brief automatically
         window.generateLeadershipAlignmentBrief(chatId, selectedStrategy, selectedScenario, originalQuestion, fullResponse);

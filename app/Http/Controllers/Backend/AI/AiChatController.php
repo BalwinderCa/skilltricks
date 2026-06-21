@@ -1211,68 +1211,13 @@ class AiChatController extends Controller
             ->where('user_id', $user->id)
             ->first();
         
-        \Log::info('Loading chat page - checking for brief in database', [
-            'chat_id' => $id,
-            'user_id' => $user->id,
-            'chat_record_exists' => !is_null($chatRecord)
-        ]);
-        
         $selectedStrategyFromDB = null;
         $leadershipBriefFromDB = null;
         // Chat's lifetime token total (all sections), shown in the header on load.
         $chatTotalTokens = (int) ($chatRecord->total_tokens ?? 0);
         if ($chatRecord) {
-            // Try to get selected_strategy column if it exists
-            try {
-                $columns = DB::select("SHOW COLUMNS FROM search_user_chat LIKE 'selected_strategy'");
-                if (count($columns) > 0 && isset($chatRecord->selected_strategy)) {
-                    $selectedStrategyFromDB = $chatRecord->selected_strategy;
-                }
-            } catch (\Exception $e) {
-                // Column doesn't exist, that's okay - we'll try to add it when saving
-            }
-            
-            // Try to get leadership_brief column if it exists
-            try {
-                $columns = DB::select("SHOW COLUMNS FROM search_user_chat LIKE 'leadership_brief'");
-                \Log::info('Checking leadership_brief column', [
-                    'chat_id' => $id,
-                    'column_exists' => count($columns) > 0,
-                    'has_leadership_brief_property' => isset($chatRecord->leadership_brief),
-                    'leadership_brief_value' => $chatRecord->leadership_brief ?? 'NULL',
-                    'leadership_brief_length' => strlen($chatRecord->leadership_brief ?? ''),
-                    'leadership_brief_empty' => empty($chatRecord->leadership_brief ?? '')
-                ]);
-                
-                if (count($columns) > 0 && isset($chatRecord->leadership_brief) && !empty($chatRecord->leadership_brief)) {
-                    $leadershipBriefFromDB = $chatRecord->leadership_brief;
-                    \Log::info('✅ Leadership Brief retrieved from database', [
-                        'chat_id' => $id,
-                        'brief_length' => strlen($leadershipBriefFromDB),
-                        'brief_preview' => substr($leadershipBriefFromDB, 0, 200)
-                    ]);
-                } else {
-                    \Log::warning('❌ Leadership Brief NOT found in database', [
-                        'chat_id' => $id,
-                        'column_exists' => count($columns) > 0,
-                        'has_brief' => isset($chatRecord->leadership_brief),
-                        'brief_empty' => empty($chatRecord->leadership_brief ?? ''),
-                        'brief_value' => $chatRecord->leadership_brief ?? 'NULL'
-                    ]);
-                }
-            } catch (\Exception $e) {
-                \Log::error('Error checking leadership_brief column', [
-                    'chat_id' => $id,
-                    'error' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString()
-                ]);
-                // Column doesn't exist, that's okay
-            }
-        } else {
-            \Log::warning('Chat record not found', [
-                'chat_id' => $id,
-                'user_id' => $user->id
-            ]);
+            $selectedStrategyFromDB = $chatRecord->selected_strategy ?? null;
+            $leadershipBriefFromDB  = !empty($chatRecord->leadership_brief) ? $chatRecord->leadership_brief : null;
         }
 
         return view('backend.pages.aiChat.users-new-chat', compact('user','promptGroups', 'prompts','searchKey','searchuserchatdata','id','searchuserchatdatanew', 'documentCount', 'selectedStrategyFromDB', 'leadershipBriefFromDB', 'chatTotalTokens'));
@@ -1554,8 +1499,8 @@ public function users_new_chat_ask(Request $request)
     // First message in a session sends the FULL document text (needed to build
     // the GoalSync analysis). Follow-ups send only the document NAMES so we
     // don't resend the entire corpus on every turn (large token / latency cost).
-    $isFirstMessage = (($previousContext && ($previousContext->status1 == '0' || $previousContext->status1 == 0))
-        || ($chectdata->status1 == '0' || $chectdata->status1 == 0));
+    // status1 = 0 means the chat has not yet received an AI response.
+    $isFirstMessage = ($chectdata->status1 == '0' || $chectdata->status1 == 0);
 
     // Get user's documents for company context with document metadata
     $documents = Document::where('user_id', $user->id)
@@ -1593,15 +1538,6 @@ public function users_new_chat_ask(Request $request)
     $contextFromRequest = '';
     if ($additionalContext && is_array($additionalContext)) {
         $contextParts = [];
-        if (!empty($additionalContext['field1'])) {
-            $contextParts[] = "Field 1: " . $additionalContext['field1'];
-        }
-        if (!empty($additionalContext['field2'])) {
-            $contextParts[] = "Field 2: " . $additionalContext['field2'];
-        }
-        if (!empty($additionalContext['field3'])) {
-            $contextParts[] = "Field 3: " . $additionalContext['field3'];
-        }
         if (!empty($additionalContext['additional_details'])) {
             $contextParts[] = "Additional Details: " . $additionalContext['additional_details'];
         }
@@ -1623,9 +1559,6 @@ public function users_new_chat_ask(Request $request)
                     }
                 }
                 $contextArray[] = [
-                    'field1' => $additionalContext['field1'] ?? '',
-                    'field2' => $additionalContext['field2'] ?? '',
-                    'field3' => $additionalContext['field3'] ?? '',
                     'additional_details' => $additionalContext['additional_details'] ?? '',
                     'created_at' => now()->toDateTimeString()
                 ];
@@ -1648,15 +1581,6 @@ public function users_new_chat_ask(Request $request)
             $contextFromDB = "\n\n--- ADDITIONAL USER CONTEXT (PREVIOUSLY PROVIDED) ---\n";
             $contextFromDB .= "The user has provided the following additional context that should be considered in your responses:\n\n";
             foreach ($contextArray as $context) {
-                if (!empty($context['field1'])) {
-                    $contextFromDB .= "Field 1: " . $context['field1'] . "\n";
-                }
-                if (!empty($context['field2'])) {
-                    $contextFromDB .= "Field 2: " . $context['field2'] . "\n";
-                }
-                if (!empty($context['field3'])) {
-                    $contextFromDB .= "Field 3: " . $context['field3'] . "\n";
-                }
                 if (!empty($context['additional_details'])) {
                     $contextFromDB .= "Additional Details: " . $context['additional_details'] . "\n";
                 }
@@ -1695,7 +1619,6 @@ public function users_new_chat_ask(Request $request)
                 'prompt_length' => strlen($prompt),
                 'system_message_length' => strlen($systemMessage),
                 'documents_count' => $documents->count(),
-                'has_api_key' => !empty($aiProvider === 'OpenAI' ? config('custom.openai_api_key') : config('custom.gemini_api_key')),
             ]);
 
             // Always request the structured GoalSync JSON contract. Only the
@@ -1799,7 +1722,6 @@ EOT;
                 'question_length' => strlen($question),
                 'system_message_length' => strlen($systemMessage),
                 'documents_count' => $documents->count(),
-                'has_api_key' => !empty($aiProvider === 'OpenAI' ? config('custom.openai_api_key') : config('custom.gemini_api_key')),
             ]);
 
             $openAiResponse = $this->aiGenerate($systemMessage, $followUpPrompt, 1200);
@@ -2010,15 +1932,6 @@ EOT;
                $additionalContext = "\n\n--- ADDITIONAL USER CONTEXT ---\n";
                $additionalContext .= "The user has provided the following additional context that should be considered in your responses:\n\n";
                foreach ($contextArray as $context) {
-                   if (!empty($context['field1'])) {
-                       $additionalContext .= "Field 1: " . $context['field1'] . "\n";
-                   }
-                   if (!empty($context['field2'])) {
-                       $additionalContext .= "Field 2: " . $context['field2'] . "\n";
-                   }
-                   if (!empty($context['field3'])) {
-                       $additionalContext .= "Field 3: " . $context['field3'] . "\n";
-                   }
                    if (!empty($context['additional_details'])) {
                        $additionalContext .= "Additional Details: " . $context['additional_details'] . "\n";
                    }
@@ -2170,60 +2083,22 @@ EOT;
            if ($chatData) {
                // Combine sections before strategy + strategy map + updated sections
                $fullUpdatedResponse = $sectionsBefore . "\n\n" . $strategyMap . "\n\n" . $updatedSections;
-               
-               // Update main chat table with selected strategy's response
-               // Try to store selected_strategy, but if column doesn't exist, just update response
-               try {
-                   DB::table('search_user_chat')->where('id', $chatId)->update([
-                       'response' => $fullUpdatedResponse,
-                   ]);
-                   
-                   // Try to add selected_strategy if column exists
-                   $columns = DB::select("SHOW COLUMNS FROM search_user_chat LIKE 'selected_strategy'");
-                   if (count($columns) > 0) {
-                       DB::table('search_user_chat')->where('id', $chatId)->update([
-                           'selected_strategy' => $selectedStrategy,
-                       ]);
-                   }
-               } catch (\Exception $e) {
-                   // If selected_strategy column doesn't exist, just update response
-                   DB::table('search_user_chat')->where('id', $chatId)->update([
-                       'response' => $fullUpdatedResponse,
-                   ]);
-               }
 
-               // Also update the latest entry in search_user_chat_data
+               DB::table('search_user_chat')->where('id', $chatId)->update([
+                   'response'          => $fullUpdatedResponse,
+                   'selected_strategy' => $selectedStrategy,
+               ]);
+
                $latestChatData = DB::table('search_user_chat_data')
                    ->where('search_user_chat_id', $chatId)
                    ->where('user_id', $user->id)
                    ->orderBy('created_at', 'desc')
                    ->first();
-               
+
                if ($latestChatData) {
-                   try {
-                       DB::table('search_user_chat_data')
-                           ->where('id', $latestChatData->id)
-                           ->update([
-                               'response' => $fullUpdatedResponse,
-                           ]);
-                       
-                       // Try to add selected_strategy if column exists
-                       $columns = DB::select("SHOW COLUMNS FROM search_user_chat_data LIKE 'selected_strategy'");
-                       if (count($columns) > 0) {
-                           DB::table('search_user_chat_data')
-                               ->where('id', $latestChatData->id)
-                               ->update([
-                                   'selected_strategy' => $selectedStrategy,
-                               ]);
-                       }
-                   } catch (\Exception $e) {
-                       // If column doesn't exist, just update response
-                       DB::table('search_user_chat_data')
-                           ->where('id', $latestChatData->id)
-                           ->update([
-                               'response' => $fullUpdatedResponse,
-                           ]);
-                   }
+                   DB::table('search_user_chat_data')
+                       ->where('id', $latestChatData->id)
+                       ->update(['response' => $fullUpdatedResponse]);
                }
            }
        }
@@ -2404,13 +2279,9 @@ EOT;
         $chatTotalTokens = $this->recordChatTokens($chatId, $openAiResponse);
 
         if ($isUserSelection) {
-            try {
-                DB::table('search_user_chat')->where('id', $chatId)->update([
-                    'selected_scenario' => $selectedScenario,
-                ]);
-            } catch (\Exception $e) {
-                // ignore if column missing
-            }
+            DB::table('search_user_chat')->where('id', $chatId)->update([
+                'selected_scenario' => $selectedScenario,
+            ]);
         }
 
         return response()->json([
@@ -2425,9 +2296,6 @@ EOT;
         $user = auth()->user();
         $chatId = $request->input('chat_id');
         $userId = $request->input('user_id');
-        $field1 = $request->input('field1', '');
-        $field2 = $request->input('field2', '');
-        $field3 = $request->input('field3', '');
         $additionalDetails = $request->input('additional_details', '');
 
         // Validate
@@ -2447,15 +2315,6 @@ EOT;
 
         // Build context string
         $contextParts = [];
-        if (!empty($field1)) {
-            $contextParts[] = "Field 1: " . $field1;
-        }
-        if (!empty($field2)) {
-            $contextParts[] = "Field 2: " . $field2;
-        }
-        if (!empty($field3)) {
-            $contextParts[] = "Field 3: " . $field3;
-        }
         if (!empty($additionalDetails)) {
             $contextParts[] = "Additional Details: " . $additionalDetails;
         }
@@ -2471,9 +2330,6 @@ EOT;
                 $contextArray = [];
             }
             $contextArray[] = [
-                'field1' => $field1,
-                'field2' => $field2,
-                'field3' => $field3,
                 'additional_details' => $additionalDetails,
                 'created_at' => now()->toDateTimeString()
             ];
@@ -2700,6 +2556,10 @@ public function chat_question_store(Request $request)
             return response()->json(['error' => 'Chat ID and original question are required.'], 400);
         }
 
+        if (!DB::table('search_user_chat')->where('id', $chatId)->where('user_id', $user->id)->exists()) {
+            return response()->json(['error' => 'Chat not found or access denied.'], 403);
+        }
+
         // The frontend only sends the selection from in-page JS state, which can be
         // empty (e.g. a chat reopened from history), and the selection is not
         // persisted as its own column. Fall back to the names recorded in the
@@ -2786,119 +2646,20 @@ EOT;
 
                 // Save brief to database
                 try {
-                    // Check if leadership_brief column exists, if not add it
-                    $columns = DB::select("SHOW COLUMNS FROM search_user_chat LIKE 'leadership_brief'");
-                    if (count($columns) == 0) {
-                        \Log::info('Creating leadership_brief column');
-                        
-                        // Check if selected_scenario column exists to determine where to place the new column
-                        $scenarioColumns = DB::select("SHOW COLUMNS FROM search_user_chat LIKE 'selected_scenario'");
-                        if (count($scenarioColumns) > 0) {
-                            // selected_scenario exists, add after it
-                            DB::statement("ALTER TABLE search_user_chat ADD COLUMN leadership_brief TEXT NULL AFTER selected_scenario");
-                        } else {
-                            // selected_scenario doesn't exist, add at the end
-                            DB::statement("ALTER TABLE search_user_chat ADD COLUMN leadership_brief TEXT NULL");
-                        }
-                        
-                        \Log::info('leadership_brief column created successfully');
-                    }
-                    
-                    // Verify chat record exists before updating
-                    $chatExists = DB::table('search_user_chat')
-                        ->where('id', $chatId)
-                        ->where('user_id', $user->id)
-                        ->exists();
-                    
-                    if (!$chatExists) {
-                        \Log::error('Chat record does not exist when trying to save brief', [
-                            'chat_id' => $chatId,
-                            'user_id' => $user->id
-                        ]);
-                        return response()->json([
-                            'success' => true,
-                            'brief' => $brief,
-                            'chat_total_tokens' => $chatTotalTokens,
-                            'warning' => 'Brief generated but could not be saved - chat record not found'
-                        ]);
-                    }
-                    
-                    // Update the chat record with the brief
-                    $updated = DB::table('search_user_chat')
+                    DB::table('search_user_chat')
                         ->where('id', $chatId)
                         ->where('user_id', $user->id)
                         ->update(['leadership_brief' => $brief]);
-                    
-                    if ($updated === 0) {
-                        \Log::error('Failed to update chat record with brief - no rows updated', [
-                            'chat_id' => $chatId,
-                            'user_id' => $user->id,
-                            'brief_length' => strlen($brief)
-                        ]);
-                    }
-                    
-                    // Verify the brief was saved
-                    $savedBrief = DB::table('search_user_chat')
-                        ->where('id', $chatId)
-                        ->where('user_id', $user->id)
-                        ->value('leadership_brief');
-                    
-                    if (empty($savedBrief)) {
-                        \Log::error('❌ Brief was not saved to database - verification failed', [
-                            'chat_id' => $chatId,
-                            'user_id' => $user->id,
-                            'rows_updated' => $updated,
-                            'brief_length' => strlen($brief),
-                            'brief_preview' => substr($brief, 0, 200)
-                        ]);
-                        
-                        // Try to save again without the AFTER clause as fallback
-                        try {
-                            DB::table('search_user_chat')
-                                ->where('id', $chatId)
-                                ->where('user_id', $user->id)
-                                ->update(['leadership_brief' => $brief]);
-                            
-                            $retrySavedBrief = DB::table('search_user_chat')
-                                ->where('id', $chatId)
-                                ->where('user_id', $user->id)
-                                ->value('leadership_brief');
-                            
-                            if (!empty($retrySavedBrief)) {
-                                \Log::info('✅ Brief saved on retry', [
-                                    'chat_id' => $chatId,
-                                    'brief_length' => strlen($retrySavedBrief)
-                                ]);
-                            }
-                        } catch (\Exception $retryException) {
-                            \Log::error('❌ Retry save also failed', [
-                                'chat_id' => $chatId,
-                                'error' => $retryException->getMessage()
-                            ]);
-                        }
-                    } else {
-                        \Log::info('✅ Leadership Brief successfully saved to database', [
-                            'chat_id' => $chatId,
-                            'user_id' => $user->id,
-                            'rows_updated' => $updated,
-                            'brief_saved_length' => strlen($savedBrief),
-                            'brief_saved_preview' => substr($savedBrief, 0, 200),
-                            'brief_was_saved' => true
-                        ]);
-                    }
                 } catch (\Exception $e) {
-                    \Log::error('Failed to save leadership brief to database', [
+                    Log::error('Failed to save leadership brief to database', [
                         'chat_id' => $chatId,
-                        'user_id' => $user->id,
-                        'error' => $e->getMessage(),
-                        'trace' => $e->getTraceAsString()
+                        'error'   => $e->getMessage(),
                     ]);
-                    // Continue even if save fails, but return warning
                     return response()->json([
-                        'success' => true,
-                        'brief' => $brief,
+                        'success'           => true,
+                        'brief'             => $brief,
                         'chat_total_tokens' => $chatTotalTokens,
-                        'warning' => 'Brief generated but could not be saved: ' . $e->getMessage()
+                        'warning'           => 'Brief generated but could not be saved: ' . $e->getMessage(),
                     ]);
                 }
                 
@@ -2944,6 +2705,10 @@ EOT;
 
         if (!$chatId || !$originalQuestion) {
             return response()->json(['error' => 'Chat ID and original question are required.'], 400);
+        }
+
+        if (!DB::table('search_user_chat')->where('id', $chatId)->where('user_id', $user->id)->exists()) {
+            return response()->json(['error' => 'Chat not found or access denied.'], 403);
         }
 
         // Company documents context (same source the brief uses)
