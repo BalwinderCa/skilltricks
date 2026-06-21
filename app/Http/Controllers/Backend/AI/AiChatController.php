@@ -1,1288 +1,50 @@
 <?php
 
-
-
 namespace App\Http\Controllers\Backend\AI;
 
-
-
-use App\Models\AiChat;
-
-use App\Mail\EmailManager;
-
-use App\Models\AiChatPrompt;
-
-use Illuminate\Http\Request;
-
-use App\Models\AiChatMessage;
-
-use App\Models\Document;
-
-use Orhanerday\OpenAi\OpenAi;
-
-use App\Models\AiChatCategory;
-
-use App\Models\AiChatPromptGroup;
-
-use App\Services\WriteBotService;
-
-use App\Models\SubscriptionPackage;
-
-use App\Http\Controllers\Controller;
-
-use App\Http\Services\SerperService;
-
-use Illuminate\Support\Facades\Mail;
-
-use Illuminate\Support\Facades\Session;
-
-use App\Notifications\EmailChatMessages;
-
-use App\Services\Integration\IntegrationService;
 use App\Exports\RoleGoalsExport;
-use Maatwebsite\Excel\Facades\Excel;
-use DB;
-
+use App\Http\Controllers\Controller;
+use App\Mail\EmailManager;
+use App\Models\AiChat;
+use App\Models\AiChatCategory;
+use App\Models\AiChatMessage;
+use App\Models\AiChatPrompt;
+use App\Models\AiChatPromptGroup;
+use App\Models\ChatCategory;
+use App\Models\ChatRoleCategory;
+use App\Models\SearchUserChat;
+use App\Models\SearchUserChatData;
+use App\Models\SubcategoryMenu;
+use App\Models\SubcategoryMenuQuestion;
+use App\Models\SubscriptionPackage;
+use App\Models\UserChatAnswer;
+use App\Services\AI\AiProviderService;
+use App\Services\AI\DocumentContextService;
+use App\Services\Integration\IntegrationService;
+use App\Services\WriteBotService;
 use Carbon\Carbon;
-
-use Illuminate\Support\Facades\Http;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Cache;
-use Google\Auth\ApplicationDefaultCredentials;
-use Illuminate\Http\Client\ConnectionException;
-use Illuminate\Http\Client\RequestException;
-
-use PhpOffice\PhpWord\IOFactory;
-
-
+use Illuminate\Support\Facades\Mail;
+use Maatwebsite\Excel\Facades\Excel;
 
 class AiChatController extends Controller
-
 {
-
-    public function __construct()
-
-    {
-
+    public function __construct(
+        protected AiProviderService $ai,
+        protected DocumentContextService $docs,
+    ) {
         if (getSetting('enable_ai_chat') == '0') {
-
             flash(localize('AI chat is not available'))->info();
-
             redirect()->route('writebot.dashboard')->send();
-
-        }
-
-    }
-
-    # Gemini generate: primary gemini-3.1-pro-preview, fallback gemini-3.5-flash-lite
-    private function geminiGenerate($systemMessage, $userText, $maxOutputTokens = 3000, $temperature = 0.7, $jsonMode = false)
-    {
-        $models = ['gemini-3.1-pro-preview', 'gemini-3.5-flash-lite'];
-
-        $generationConfig = [
-            'temperature' => $temperature,
-            'maxOutputTokens' => $maxOutputTokens,
-            // Gemini 2.5 thinking tokens count against maxOutputTokens and can
-            // truncate or empty the visible JSON answer.
-            'thinkingConfig' => ['thinkingBudget' => 0],
-        ];
-
-        // Ask Gemini for a raw JSON object (no markdown fences) when requested.
-        if ($jsonMode) {
-            $generationConfig['responseMimeType'] = 'application/json';
-        }
-
-        $payload = [
-            'systemInstruction' => [
-                'parts' => [['text' => $systemMessage]]
-            ],
-            'contents' => [
-                [
-                    'role' => 'user',
-                    'parts' => [['text' => $userText]]
-                ]
-            ],
-            'generationConfig' => $generationConfig,
-        ];
-
-        $response = null;
-
-        foreach ($models as $model) {
-            $response = Http::withHeaders(['x-goog-api-key' => config('custom.gemini_api_key')])
-                ->timeout(90)
-                ->connectTimeout(10)
-                ->retry(2, 1000)
-                ->post("https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent", $payload);
-
-            if ($response->successful()) {
-                return $response;
-            }
-
-            Log::warning('Gemini model failed, trying fallback', [
-                'model'  => $model,
-                'status' => $response->status(),
-            ]);
-        }
-
-        return $response; // last failed response
-    }
-
-    # OAuth access token for Vertex AI via Application Default Credentials.
-    # Resolves GOOGLE_APPLICATION_CREDENTIALS (service account json) or gcloud ADC.
-    # Cached just under the 1h token lifetime to avoid re-minting on every call.
-    private function vertexAccessToken()
-    {
-        return Cache::remember('vertex_access_token', 3300, function () {
-            $creds = ApplicationDefaultCredentials::getCredentials(
-                'https://www.googleapis.com/auth/cloud-platform'
-            );
-            $token = $creds->fetchAuthToken();
-
-            return $token['access_token'] ?? null;
-        });
-    }
-
-    # Vertex AI generate: primary gemini-3.1-pro-preview, fallback gemini-2.5-flash.
-    # Uses the same Gemini generateContent payload/response shape as geminiGenerate(),
-    # so callers stay unchanged. Auth is OAuth (project-based), not an API key.
-    private function vertexGenerate($systemMessage, $userText, $maxOutputTokens = 3000, $temperature = 0.7, $jsonMode = false)
-    {
-        $project  = config('custom.google_cloud_project');
-        $location = config('custom.vertex_location');
-        $models   = array_filter(array_map('trim', explode(',', config('custom.vertex_models'))));
-
-        $host = $location === 'global'
-            ? 'aiplatform.googleapis.com'
-            : "{$location}-aiplatform.googleapis.com";
-
-        $generationConfig = [
-            'temperature'     => $temperature,
-            'maxOutputTokens' => $maxOutputTokens,
-            'thinkingConfig'  => ['thinkingBudget' => 0],
-        ];
-
-        if ($jsonMode) {
-            $generationConfig['responseMimeType'] = 'application/json';
-        }
-
-        $payload = [
-            'systemInstruction' => [
-                'parts' => [['text' => $systemMessage]]
-            ],
-            'contents' => [
-                [
-                    'role'  => 'user',
-                    'parts' => [['text' => $userText]]
-                ]
-            ],
-            'generationConfig' => $generationConfig,
-        ];
-
-        $token = $this->vertexAccessToken();
-
-        if (empty($token)) {
-            Log::error('Vertex AI auth failed: no access token (check GOOGLE_APPLICATION_CREDENTIALS / ADC)');
-        }
-
-        $response = null;
-
-        foreach ($models as $model) {
-            $url = "https://{$host}/v1/projects/{$project}/locations/{$location}/publishers/google/models/{$model}:generateContent";
-
-            $response = Http::withToken($token)
-                ->timeout(90)
-                ->connectTimeout(10)
-                ->retry(2, 1000)
-                ->post($url, $payload);
-
-            if ($response->successful()) {
-                if ($this->extractGeminiResponseText($response) !== '') {
-                    return $response;
-                }
-
-                Log::warning('Vertex AI model returned empty text, trying fallback', [
-                    'model'         => $model,
-                    'finish_reason' => $response->json('candidates.0.finishReason'),
-                ]);
-            } else {
-                Log::warning('Vertex AI model failed, trying fallback', [
-                    'model'  => $model,
-                    'status' => $response->status(),
-                ]);
-            }
-        }
-
-        return $response; // last failed/empty response
-    }
-
-    # Pull visible answer text from a Gemini/Vertex generateContent response.
-    # Skips thought-only parts; falls back to thought text if that is all we got.
-    private function extractGeminiResponseText($response)
-    {
-        $parts = $response->json('candidates.0.content.parts', []);
-
-        if (!is_array($parts) || empty($parts)) {
-            return (string) $response->json('candidates.0.content.parts.0.text', '');
-        }
-
-        $visible = [];
-        $thought = [];
-
-        foreach ($parts as $part) {
-            if (empty($part['text'])) {
-                continue;
-            }
-
-            if (!empty($part['thought'])) {
-                $thought[] = $part['text'];
-            } else {
-                $visible[] = $part['text'];
-            }
-        }
-
-        if (!empty($visible)) {
-            return implode("\n", $visible);
-        }
-
-        return implode("\n", $thought);
-    }
-
-    # Pull token usage from a generateContent response. Handles Gemini/Vertex
-    # (usageMetadata) and OpenAI (usage, mapped onto usageMetadata in
-    # openAiGenerate) so the chat can surface token cost in the UI.
-    private function extractUsage($response): array
-    {
-        $meta = $response->json('usageMetadata', []);
-
-        $prompt     = (int) ($meta['promptTokenCount'] ?? 0);
-        $completion = (int) ($meta['candidatesTokenCount'] ?? 0);
-        $total      = (int) ($meta['totalTokenCount'] ?? ($prompt + $completion));
-
-        return [
-            'prompt_tokens'     => $prompt,
-            'completion_tokens' => $completion,
-            'total_tokens'      => $total,
-        ];
-    }
-
-    # Add this request's token usage to the chat's running lifetime total and
-    # return the new cumulative total. Called by every AI endpoint that spends
-    # tokens for a chat, so the header reflects the whole chat, not one section.
-    private function recordChatTokens($chatId, $response): int
-    {
-        $usage = $this->extractUsage($response);
-        $total = (int) ($usage['total_tokens'] ?? 0);
-
-        if (!$chatId) {
-            return 0;
-        }
-
-        try {
-            if ($total > 0) {
-                DB::table('search_user_chat')->where('id', $chatId)->increment('total_tokens', $total);
-            }
-
-            return (int) (DB::table('search_user_chat')->where('id', $chatId)->value('total_tokens') ?? 0);
-        } catch (\Exception $e) {
-            Log::warning('Failed to record chat tokens', ['chat_id' => $chatId, 'error' => $e->getMessage()]);
-            return 0;
         }
     }
 
-    # AI provider dispatcher. Choose model via .env:
-    #   AI_PROVIDER="vertex"  -> Vertex AI Gemini (vertexGenerate, OAuth/project-based)
-    #   AI_PROVIDER="gemini"  -> AI Studio Gemini API key (geminiGenerate)
-    #   AI_PROVIDER="openai"  -> OPENAI_MODEL (default gpt-4-turbo)
-    private function aiGenerate($systemMessage, $userText, $maxOutputTokens = 3000, $temperature = 0.7, $jsonMode = false)
-    {
-        $provider = strtolower(config('custom.ai_provider'));
-
-        if ($provider === 'openai' || $provider === 'chatgpt') {
-            return $this->openAiGenerate($systemMessage, $userText, $maxOutputTokens, $temperature, $jsonMode);
-        }
-
-        if ($provider === 'vertex' || $provider === 'vertexai' || $provider === 'vertex-ai') {
-            return $this->vertexGenerate($systemMessage, $userText, $maxOutputTokens, $temperature, $jsonMode);
-        }
-
-        return $this->geminiGenerate($systemMessage, $userText, $maxOutputTokens, $temperature, $jsonMode);
-    }
-
-    # Human-readable provider label for logs/error responses; mirrors aiGenerate() routing.
-    private function aiProviderLabel()
-    {
-        $provider = strtolower(config('custom.ai_provider'));
-
-        if ($provider === 'openai' || $provider === 'chatgpt') {
-            return 'OpenAI';
-        }
-
-        if ($provider === 'vertex' || $provider === 'vertexai' || $provider === 'vertex-ai') {
-            return 'Vertex AI';
-        }
-
-        return 'Gemini';
-    }
-
-    # OpenAI generate. Returns a Response normalized to Gemini's JSON shape
-    # (candidates.0.content.parts.0.text) so all callers stay unchanged.
-    private function openAiGenerate($systemMessage, $userText, $maxOutputTokens = 3000, $temperature = 0.7, $jsonMode = false)
-    {
-        $model = config('custom.openai_model');
-
-        // gpt-4-turbo caps completion at 4096 tokens; clamp so larger Gemini
-        // budgets (e.g. 8000) don't 400 when running on OpenAI.
-        $maxOutputTokens = min((int) $maxOutputTokens, (int) config('custom.openai_max_tokens'));
-
-        $payload = [
-            'model'       => $model,
-            'messages'    => [
-                ['role' => 'system', 'content' => $systemMessage],
-                ['role' => 'user',   'content' => $userText],
-            ],
-            'temperature' => $temperature,
-            'max_tokens'  => $maxOutputTokens,
-        ];
-
-        // Force a valid JSON object response when requested (OpenAI JSON mode).
-        if ($jsonMode) {
-            $payload['response_format'] = ['type' => 'json_object'];
-        }
-
-        $response = Http::withToken(config('custom.openai_api_key'))
-            ->timeout(90)
-            ->connectTimeout(10)
-            ->retry(2, 1000)
-            ->post('https://api.openai.com/v1/chat/completions', $payload);
-
-        if ($response->successful()) {
-            $text = $response->json('choices.0.message.content', '');
-            $usage = $response->json('usage', []);
-            $normalized = [
-                'candidates'    => [['content' => ['parts' => [['text' => $text]]]]],
-                // Map OpenAI usage onto Gemini's usageMetadata shape so
-                // extractUsage() is provider-agnostic.
-                'usageMetadata' => [
-                    'promptTokenCount'     => (int) ($usage['prompt_tokens'] ?? 0),
-                    'candidatesTokenCount' => (int) ($usage['completion_tokens'] ?? 0),
-                    'totalTokenCount'      => (int) ($usage['total_tokens'] ?? 0),
-                ],
-            ];
-
-            return new \Illuminate\Http\Client\Response(
-                new \GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/json'], json_encode($normalized))
-            );
-        }
-
-        Log::warning('OpenAI model failed', [
-            'model'  => $model,
-            'status' => $response->status(),
-            'body'   => $response->body(),
-        ]);
-
-        return $response; // failed response, callers handle status
-    }
-
-
-
-    # chat index
-
-    public function index(Request $request, WriteBotService $writeBotService)
-
-    {
-
-
-
-        $searchKey = null;
-
-        $user = user();
-
-        if (isCustomer()) {
-
-            $package = optional(activePackageHistory())->subscriptionPackage ?? new SubscriptionPackage;
-
-            if ($package->allow_ai_chat == 0) {
-
-                abort(403);
-
-            }
-
-        } else {
-
-            if (!auth()->user()->can('ai_chat')) {
-
-                abort(403);
-
-            }
-
-        }
-
-
-
-        $chatExpertIds = [];
-
-        $conditions = [['type', 'chat']];
-
-        if (!isCustomer()) {
-
-            $chatExpertIds = $writeBotService->getAiChatCategories(null, null, $conditions);
-
-            $chatExperts   = $writeBotService->getAiChatCategories(true, 1, $conditions);
-
-        } else {
-
-            $chatExpertIds = $writeBotService->getAiChatCategories(null, 1, $conditions);
-
-            $chatExperts   = $writeBotService->getAiChatCategories(true, 1, $conditions);
-
-        }
-
-
-
-
-
-        $chatListQuery = AiChat::orderBy('updated_at', 'DESC')->with('messages', 'category')->where('user_id', $user->id)->whereIn('ai_chat_category_id', $chatExpertIds);
-
-
-
-        if (!empty($request->search)) {
-
-            $chatListQuery = $chatListQuery->where('title', 'like', '%' . $request->search . '%');
-
-            $searchKey = $request->search;
-
-        }
-
-
-
-        if (!empty($request->expert)) {
-
-            $chatList     = $chatListQuery->where('ai_chat_category_id', $request->expert)->get();
-
-        } else {
-
-            $chatList     = $chatListQuery->where('ai_chat_category_id', 1)->get();
-
-        }
-
-
-
-
-
-
-
-        $promptGroups       = AiChatPromptGroup::oldest();
-
-        $promptGroups       = $promptGroups->get();
-
-        $prompts            = AiChatPrompt::latest()->get();
-
-
-
-        $conversation = $chatListQuery->first();
-
-        // Get user's documents count and parsed texts for context
-        $documents = Document::where('user_id', $user->id)
-            ->whereNotNull('parsed_text')
-            ->where('parse_status', 'completed')
-            ->latest()
-            ->get();
-        
-        $documentCount = $documents->count();
-        $documentContext = $documents->pluck('parsed_text')->filter()->implode("\n\n--- Document Separator ---\n\n");
-
-        return view('backend.pages.aiChat.index', compact('chatExperts', 'chatList', 'conversation', 'searchKey', 'promptGroups', 'prompts', 'documentCount', 'documentContext'));
-
-    }
-
-
-
-    # new conversation
-
-    public function store(Request $request)
-
-    {
-
-        $user = user();
-
-        if (isCustomer()) {
-
-            $package = optional(activePackageHistory())->subscriptionPackage ?? new SubscriptionPackage;
-
-            if ($package->allow_ai_chat == 0) {
-
-                $data = [
-
-                    'status'  => 400,
-
-                    'success' => false,
-
-                    'message' => localize('AI Chat is not available in this package, please upgrade you plan'),
-
-                ];
-
-                return $data;
-
-            }
-
-        }
-
-        $expert = AiChatCategory::query()->find($request->ai_chat_category_id);
-
-
-
-        /* When Expert is empty response a error json */
-
-        if(empty($expert)){
-
-            return  [
-
-                'status'                => 400,
-
-                'ai_chat_category_id'   => $request->ai_chat_category_id,
-
-                'success'               => false,
-
-                'message'               => localize('Expert not found'),
-
-            ];
-
-        }
-
-
-
-        $conversation                      = new AiChat;
-
-        $conversation->user_id             = $user->id;
-
-        $conversation->ai_chat_category_id = $request->ai_chat_category_id;
-
-        $conversation->title               = $expert->name . localize(' Chat');
-
-        $conversation->save();
-
-
-
-        $message = new AiChatMessage;
-
-        $message->ai_chat_id = $conversation->id;
-
-        $message->user_id    = $user->id;
-
-        if ($expert->role == 'default') {
-
-            $result =  localize("Hello! I am $expert->name, and I'm here to answer your all questions.");
-
-        } else {
-
-            $result =  localize("Hello! I am $expert->name, and I'm $expert->role. $expert->assists_with.");
-
-        }
-
-        $message->response   = $result;
-
-        $message->result   = $result;
-
-        $message->save();
-
-
-
-        $chatList = AiChat::latest();
-
-        $chatList = $chatList->where('ai_chat_category_id', $expert->id)->where('user_id', $user->id)->get();
-
-
-
-        $promptGroups       = AiChatPromptGroup::oldest();
-
-        $promptGroups       = $promptGroups->get();
-
-        $prompts            = AiChatPrompt::latest()->get();
-
-        // Get user's documents count for display
-        $documents = Document::where('user_id', $user->id)
-            ->whereNotNull('parsed_text')
-            ->where('parse_status', 'completed')
-            ->latest()
-            ->get();
-        
-        $documentCount = $documents->count();
-
-        $data = [
-
-            'status'                 => 200,
-
-            'chatList'               => view('backend.pages.aiChat.inc.chat-list', compact('chatList'))->render(),
-
-            'messagesContainer'      => view('backend.pages.aiChat.inc.messages-container', compact('conversation', 'promptGroups', 'prompts', 'documentCount'))->render(),
-
-        ];
-
-        return $data;
-
-    }
-
-
-
-    # update conversation
-
-    public function update(Request $request)
-
-    {
-
-        $conversation = AiChat::whereId((int) $request->chatId)->first();
-
-        $conversation->title = $request->value;
-
-        $conversation->save();
-
-    }
-
-
-
-    # delete conversation
-
-    public function delete($id)
-
-    {
-
-        $conversation = AiChat::findOrFail((int)$id);
-
-        AiChatMessage::where('ai_chat_id', $conversation->id)->delete();
-
-        $conversation->delete();
-
-        flash(localize('Chat has been deleted successfully'))->success();
-
-        return back();
-
-    }
-
-
-
-    # new message
-
-    public function newMessage(Request $request)
-
-    {
-
-
-
-        $chat = AiChat::where('id', (int) $request->chat_id)->first(); // TODO Required Existance checking
-
-        $category = AiChatCategory::where('id', $request->category_id)->first();
-
-
-
-        $user = auth()->user();
-
-
-
-        // check word limit; need to have min 10 words balance
-
-        if (isCustomer() && availableDataCheck('words') <= 10) {
-
-            $data = [
-
-                'status'                => 400,
-
-                'ai_chat_category_id'   => $request->category_id,
-
-                'success'               => false,
-
-                'message'               => localize('Your word balance is low, please upgrade you plan'),
-
-            ];
-
-
-
-            return $data;
-
-        }
-
-
-
-
-
-        $prompt = $request->prompt; // TODO Required
-
-        $total_used_tokens = 0;
-
-
-
-        $message                = new AiChatMessage;
-
-        $message->ai_chat_id    = $chat->id;
-
-        $message->user_id       = $user->id;
-
-        $message->prompt        = $prompt;
-
-        $message->result        = $prompt;
-
-        $message->save();
-
-
-
-        $message->aiChat->touch(); // updated at
-
-
-
-        $chat_id = $chat->id;
-
-        $message_id = $message->id;
-
-
-
-        $request->session()->put('chat_id', $chat_id);
-
-        $request->session()->put('message_id', $message_id);
-
-        $request->session()->put('category_id', $request->category_id);
-
-        $request->session()->put('real_time_data', $request->real_time_data == 1 ? 1 :null);
-
-
-
-        $data = [
-
-            'status'              => 200,
-
-            'ai_chat_category_id' => $request->category_id,
-
-            'success'             => false,
-
-            'message'             => '',
-
-        ];
-
-        return $data;
-
-    }
-
-
-
-    # ai response
-
-    public function process()
-
-    {
-
-        $request            = request();
-
-        $integrationService = new IntegrationService();
-
-
-
-        $request->merge([
-
-            'stream'        => true,
-
-            'content_type'  => 'ai_chat'
-
-        ]);
-
-        
-
-        return $integrationService->contentGenerator(aiChatEngine(), $request);
-
-    }
-
-    
-
-    # updateUserWords - take token as word
-
-    public function updateUserWords($tokens, $user)
-
-    {
-
-        if ($user->user_type == "customer") {
-
-            updateDataBalance('words', $tokens, $user);
-
-        }
-
-    }
-
-    # updateBalanceStopGeneration
-
-    public function updateBalanceStopGeneration(Request $request)
-
-    {
-
-        $random_number = session()->get('random_number');
-
-        $user = user();
-
-        if ($random_number && isCustomer()) {
-
-            $aiChatMessage = AiChatMessage::where('random_number', $random_number)->where('user_id', $user->id)->first();
-
-            if ($aiChatMessage) {
-
-                $words = $aiChatMessage->words;
-
-                $this->updateUserWords($words, $user);
-
-                session()->forget('random_number');
-
-                return response()->json(['success' => true]);
-
-            }
-
-        }
-
-
-
-        return response()->json(['success' => false]);
-
-    }
-
-    # get messages
-
-    public function getMessages(Request $request)
-
-    {
-
-        $conversation = AiChat::whereId((int) $request->chatId)->first();
-
-        if (is_null($conversation)) {
-
-            $data = [
-
-                'status' => 400
-
-            ];
-
-            return $data;
-
-        }
-
-
-
-
-
-        $promptGroups       = AiChatPromptGroup::oldest();
-
-        $promptGroups       = $promptGroups->get();
-
-        $prompts            = AiChatPrompt::latest()->get();
-
-        // Get user's documents count for display
-        $user = auth()->user();
-        $documents = Document::where('user_id', $user->id)
-            ->whereNotNull('parsed_text')
-            ->where('parse_status', 'completed')
-            ->latest()
-            ->get();
-        
-        $documentCount = $documents->count();
-
-        $data = [
-
-            'status'            => 200,
-
-            'messagesContainer' => view('backend.pages.aiChat.inc.messages-container', compact('conversation', 'promptGroups', 'prompts', 'documentCount'))->render(),
-
-        ];
-
-        return $data;
-
-    }
-
-
-
-    # get conversations
-
-    public function getConversations(Request $request)
-
-    {
-
-        $conversationsQuery = AiChat::where('ai_chat_category_id', (int) $request->ai_chat_category_id)->where('user_id', auth()->user()->id)->latest('updated_at');
-
-
-
-        $chatList = $conversationsQuery->get();
-
-        $conversation = $conversationsQuery->first();
-
-
-
-
-
-        $promptGroups       = AiChatPromptGroup::oldest();
-
-        $promptGroups       = $promptGroups->get();
-
-        $prompts            = AiChatPrompt::latest()->get();
-
-        $ai_chat_category_id = $request->ai_chat_category_id;
-
-        $data = [
-
-            'status'                 => 200,
-
-            'ai_chat_category_id'   => $ai_chat_category_id,
-
-            'chatRight'      => view('backend.pages.aiChat.inc.chat-right', compact('conversation', 'chatList', 'conversation', 'promptGroups', 'prompts'))->render(),
-
-        ];
-
-        return $data;
-
-    }
-
-
-
-    # SEND IN EMAIL
-
-    public function sendInEmail(Request $request)
-
-    {
-
-        if ($request->email == null) {
-
-            flash(localize('Please type an email'))->error();
-
-            return back();
-
-        }
-
-
-
-        $conversation = AiChat::findOrFail((int) $request->conversation_id);
-
-        if (is_null($conversation)) {
-
-            flash(localize('Chat not found'))->error();
-
-            return back();
-
-        }
-
-
-
-        try {
-
-            $array['view'] = 'emails.chat';
-
-            $array['from'] = config('custom.mail_from_address');
-
-            $array['subject'] = $conversation->title;
-
-            $array['conversation'] = $conversation;
-
-            $array['messages'] = $conversation->messages;
-
-
-
-            Mail::to($request->email)->queue(new EmailManager($array));
-
-            flash(localize('Chat successfully sent to email'))->success();
-
-        } catch (\Throwable $th) {
-
-            flash($th->getMessage())->error();
-
-        }
-
-        return back();
-
-    }
-
-    // download, copy chat history
-
-    public function downloadChatHistory(Request $request)
-
-    {
-
-
-
-        try {
-
-            $basePath = public_path('/');
-
-            $type = $request->type;
-
-            $conversation = AiChat::whereId((int) $request->chatId)->with('messages')->first();
-
-            $messages = null;
-
-            $name   = $conversation->category ? $conversation->category->name : 'ai_chat';
-
-
-
-            if ($conversation) {
-
-                $messages  = $conversation->messages;
-
-            }
-
-
-
-            if (!$messages) {
-
-                flash(localize('No Message Fund'));
-
-                return redirect()->back();
-
-            }
-
-            $data = ['messages' => $messages, 'conversation' => $conversation, 'type' => $type];
-
-            if ($type == 'html') {
-
-                $name =  str_replace(' ', '_', $name) . '.html';
-
-                $file_path = $basePath . $name;
-
-                if (file_exists($file_path)) {
-
-                    unlink($file_path);
-
-                }
-
-
-
-                $view = view('backend.pages.aiChat.download.AI_ChatBot', $data)->render();
-
-                file_put_contents($file_path, $view);
-
-                return response()->download($file_path);
-
-            }
-
-            if ($type == 'word') {
-
-                $name =  str_replace(' ', '_', $name) . '.doc';
-
-                $file_path = $basePath . $name;
-
-                if (file_exists($file_path)) {
-
-                    unlink($file_path);
-
-                }
-
-
-
-                $view = view('backend.pages.aiChat.download.AI_ChatBot', $data)->render();
-
-                file_put_contents($file_path, $view);
-
-                return response()->download($file_path);
-
-            }
-
-            if ($type == 'pdf') {
-
-                return  view('backend.pages.aiChat.download.AI_ChatBot', $data);
-
-            }
-
-
-
-            if ($type == 'copyChat') {
-
-                return  view('backend.pages.aiChat.download.copyChat', $data);
-
-            }
-
-        } catch (\Throwable $th) {
-
-            throw $th;
-
-        }
-
-    }
-
-
-
-
-      public function newchat(Request $request)
-    {
-        $user = auth()->user();
-
-        $chatrolecategories = DB::table('chat_role_categories')->where('status',1)->get();
-        $chatcategories = DB::table('chat_categories')->where('status',1)->where('role_name',$user->chat_role_categories)->get();
-
-        return view('backend.pages.aiChat.newchat', compact('user','chatrolecategories','chatcategories'));
-    }
-
-
-      public function userchathistory(Request $request)
-    {
-        $user = auth()->user();
-        $userhistorydata = DB::table('user_chat_answers')->where('user_id', $user->id)->get();
-        return view('backend.pages.aiChat.user-chat-history', compact('user','userhistorydata'));
-    }
-
-
-    public function newusers_new_chat(Request $request)
-{
-    $userId = auth()->user();
-
-    // $newChatchatdata = DB::table('search_user_chat')->where('id',$id)->where('user_id',$userId->id)->first();
-
-    $newChat = DB::table('search_user_chat')->insertGetId([
-        'user_id' => $userId->id,
-        'status1' => 0,
-        // 'answers' => $newChatchatdata->answers ?? '',
-        // 'chat_role_categories' => $newChatchatdata->chat_role_categories ?? '',
-        // 'categories' => $newChatchatdata->categories ?? '',
-        // 'subcategories' => $newChatchatdata->subcategories ?? '',
-        // 'questionmenuid' => $newChatchatdata->questionmenuid ?? '',
-    ]); 
-
-    flash(localize('New Chat.'));
-    return redirect('dashboard/users-new-chat/'.$newChat);
-}
-
-
-      public function users_new_chat(Request $request,$id)
-    {
-        $searchKey = null;
-
-        $user = auth()->user();
-
-        $promptGroups       = AiChatPromptGroup::oldest();
-
-        $promptGroups       = $promptGroups->get();
-
-        $prompts            = AiChatPrompt::latest();
-
-
-
-        if ($request->search != null) {
-
-            $prompts = $prompts->where('title', 'like', '%' . $request->search . '%')->orWhere('prompt', 'like', '%' . $request->search . '%');
-
-            $searchKey = $request->search;
-
-        }
-
-
-
-        $prompts = $prompts->get();
-
-        $user = auth()->user();
-
-        /*$searchuserchatdata = DB::table('search_user_chat')->where('user_id',$user->id)->get();*/
-        $searchuserchatdata = DB::table('search_user_chat_data')->where('search_user_chat_id',$id)->where('user_id',$user->id)->get();
-
-       
-
-        $today = Carbon::now()->startOfDay();
-        $yesterday = Carbon::yesterday()->startOfDay();
-        $sevenDaysAgo = Carbon::now()->subDays(7)->startOfDay();
-        $thirtyDaysAgo = Carbon::now()->subDays(30)->startOfDay();
-
-        $searchuserchatdatanew = DB::table('search_user_chat_data')
-            ->where('user_id', $user->id)
-            ->get()
-            ->groupBy(function ($item) use ($today, $sevenDaysAgo,$yesterday, $thirtyDaysAgo) {
-                $created = Carbon::parse($item->created_at);
-
-                if ($created->greaterThanOrEqualTo($today)) {
-                    return 'Today';
-                } elseif ($created->greaterThanOrEqualTo($yesterday) && $created->lessThan($today)) {
-                    return 'Yesterday';
-                } elseif ($created->greaterThanOrEqualTo($sevenDaysAgo)) {
-                    return 'Previous 7 Days';
-                } elseif ($created->greaterThanOrEqualTo($thirtyDaysAgo)) {
-                    return 'Previous 30 Days';
-                } else {
-                    return 'Older';
-                }
-            });
-
-        // Get user's documents count for display
-        $documents = Document::where('user_id', $user->id)
-            ->whereNotNull('parsed_text')
-            ->where('parse_status', 'completed')
-            ->latest()
-            ->get();
-        
-        $documentCount = $documents->count();
-
-        // Get selected strategy from database if exists (for page reload)
-        $chatRecord = DB::table('search_user_chat')
-            ->where('id', $id)
-            ->where('user_id', $user->id)
-            ->first();
-        
-        $selectedStrategyFromDB = null;
-        $leadershipBriefFromDB = null;
-        // Chat's lifetime token total (all sections), shown in the header on load.
-        $chatTotalTokens = (int) ($chatRecord->total_tokens ?? 0);
-        if ($chatRecord) {
-            $selectedStrategyFromDB = $chatRecord->selected_strategy ?? null;
-            $leadershipBriefFromDB  = !empty($chatRecord->leadership_brief) ? $chatRecord->leadership_brief : null;
-        }
-
-        return view('backend.pages.aiChat.users-new-chat', compact('user','promptGroups', 'prompts','searchKey','searchuserchatdata','id','searchuserchatdatanew', 'documentCount', 'selectedStrategyFromDB', 'leadershipBriefFromDB', 'chatTotalTokens'));
-    }
-
-
-    /**
-     * Build the GoalSync first-message prompt that asks the model for the
-     * structured JSON contract (instead of an emoji-delimited markdown blob).
-     * This is the single source of truth consumed by window.renderAnswer().
-     *
-     * Schema mirrors the old BUNDLES_JSON: top-level strategy-independent
-     * sections + per-strategy variants (scenarios + roles for the selected
-     * scenario). Scenario switching is handled later by a JSON update call.
-     */
-    /**
-     * Per-document text used as company context. Prefers the compact stored
-     * summary; falls back to (capped) parsed_text for documents uploaded before
-     * summaries existed or whose summary failed to generate.
-     */
-    private function documentContextText($doc, int $maxChars = 6000): string
-    {
-        $text = !empty($doc->summary) ? $doc->summary : (string) $doc->parsed_text;
-
-        return mb_substr(trim($text), 0, $maxChars);
-    }
-
-    /**
-     * Build the "COMPANY DOCUMENTS CONTEXT" block injected into the system
-     * message. Uses per-document summaries (or capped parsed_text) and enforces
-     * a hard TOTAL character budget, so the prompt cost stays bounded no matter
-     * how many — or how large — the user's documents are.
-     */
-    private function buildCompanyDocumentContext($documents, int $maxChars = 24000): string
-    {
-        if ($documents->count() === 0) {
-            return '';
-        }
-
-        $perDoc = max(800, intdiv($maxChars, max($documents->count(), 1)));
-        $budget = $maxChars;
-
-        $context  = "\n\n--- COMPANY DOCUMENTS CONTEXT ---\n";
-        $context .= "The following are summaries of uploaded company documents. "
-            . "Use this context to provide accurate, company-specific responses:\n\n";
-
-        foreach ($documents as $doc) {
-            if ($budget <= 0) {
-                break;
-            }
-            $text = $this->documentContextText($doc, min($perDoc, $budget));
-            if ($text === '') {
-                continue;
-            }
-            $budget -= mb_strlen($text);
-            $context .= "--- Document: {$doc->name} (Type: {$doc->file_type}) ---\n";
-            $context .= $text . "\n\n";
-        }
-
-        $context .= "--- END COMPANY DOCUMENTS CONTEXT ---\n";
-
-        return $context;
-    }
-
-    private function goalSyncJsonPrompt($question, $documentNamesList)
+    // ---------------------------------------------------------------------------
+    // GoalSync prompt builder
+    // ---------------------------------------------------------------------------
+
+    private function goalSyncJsonPrompt(string $question, string $documentNamesList): string
     {
         return <<<EOT
 You are an executive strategy assistant trained in the GoalSync 7-step framework.
@@ -1316,23 +78,17 @@ Return a SINGLE valid JSON object (no markdown, no code fences, no commentary) w
       "selectedScenarioId": "sc1",
       "scenarioVariants": {
         "sc1": {
-          "rolesGoals": [
-            {"role": "Role title from documents", "goal": "1-2 sentences", "action": "EXACTLY one sentence"}
-          ],
+          "rolesGoals": [{"role": "Role title from documents", "goal": "1-2 sentences", "action": "EXACTLY one sentence"}],
           "complementaryGoals": ["goal one", "goal two"],
           "finalOutcome": "two sentences for this strategy + scenario"
         },
         "sc2": {
-          "rolesGoals": [
-            {"role": "Role title from documents", "goal": "1-2 sentences", "action": "EXACTLY one sentence"}
-          ],
+          "rolesGoals": [{"role": "Role title from documents", "goal": "1-2 sentences", "action": "EXACTLY one sentence"}],
           "complementaryGoals": ["goal one", "goal two"],
           "finalOutcome": "two sentences for this strategy + scenario"
         },
         "sc3": {
-          "rolesGoals": [
-            {"role": "Role title from documents", "goal": "1-2 sentences", "action": "EXACTLY one sentence"}
-          ],
+          "rolesGoals": [{"role": "Role title from documents", "goal": "1-2 sentences", "action": "EXACTLY one sentence"}],
           "complementaryGoals": ["goal one", "goal two"],
           "finalOutcome": "two sentences for this strategy + scenario"
         }
@@ -1343,45 +99,424 @@ Return a SINGLE valid JSON object (no markdown, no code fences, no commentary) w
 
 Rules:
 - "strategyMap": 3 decision paths, each with a UNIQUE id (s1, s2, s3) and a descriptive name (never "Path A/1").
-- "strategyVariants": include ONLY the selected strategy "s1". Do NOT generate variants for s2 or s3 — those are produced on demand when the user selects them. The object must contain exactly one key: "s1".
-- The "s1" variant has 3 "scenarios" (ids sc1, sc2, sc3) and a "scenarioVariants" object that MUST contain ALL THREE keys sc1, sc2 AND sc3 — never omit sc2 or sc3. Each scenario's rolesGoals/complementaryGoals/finalOutcome must reflect THAT scenario (Best Case vs Expected vs Risk) and differ from the others.
+- "strategyVariants": include ONLY the selected strategy "s1". Do NOT generate variants for s2 or s3 — those are produced on demand when the user selects them.
+- The "s1" variant's "scenarioVariants" MUST contain ALL THREE keys sc1, sc2 AND sc3. Each must differ (Best Case vs Expected vs Risk).
 - "acknowledgement" must be a non-empty 1-2 sentence string.
-- Each scenarioVariant's "rolesGoals": 5 to 7 DISTINCT roles (never repeat a role title within the same list), using ONLY exact role titles found in the documents (do not prefix or invent titles). "action" is EXACTLY one sentence (no lists, no line breaks).
+- Each scenarioVariant's "rolesGoals": 5 to 7 DISTINCT roles using ONLY exact role titles from the documents. "action" is EXACTLY one sentence.
 - "selectedStrategyId" = "s1". The s1 variant's "selectedScenarioId" = "sc1".
 - Output VALID JSON only: double-quoted keys/strings, no trailing commas, no comments, no markdown.
 EOT;
     }
 
-    /**
-     * Lazily generate ONE strategy's full variant (3 scenarios + their roles/
-     * goals/outcome) on demand, when the user selects a strategy the first
-     * message did not pre-generate. Returns the same nested shape the wizard's
-     * data.strategyVariants[id] expects, so the client can merge it in place.
-     */
+    // ---------------------------------------------------------------------------
+    // Chat CRUD (existing AiChat expert system)
+    // ---------------------------------------------------------------------------
+
+    public function index(Request $request, WriteBotService $writeBotService)
+    {
+        $user = user();
+
+        if (isCustomer()) {
+            $package = optional(activePackageHistory())->subscriptionPackage ?? new SubscriptionPackage;
+
+            if ($package->allow_ai_chat == 0) {
+                abort(403);
+            }
+        } elseif (!auth()->user()->can('ai_chat')) {
+            abort(403);
+        }
+
+        $conditions = [['type', 'chat']];
+
+        if (!isCustomer()) {
+            $chatExpertIds = $writeBotService->getAiChatCategories(null, null, $conditions);
+            $chatExperts   = $writeBotService->getAiChatCategories(true, 1, $conditions);
+        } else {
+            $chatExpertIds = $writeBotService->getAiChatCategories(null, 1, $conditions);
+            $chatExperts   = $writeBotService->getAiChatCategories(true, 1, $conditions);
+        }
+
+        $chatListQuery = AiChat::orderBy('updated_at', 'DESC')
+            ->with('messages', 'category')
+            ->where('user_id', $user->id)
+            ->whereIn('ai_chat_category_id', $chatExpertIds);
+
+        $searchKey = null;
+
+        if (!empty($request->search)) {
+            $chatListQuery->where('title', 'like', '%' . $request->search . '%');
+            $searchKey = $request->search;
+        }
+
+        $chatList = !empty($request->expert)
+            ? $chatListQuery->where('ai_chat_category_id', $request->expert)->get()
+            : $chatListQuery->where('ai_chat_category_id', 1)->get();
+
+        $promptGroups    = AiChatPromptGroup::oldest()->get();
+        $prompts         = AiChatPrompt::latest()->get();
+        $conversation    = $chatListQuery->first();
+        $documents       = $this->docs->forUser($user);
+        $documentCount   = $documents->count();
+        $documentContext = $documents->pluck('parsed_text')->filter()->implode("\n\n--- Document Separator ---\n\n");
+
+        return view('backend.pages.aiChat.index', compact(
+            'chatExperts', 'chatList', 'conversation', 'searchKey',
+            'promptGroups', 'prompts', 'documentCount', 'documentContext'
+        ));
+    }
+
+    public function store(Request $request)
+    {
+        $user = user();
+
+        if (isCustomer()) {
+            $package = optional(activePackageHistory())->subscriptionPackage ?? new SubscriptionPackage;
+
+            if ($package->allow_ai_chat == 0) {
+                return response()->json([
+                    'status'  => 400,
+                    'success' => false,
+                    'message' => localize('AI Chat is not available in this package, please upgrade you plan'),
+                ]);
+            }
+        }
+
+        $expert = AiChatCategory::find($request->ai_chat_category_id);
+
+        if (empty($expert)) {
+            return response()->json([
+                'status'              => 400,
+                'ai_chat_category_id' => $request->ai_chat_category_id,
+                'success'             => false,
+                'message'             => localize('Expert not found'),
+            ]);
+        }
+
+        $conversation                      = new AiChat;
+        $conversation->user_id             = $user->id;
+        $conversation->ai_chat_category_id = $request->ai_chat_category_id;
+        $conversation->title               = $expert->name . localize(' Chat');
+        $conversation->save();
+
+        $result = $expert->role === 'default'
+            ? localize("Hello! I am $expert->name, and I'm here to answer your all questions.")
+            : localize("Hello! I am $expert->name, and I'm $expert->role. $expert->assists_with.");
+
+        $message             = new AiChatMessage;
+        $message->ai_chat_id = $conversation->id;
+        $message->user_id    = $user->id;
+        $message->response   = $result;
+        $message->result     = $result;
+        $message->save();
+
+        $chatList      = AiChat::latest()->where('ai_chat_category_id', $expert->id)->where('user_id', $user->id)->get();
+        $promptGroups  = AiChatPromptGroup::oldest()->get();
+        $prompts       = AiChatPrompt::latest()->get();
+        $documentCount = $this->docs->forUser($user)->count();
+
+        return response()->json([
+            'status'            => 200,
+            'chatList'          => view('backend.pages.aiChat.inc.chat-list', compact('chatList'))->render(),
+            'messagesContainer' => view('backend.pages.aiChat.inc.messages-container', compact('conversation', 'promptGroups', 'prompts', 'documentCount'))->render(),
+        ]);
+    }
+
+    public function update(Request $request)
+    {
+        $conversation        = AiChat::findOrFail((int) $request->chatId);
+        $conversation->title = $request->value;
+        $conversation->save();
+    }
+
+    public function delete($id)
+    {
+        $conversation = AiChat::findOrFail((int) $id);
+        AiChatMessage::where('ai_chat_id', $conversation->id)->delete();
+        $conversation->delete();
+
+        flash(localize('Chat has been deleted successfully'))->success();
+
+        return back();
+    }
+
+    public function newMessage(Request $request)
+    {
+        $chat = AiChat::findOrFail((int) $request->chat_id);
+        $user = auth()->user();
+
+        if (isCustomer() && availableDataCheck('words') <= 10) {
+            return response()->json([
+                'status'              => 400,
+                'ai_chat_category_id' => $request->category_id,
+                'success'             => false,
+                'message'             => localize('Your word balance is low, please upgrade you plan'),
+            ]);
+        }
+
+        $message             = new AiChatMessage;
+        $message->ai_chat_id = $chat->id;
+        $message->user_id    = $user->id;
+        $message->prompt     = $request->prompt;
+        $message->result     = $request->prompt;
+        $message->save();
+
+        $message->aiChat->touch();
+
+        $request->session()->put('chat_id', $chat->id);
+        $request->session()->put('message_id', $message->id);
+        $request->session()->put('category_id', $request->category_id);
+        $request->session()->put('real_time_data', $request->real_time_data == 1 ? 1 : null);
+
+        return response()->json([
+            'status'              => 200,
+            'ai_chat_category_id' => $request->category_id,
+            'success'             => false,
+            'message'             => '',
+        ]);
+    }
+
+    public function process()
+    {
+        $request = request();
+        $request->merge(['stream' => true, 'content_type' => 'ai_chat']);
+
+        return (new IntegrationService())->contentGenerator(aiChatEngine(), $request);
+    }
+
+    public function updateUserWords($tokens, $user)
+    {
+        if ($user->user_type === 'customer') {
+            updateDataBalance('words', $tokens, $user);
+        }
+    }
+
+    public function updateBalanceStopGeneration(Request $request)
+    {
+        $randomNumber = session()->get('random_number');
+        $user         = user();
+
+        if ($randomNumber && isCustomer()) {
+            $aiChatMessage = AiChatMessage::where('random_number', $randomNumber)
+                ->where('user_id', $user->id)
+                ->first();
+
+            if ($aiChatMessage) {
+                $this->updateUserWords($aiChatMessage->words, $user);
+                session()->forget('random_number');
+
+                return response()->json(['success' => true]);
+            }
+        }
+
+        return response()->json(['success' => false]);
+    }
+
+    public function getMessages(Request $request)
+    {
+        $conversation = AiChat::find((int) $request->chatId);
+
+        if (is_null($conversation)) {
+            return response()->json(['status' => 400]);
+        }
+
+        $user          = auth()->user();
+        $promptGroups  = AiChatPromptGroup::oldest()->get();
+        $prompts       = AiChatPrompt::latest()->get();
+        $documentCount = $this->docs->forUser($user)->count();
+
+        return response()->json([
+            'status'            => 200,
+            'messagesContainer' => view('backend.pages.aiChat.inc.messages-container', compact('conversation', 'promptGroups', 'prompts', 'documentCount'))->render(),
+        ]);
+    }
+
+    public function getConversations(Request $request)
+    {
+        $conversationsQuery  = AiChat::where('ai_chat_category_id', (int) $request->ai_chat_category_id)
+            ->where('user_id', auth()->id())
+            ->latest('updated_at');
+
+        $chatList            = $conversationsQuery->get();
+        $conversation        = $conversationsQuery->first();
+        $promptGroups        = AiChatPromptGroup::oldest()->get();
+        $prompts             = AiChatPrompt::latest()->get();
+        $ai_chat_category_id = $request->ai_chat_category_id;
+
+        return response()->json([
+            'status'              => 200,
+            'ai_chat_category_id' => $ai_chat_category_id,
+            'chatRight'           => view('backend.pages.aiChat.inc.chat-right', compact('conversation', 'chatList', 'promptGroups', 'prompts'))->render(),
+        ]);
+    }
+
+    public function sendInEmail(Request $request)
+    {
+        if ($request->email == null) {
+            flash(localize('Please type an email'))->error();
+            return back();
+        }
+
+        $conversation = AiChat::findOrFail((int) $request->conversation_id);
+
+        try {
+            Mail::to($request->email)->queue(new EmailManager([
+                'view'         => 'emails.chat',
+                'from'         => config('custom.mail_from_address'),
+                'subject'      => $conversation->title,
+                'conversation' => $conversation,
+                'messages'     => $conversation->messages,
+            ]));
+
+            flash(localize('Chat successfully sent to email'))->success();
+        } catch (\Throwable $th) {
+            flash($th->getMessage())->error();
+        }
+
+        return back();
+    }
+
+    public function downloadChatHistory(Request $request)
+    {
+        try {
+            $type         = $request->type;
+            $conversation = AiChat::findOrFail((int) $request->chatId);
+            $messages     = $conversation->messages;
+            $name         = $conversation->category ? $conversation->category->name : 'ai_chat';
+
+            if (!$messages) {
+                flash(localize('No Message Fund'));
+                return redirect()->back();
+            }
+
+            $data = ['messages' => $messages, 'conversation' => $conversation, 'type' => $type];
+
+            if (in_array($type, ['html', 'word'])) {
+                $ext      = $type === 'html' ? '.html' : '.doc';
+                $filePath = public_path('/') . str_replace(' ', '_', $name) . $ext;
+
+                if (file_exists($filePath)) {
+                    unlink($filePath);
+                }
+
+                file_put_contents($filePath, view('backend.pages.aiChat.download.AI_ChatBot', $data)->render());
+
+                return response()->download($filePath);
+            }
+
+            if ($type === 'pdf') {
+                return view('backend.pages.aiChat.download.AI_ChatBot', $data);
+            }
+
+            if ($type === 'copyChat') {
+                return view('backend.pages.aiChat.download.copyChat', $data);
+            }
+        } catch (\Throwable $th) {
+            throw $th;
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // GoalSync chat
+    // ---------------------------------------------------------------------------
+
+    public function newchat(Request $request)
+    {
+        $user               = auth()->user();
+        $chatrolecategories = ChatRoleCategory::active()->get();
+        $chatcategories     = ChatCategory::active()->forRole($user->chat_role_categories)->get();
+
+        return view('backend.pages.aiChat.newchat', compact('user', 'chatrolecategories', 'chatcategories'));
+    }
+
+    public function userchathistory(Request $request)
+    {
+        $user            = auth()->user();
+        $userhistorydata = UserChatAnswer::where('user_id', $user->id)->get();
+
+        return view('backend.pages.aiChat.user-chat-history', compact('user', 'userhistorydata'));
+    }
+
+    public function newusers_new_chat(Request $request)
+    {
+        $user    = auth()->user();
+        $newChat = SearchUserChat::create(['user_id' => $user->id, 'status1' => 0]);
+
+        flash(localize('New Chat.'));
+
+        return redirect('dashboard/users-new-chat/' . $newChat->id);
+    }
+
+    public function users_new_chat(Request $request, $id)
+    {
+        $user         = auth()->user();
+        $searchKey    = null;
+        $promptGroups = AiChatPromptGroup::oldest()->get();
+        $prompts      = AiChatPrompt::latest();
+
+        if ($request->search != null) {
+            $prompts   = $prompts->where('title', 'like', '%' . $request->search . '%')
+                ->orWhere('prompt', 'like', '%' . $request->search . '%');
+            $searchKey = $request->search;
+        }
+
+        $prompts = $prompts->get();
+
+        $searchuserchatdata = SearchUserChatData::where('search_user_chat_id', $id)
+            ->where('user_id', $user->id)
+            ->get();
+
+        $today         = Carbon::now()->startOfDay();
+        $yesterday     = Carbon::yesterday()->startOfDay();
+        $sevenDaysAgo  = Carbon::now()->subDays(7)->startOfDay();
+        $thirtyDaysAgo = Carbon::now()->subDays(30)->startOfDay();
+
+        $searchuserchatdatanew = SearchUserChatData::where('user_id', $user->id)
+            ->get()
+            ->groupBy(function ($item) use ($today, $yesterday, $sevenDaysAgo, $thirtyDaysAgo) {
+                $created = Carbon::parse($item->created_at);
+
+                if ($created->greaterThanOrEqualTo($today)) {
+                    return 'Today';
+                } elseif ($created->greaterThanOrEqualTo($yesterday) && $created->lessThan($today)) {
+                    return 'Yesterday';
+                } elseif ($created->greaterThanOrEqualTo($sevenDaysAgo)) {
+                    return 'Previous 7 Days';
+                } elseif ($created->greaterThanOrEqualTo($thirtyDaysAgo)) {
+                    return 'Previous 30 Days';
+                } else {
+                    return 'Older';
+                }
+            });
+
+        $documentCount = $this->docs->forUser($user)->count();
+
+        $chatRecord = SearchUserChat::where('id', $id)->where('user_id', $user->id)->first();
+
+        $chatTotalTokens        = (int) ($chatRecord->total_tokens ?? 0);
+        $selectedStrategyFromDB = $chatRecord->selected_strategy ?? null;
+        $leadershipBriefFromDB  = !empty($chatRecord->leadership_brief) ? $chatRecord->leadership_brief : null;
+
+        return view('backend.pages.aiChat.users-new-chat', compact(
+            'user', 'promptGroups', 'prompts', 'searchKey', 'searchuserchatdata', 'id',
+            'searchuserchatdatanew', 'documentCount', 'selectedStrategyFromDB',
+            'leadershipBriefFromDB', 'chatTotalTokens'
+        ));
+    }
+
     public function generate_strategy_variant(Request $request)
     {
-        $user = auth()->user();
-        $chatId = $request->input('chat_id');
-        $question = $request->input('original_question');
-        $strategyName = trim((string) $request->input('strategy_name'));
+        $user              = auth()->user();
+        $chatId            = $request->input('chat_id');
+        $question          = $request->input('original_question');
+        $strategyName      = trim((string) $request->input('strategy_name'));
         $strategyRationale = trim((string) $request->input('strategy_rationale'));
 
         if (!$chatId || !$question || $strategyName === '') {
             return response()->json(['error' => 'Chat ID, original question and strategy name are required.'], 400);
         }
 
-        // Same company-document context the first message uses (capped summaries).
-        $documents = Document::where('user_id', $user->id)
-            ->whereNotNull('parsed_text')
-            ->where('parse_status', 'completed')
-            ->latest()
-            ->get();
-
-        $systemMessage = 'You are an executive strategy assistant trained in the GoalSync framework. Return ONLY valid JSON. No markdown, no code fences, no commentary.';
-        $documentContext = $this->buildCompanyDocumentContext($documents);
-        if (!empty($documentContext)) {
-            $systemMessage .= $documentContext;
-        }
+        $documents     = $this->docs->forUser($user);
+        $systemMessage = $this->docs->buildSystemMessage($user, 'You are an executive strategy assistant trained in the GoalSync framework. Return ONLY valid JSON. No markdown, no code fences, no commentary.');
 
         $rationaleLine = $strategyRationale !== '' ? "Strategy rationale: \"{$strategyRationale}\"\n" : '';
 
@@ -1418,295 +553,95 @@ Generate the GoalSync variant for THIS strategy as a SINGLE valid JSON object wi
 }
 
 Rules:
-- "scenarioVariants" MUST contain ALL THREE keys sc1, sc2 AND sc3. Each scenario (Best Case vs Expected vs Risk) must differ and reflect THIS strategy.
-- Each "rolesGoals": 5 to 7 DISTINCT roles, using ONLY exact role titles found in the documents (do not invent or prefix titles). "action" is EXACTLY one sentence (no lists, no line breaks).
+- "scenarioVariants" MUST contain ALL THREE keys sc1, sc2 AND sc3.
+- Each "rolesGoals": 5 to 7 DISTINCT roles using ONLY exact role titles from the documents. "action" is EXACTLY one sentence.
 - Output VALID JSON only: double-quoted keys/strings, no trailing commas, no comments, no markdown.
 EOT;
 
         try {
-            $response = $this->aiGenerate($systemMessage, $prompt, 3000, 0.7, true);
+            $aiResponse = $this->ai->generate($systemMessage, $prompt, 3000, 0.7, true);
 
-            if (!$response->successful()) {
-                return response()->json([
-                    'error' => 'Failed to generate strategy variant.',
-                    'details' => $response->body(),
-                ], 500);
+            if (!$aiResponse->successful()) {
+                return response()->json(['error' => 'Failed to generate strategy variant.', 'details' => $aiResponse->body()], 500);
             }
 
-            $text = $this->extractGeminiResponseText($response);
-            $chatTotalTokens = $this->recordChatTokens($chatId, $response);
-            $variant = $this->extractJson($text);
+            $text            = $this->ai->extractText($aiResponse);
+            $chatTotalTokens = $this->ai->recordChatTokens($chatId, $aiResponse);
+            $variant         = $this->ai->parseJson($text);
 
             if ($variant === null) {
-                Log::warning('Strategy variant JSON parse failed', [
-                    'user_id' => $user->id,
-                    'chat_id' => $chatId,
-                    'preview' => substr((string) $text, 0, 300),
-                ]);
+                Log::warning('Strategy variant JSON parse failed', ['user_id' => $user->id, 'chat_id' => $chatId, 'preview' => substr((string) $text, 0, 300)]);
+
                 return response()->json(['error' => 'Could not parse strategy variant.'], 502);
             }
 
-            return response()->json([
-                'success' => true,
-                'variant' => $variant,
-                'chat_total_tokens' => $chatTotalTokens,
-            ]);
-        } catch (\Exception $e) {
-            Log::error('generate_strategy_variant failed', [
-                'user_id' => $user->id,
-                'chat_id' => $chatId,
-                'error' => $e->getMessage(),
-            ]);
-            return response()->json(['error' => 'An unexpected error occurred while generating the strategy variant.'], 500);
+            return response()->json(['success' => true, 'variant' => $variant, 'chat_total_tokens' => $chatTotalTokens]);
+        } catch (\Throwable $e) {
+            return $this->ai->handleException($e, 'Generate Strategy Variant', $user->id, $chatId);
         }
     }
 
-public function users_new_chat_ask(Request $request)
-{
-    $user = auth()->user();
-    $question = $request->input('question');
-    $chatId = $request->input('chat_id');
-    $additionalContext = $request->input('additional_context'); // Context from form submission
+    public function users_new_chat_ask(Request $request)
+    {
+        $user              = auth()->user();
+        $question          = $request->input('question');
+        $chatId            = $request->input('chat_id');
+        $additionalContext = $request->input('additional_context');
 
-    // Validate inputs
-    if (!$question || !$chatId) {
-        return response()->json(['error' => 'Question and Chat ID are required.'], 400);
-    }
-
-    // Retrieve last chat context (if any)
-    $previousContext = DB::table('user_chat_answers')
-        ->where('user_id', $user->id)
-        ->latest()
-        ->first();
-    $chectdata = DB::table('search_user_chat')->where('id', $chatId)->where('user_id', $user->id)->first();
-
-    // Check if chat exists, if not create a new one
-    if (!$chectdata) {
-        // Create a new chat session
-        $newChatId = DB::table('search_user_chat')->insertGetId([
-            'user_id' => $user->id,
-            'status1' => 0,
-        ]);
-        
-        // Use the new chat ID
-        $chatId = $newChatId;
-        $chectdata = DB::table('search_user_chat')->where('id', $chatId)->where('user_id', $user->id)->first();
-        
-        // Return the new chat ID in response so frontend can update
-        // But continue with the request
-    }
-
-    // First message in a session sends the FULL document text (needed to build
-    // the GoalSync analysis). Follow-ups send only the document NAMES so we
-    // don't resend the entire corpus on every turn (large token / latency cost).
-    // status1 = 0 means the chat has not yet received an AI response.
-    $isFirstMessage = ($chectdata->status1 == '0' || $chectdata->status1 == 0);
-
-    // Get user's documents for company context with document metadata
-    $documents = Document::where('user_id', $user->id)
-        ->whereNotNull('parsed_text')
-        ->where('parse_status', 'completed')
-        ->latest()
-        ->get();
-    
-    // Inject compact per-document summaries (capped), not the full corpus.
-    $documentContext = $this->buildCompanyDocumentContext($documents);
-    $documentNamesList = '';
-    if ($documents->count() > 0) {
-        $documentNamesList = "\n\nAvailable Documents:\n";
-        foreach ($documents as $doc) {
-            $documentNamesList .= "- {$doc->name} ({$doc->file_type})\n";
+        if (!$question || !$chatId) {
+            return response()->json(['error' => 'Question and Chat ID are required.'], 400);
         }
-    }
 
-    $systemMessage = 'You are a strategy assistant. Respond only using structured ChatGPT-style text with emojis and clean formatting based on the GoalSync method.';
-    // First message: inject the full document text (needed to build the analysis).
-    // Follow-ups: inject only the document names so we don't resend the whole
-    // corpus on every turn — this is the dominant token/latency cost in chat.
-    if ($isFirstMessage) {
-        if (!empty($documentContext)) {
-            $systemMessage .= $documentContext;
-        }
-    } elseif (!empty($documentNamesList)) {
-        $systemMessage .= "\n\n--- COMPANY DOCUMENTS (names only) ---\n"
-            . "Full document text was provided earlier in this session. The available company documents are:\n"
-            . $documentNamesList
-            . "--- END COMPANY DOCUMENTS ---\n";
-    }
+        $previousContext = UserChatAnswer::where('user_id', $user->id)->latest()->first();
+        $chat            = SearchUserChat::where('id', $chatId)->where('user_id', $user->id)->first();
 
-    // Process additional context from request (if provided in this request)
-    $contextFromRequest = '';
-    if ($additionalContext && is_array($additionalContext)) {
-        $contextParts = [];
-        if (!empty($additionalContext['additional_details'])) {
-            $contextParts[] = "Additional Details: " . $additionalContext['additional_details'];
+        if (!$chat) {
+            $chat   = SearchUserChat::create(['user_id' => $user->id, 'status1' => 0]);
+            $chatId = $chat->id;
         }
-        
-        if (!empty($contextParts)) {
-            $contextFromRequest = "\n\n--- ADDITIONAL USER CONTEXT (FROM THIS REQUEST) ---\n";
-            $contextFromRequest .= "The user has provided the following additional context that should be considered in your responses:\n\n";
-            $contextFromRequest .= implode("\n", $contextParts);
-            $contextFromRequest .= "\n--- END ADDITIONAL USER CONTEXT ---\n";
-            
-            // Save to database for future use
+
+        $isFirstMessage    = $chat->isFirstMessage();
+        $documents         = $this->docs->forUser($user);
+        $documentNamesList = $this->docs->buildNamesList($documents);
+
+        $systemMessage = 'You are a strategy assistant. Respond only using structured ChatGPT-style text with emojis and clean formatting based on the GoalSync method.';
+
+        if ($isFirstMessage) {
+            $systemMessage .= $this->docs->buildContext($documents);
+        } elseif (!empty($documentNamesList)) {
+            $systemMessage .= "\n\n--- COMPANY DOCUMENTS (names only) ---\n"
+                . "Full document text was provided earlier in this session. The available company documents are:\n"
+                . $documentNamesList
+                . "--- END COMPANY DOCUMENTS ---\n";
+        }
+
+        $systemMessage .= $this->resolveAdditionalContext($request, $chat, $additionalContext);
+
+        $responseFormat = 'markdown';
+        $provider       = $this->ai->providerLabel();
+
+        if ($isFirstMessage) {
+            $prompt         = $this->goalSyncJsonPrompt($question, $documentNamesList);
+            $responseFormat = 'json';
+
             try {
-                $contextArray = [];
-                $existingContext = $chectdata->additional_context ?? '';
-                if (!empty($existingContext)) {
-                    $contextArray = json_decode($existingContext, true);
-                    if (!is_array($contextArray)) {
-                        $contextArray = [];
-                    }
-                }
-                $contextArray[] = [
-                    'additional_details' => $additionalContext['additional_details'] ?? '',
-                    'created_at' => now()->toDateTimeString()
-                ];
-                
-                DB::table('search_user_chat')
-                    ->where('id', $chatId)
-                    ->update(['additional_context' => json_encode($contextArray)]);
-            } catch (\Exception $e) {
-                Log::error('Error saving context to database', ['error' => $e->getMessage()]);
-                // Continue anyway
+                Log::info("{$provider} Request - First Chat", ['user_id' => $user->id, 'chat_id' => $chatId, 'documents_count' => $documents->count()]);
+
+                $aiResponse = $this->ai->generate($systemMessage, $prompt, 4096, 0.7, true);
+
+                Log::info("{$provider} Response - First Chat", ['user_id' => $user->id, 'chat_id' => $chatId, 'status' => $aiResponse->status()]);
+
+                UserChatAnswer::where('user_id', $user->id)->update(['status1' => 1]);
+                SearchUserChat::where('id', $chatId)->update(['status1' => 1]);
+            } catch (\Throwable $e) {
+                return $this->ai->handleException($e, 'First Chat', $user->id, $chatId);
             }
-        }
-    }
-    
-    // Get additional context from database (if exists and not already provided in request)
-    $contextFromDB = '';
-    if (empty($contextFromRequest) && isset($chectdata->additional_context) && !empty($chectdata->additional_context)) {
-        $contextArray = json_decode($chectdata->additional_context, true);
-        if (is_array($contextArray) && count($contextArray) > 0) {
-            $contextFromDB = "\n\n--- ADDITIONAL USER CONTEXT (PREVIOUSLY PROVIDED) ---\n";
-            $contextFromDB .= "The user has provided the following additional context that should be considered in your responses:\n\n";
-            foreach ($contextArray as $context) {
-                if (!empty($context['additional_details'])) {
-                    $contextFromDB .= "Additional Details: " . $context['additional_details'] . "\n";
-                }
-                $contextFromDB .= "\n";
-            }
-            $contextFromDB .= "--- END ADDITIONAL USER CONTEXT ---\n";
-        }
-    }
-    
-    // Add context to system message (prefer request context over DB context)
-    if (!empty($contextFromRequest)) {
-        $systemMessage .= $contextFromRequest;
-    } elseif (!empty($contextFromDB)) {
-        $systemMessage .= $contextFromDB;
-    }
-
- // How the stored/returned answer is encoded ('markdown' | 'json').
- // First GoalSync answer is always JSON; follow-ups stay markdown.
- $responseFormat = 'markdown';
-
- $aiProvider = $this->aiProviderLabel();
-
- if ($isFirstMessage) {
-    // Build prompt to return GOALSYNC output in natural ChatGPT-style format.
-    // $documentNamesList was built above alongside the full document context.
-
-    // Structured GoalSync JSON contract (rendered client-side by renderAnswer).
-    $prompt = $this->goalSyncJsonPrompt($question, $documentNamesList);
-    $responseFormat = 'json';
-
-        // Send to AI provider with comprehensive error handling
-        try {
-            Log::info($aiProvider . ' API Request - First Chat', [
-                'user_id' => $user->id,
-                'chat_id' => $chatId,
-                'prompt_length' => strlen($prompt),
-                'system_message_length' => strlen($systemMessage),
-                'documents_count' => $documents->count(),
-            ]);
-
-            // Always request the structured GoalSync JSON contract. Only the
-            // selected strategy (s1) is generated now — other strategies are
-            // produced on demand — so a smaller output budget is sufficient.
-            $openAiResponse = $this->aiGenerate($systemMessage, $prompt, 4096, 0.7, true);
-
-            Log::info($aiProvider . ' API Response - First Chat', [
-                'user_id' => $user->id,
-                'chat_id' => $chatId,
-                'status' => $openAiResponse->status(),
-                'successful' => $openAiResponse->successful(),
-                'response_length' => strlen($openAiResponse->body()),
-            ]);
-
-            DB::table('user_chat_answers')->where('user_id', $user->id)->update(['status1' => 1]);
-            DB::table('search_user_chat')->where('id', $chatId)->update(['status1' => 1]);
-
-        } catch (\Illuminate\Http\Client\ConnectionException $e) {
-            Log::error($aiProvider . ' API Connection Exception - First Chat', [
-                'user_id' => $user->id,
-                'chat_id' => $chatId,
-                'error_message' => $e->getMessage(),
-                'error_code' => $e->getCode(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-
-            return response()->json([
-                'error' => $aiProvider . ' API connection timeout. The request took too long to complete.',
-                'details' => [
-                    'message' => $e->getMessage(),
-                    'type' => 'ConnectionException',
-                    'suggestion' => 'Please try again. If the issue persists, the ' . $aiProvider . ' API may be experiencing high load.',
-                ]
-            ], 504);
-
-        } catch (\Illuminate\Http\Client\RequestException $e) {
-            Log::error($aiProvider . ' API Request Exception - First Chat', [
-                'user_id' => $user->id,
-                'chat_id' => $chatId,
-                'error_message' => $e->getMessage(),
-                'error_code' => $e->getCode(),
-                'response_body' => $e->response ? $e->response->body() : null,
-                'response_status' => $e->response ? $e->response->status() : null,
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ]);
-
-            return response()->json([
-                'error' => $aiProvider . ' API request failed.',
-                'details' => [
-                    'message' => $e->getMessage(),
-                    'type' => 'RequestException',
-                    'response' => $e->response ? $e->response->body() : null,
-                ]
-            ], 500);
-
-        } catch (\Exception $e) {
-            Log::error($aiProvider . ' API General Exception - First Chat', [
-                'user_id' => $user->id,
-                'chat_id' => $chatId,
-                'error_message' => $e->getMessage(),
-                'error_code' => $e->getCode(),
-                'error_class' => get_class($e),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-
-            return response()->json([
-                'error' => 'An unexpected error occurred while processing your request.',
-                'details' => [
-                    'message' => $e->getMessage(),
-                    'type' => get_class($e),
-                ]
-            ], 500);
-        }
-
-    }else{
-
-        // Concise follow-up prompt: keep replies short and scannable.
-        $followUpPrompt = <<<EOT
+        } else {
+            $followUpPrompt = <<<EOT
 User message: "$question"
 
 Respond using the GoalSync method, but keep it SHORT and scannable:
-- No preamble or filler (do NOT start with phrases like "To guide you effectively...").
+- No preamble or filler.
 - Use brief emoji section headers only where useful.
 - Bullet points, one line each, max ~12 words per bullet.
 - No long paragraphs. No restating the question.
@@ -1714,238 +649,91 @@ Respond using the GoalSync method, but keep it SHORT and scannable:
 - Keep the whole reply under ~120 words.
 EOT;
 
-        // Send to AI provider with comprehensive error handling
-        try {
-            Log::info($aiProvider . ' API Request - Follow-up Chat', [
-                'user_id' => $user->id,
-                'chat_id' => $chatId,
-                'question_length' => strlen($question),
-                'system_message_length' => strlen($systemMessage),
-                'documents_count' => $documents->count(),
-            ]);
+            try {
+                Log::info("{$provider} Request - Follow-up Chat", ['user_id' => $user->id, 'chat_id' => $chatId]);
 
-            $openAiResponse = $this->aiGenerate($systemMessage, $followUpPrompt, 1200);
+                $aiResponse = $this->ai->generate($systemMessage, $followUpPrompt, 1200);
 
-            Log::info($aiProvider . ' API Response - Follow-up Chat', [
-                'user_id' => $user->id,
-                'chat_id' => $chatId,
-                'status' => $openAiResponse->status(),
-                'successful' => $openAiResponse->successful(),
-                'response_length' => strlen($openAiResponse->body()),
-            ]);
+                Log::info("{$provider} Response - Follow-up Chat", ['user_id' => $user->id, 'chat_id' => $chatId, 'status' => $aiResponse->status()]);
 
-            DB::table('user_chat_answers')->where('user_id', $user->id)->update(['status2' => 1]);
-            DB::table('search_user_chat')->where('id', $chatId)->update(['status2' => 1]);
-
-        } catch (\Illuminate\Http\Client\ConnectionException $e) {
-            Log::error($aiProvider . ' API Connection Exception - Follow-up Chat', [
-                'user_id' => $user->id,
-                'chat_id' => $chatId,
-                'error_message' => $e->getMessage(),
-                'error_code' => $e->getCode(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-
-            return response()->json([
-                'error' => $aiProvider . ' API connection timeout. The request took too long to complete.',
-                'details' => [
-                    'message' => $e->getMessage(),
-                    'type' => 'ConnectionException',
-                    'suggestion' => 'Please try again. If the issue persists, the ' . $aiProvider . ' API may be experiencing high load.',
-                ]
-            ], 504);
-
-        } catch (\Illuminate\Http\Client\RequestException $e) {
-            Log::error($aiProvider . ' API Request Exception - Follow-up Chat', [
-                'user_id' => $user->id,
-                'chat_id' => $chatId,
-                'error_message' => $e->getMessage(),
-                'error_code' => $e->getCode(),
-                'response_body' => $e->response ? $e->response->body() : null,
-                'response_status' => $e->response ? $e->response->status() : null,
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ]);
-
-            return response()->json([
-                'error' => $aiProvider . ' API request failed.',
-                'details' => [
-                    'message' => $e->getMessage(),
-                    'type' => 'RequestException',
-                    'response' => $e->response ? $e->response->body() : null,
-                ]
-            ], 500);
-
-        } catch (\Exception $e) {
-            Log::error($aiProvider . ' API General Exception - Follow-up Chat', [
-                'user_id' => $user->id,
-                'chat_id' => $chatId,
-                'error_message' => $e->getMessage(),
-                'error_code' => $e->getCode(),
-                'error_class' => get_class($e),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-
-            return response()->json([
-                'error' => 'An unexpected error occurred while processing your request.',
-                'details' => [
-                    'message' => $e->getMessage(),
-                    'type' => get_class($e),
-                ]
-            ], 500);
-        }
-
-    }
-
-        // Handle API errors (non-exception cases)
-        if (!$openAiResponse->successful()) {
-            Log::error($aiProvider . ' API Unsuccessful Response', [
-                'user_id' => $user->id,
-                'chat_id' => $chatId,
-                'status' => $openAiResponse->status(),
-                'response_body' => $openAiResponse->body(),
-            ]);
-
-            $statusCode = $openAiResponse->status();
-            $clientError = $statusCode === 429 ? $aiProvider . ' API quota exceeded. Check your billing or reduce request rate.' : $aiProvider . ' API request failed.';
-            return response()->json([
-                'error' => $clientError,
-                'details' => $openAiResponse->json() ?? $openAiResponse->body()
-            ], $statusCode >= 400 && $statusCode < 500 ? $statusCode : 500);
-        }
-
-        $responseContent = $this->extractGeminiResponseText($openAiResponse);
-        $usage = $this->extractUsage($openAiResponse);
-        $chatTotalTokens = $this->recordChatTokens($chatId, $openAiResponse);
-
-        if ($openAiResponse->successful() && $responseContent === '') {
-            Log::error($aiProvider . ' API returned empty text', [
-                'user_id' => $user->id,
-                'chat_id' => $chatId,
-                'finish_reason' => $openAiResponse->json('candidates.0.finishReason'),
-                'body_preview' => substr($openAiResponse->body(), 0, 500),
-            ]);
-
-            return response()->json([
-                'error' => $aiProvider . ' returned an empty response. Please try again.',
-            ], 502);
-        }
-
-        // For the JSON path, verify the model returned a parseable object.
-        // If not, fall back to the markdown renderer so the UI never breaks.
-        if ($responseFormat === 'json') {
-            if ($this->extractJson($responseContent) === null) {
-                Log::warning('GoalSync JSON parse failed - falling back to markdown render', [
-                    'user_id' => $user->id,
-                    'chat_id' => $chatId,
-                    'preview' => substr((string) $responseContent, 0, 300),
-                ]);
-                $responseFormat = 'markdown';
+                UserChatAnswer::where('user_id', $user->id)->update(['status2' => 1]);
+                SearchUserChat::where('id', $chatId)->update(['status2' => 1]);
+            } catch (\Throwable $e) {
+                return $this->ai->handleException($e, 'Follow-up Chat', $user->id, $chatId);
             }
         }
 
-        // Save results to both main chat table and history
+        if (!$aiResponse->successful()) {
+            $statusCode  = $aiResponse->status();
+            $clientError = $statusCode === 429
+                ? "{$provider} API quota exceeded. Check your billing or reduce request rate."
+                : "{$provider} API request failed.";
+
+            Log::error("{$provider} Unsuccessful Response", ['user_id' => $user->id, 'chat_id' => $chatId, 'status' => $statusCode]);
+
+            return response()->json(['error' => $clientError, 'details' => $aiResponse->json() ?? $aiResponse->body()],
+                $statusCode >= 400 && $statusCode < 500 ? $statusCode : 500);
+        }
+
+        $responseContent = $this->ai->extractText($aiResponse);
+        $usage           = $this->ai->extractUsage($aiResponse);
+        $chatTotalTokens = $this->ai->recordChatTokens($chatId, $aiResponse);
+
+        if ($responseContent === '') {
+            Log::error("{$provider} returned empty text", ['user_id' => $user->id, 'chat_id' => $chatId]);
+
+            return response()->json(['error' => "{$provider} returned an empty response. Please try again."], 502);
+        }
+
+        if ($responseFormat === 'json' && $this->ai->parseJson($responseContent) === null) {
+            Log::warning('GoalSync JSON parse failed - falling back to markdown', ['user_id' => $user->id, 'chat_id' => $chatId]);
+            $responseFormat = 'markdown';
+        }
+
         $commonData = [
-            'user_id' => $user->id,
-            'answers' => $previousContext->answers ?? null,
+            'user_id'              => $user->id,
+            'answers'              => $previousContext->answers ?? null,
             'chat_role_categories' => $previousContext->chat_role_categories ?? null,
-            'categories' => $previousContext->categories ?? null,
-            'subcategories' => $previousContext->subcategories ?? null,
-            'questionmenuid' => $previousContext->questionmenuid ?? null,
-            'search' => $question,
-            'response' => $responseContent,
+            'categories'           => $previousContext->categories ?? null,
+            'subcategories'        => $previousContext->subcategories ?? null,
+            'questionmenuid'       => $previousContext->questionmenuid ?? null,
+            'search'               => $question,
+            'response'             => $responseContent,
         ];
 
-        DB::table('search_user_chat')->where('id', $chatId)->update($commonData);
+        SearchUserChat::where('id', $chatId)->update($commonData);
+        SearchUserChatData::create(array_merge($commonData, ['search_user_chat_id' => $chatId]));
 
-        DB::table('search_user_chat_data')->insert(array_merge($commonData, [
-            'search_user_chat_id' => $chatId,
-        ]));
-
-        // Return final formatted response
         return response()->json([
-            'question' => $question,
-            'answer' => $responseContent,
-            'format' => $responseFormat, // 'json' (structured contract) | 'markdown'
-            'usage' => $usage, // token usage for this request (prompt/completion/total)
-            'chat_total_tokens' => $chatTotalTokens, // chat lifetime token total
-            'chat_id' => $chatId, // Include chat_id in case it was created
-            'previousContext' => $previousContext ? (object)[
-                'status1' => $previousContext->status1 ?? null,
-                'status2' => $previousContext->status2 ?? null,
-            ] : null,
-            'chectdata' => $chectdata ? (object)[
-                'status1' => $chectdata->status1 ?? null,
-                'status2' => $chectdata->status2 ?? null,
-            ] : null,
+            'question'          => $question,
+            'answer'            => $responseContent,
+            'format'            => $responseFormat,
+            'usage'             => $usage,
+            'chat_total_tokens' => $chatTotalTokens,
+            'chat_id'           => $chatId,
+            'previousContext'   => $previousContext ? (object)['status1' => $previousContext->status1, 'status2' => $previousContext->status2] : null,
+            'chectdata'         => $chat         ? (object)['status1' => $chat->status1,         'status2' => $chat->status2]         : null,
         ]);
-   }
+    }
 
+    public function users_new_chat_update_strategy(Request $request)
+    {
+        $user             = auth()->user();
+        $selectedStrategy = $request->input('selected_strategy');
+        $chatId           = $request->input('chat_id');
+        $originalQuestion = $request->input('original_question');
+        $sectionsBefore   = $request->input('sections_before');
+        $strategyMap      = $request->input('strategy_map');
+        $isUserSelection  = $request->input('is_user_selection', false);
 
+        if (!$selectedStrategy || !$chatId || !$originalQuestion) {
+            return response()->json(['error' => 'Selected strategy, Chat ID, and original question are required.'], 400);
+        }
 
+        $systemMessage  = $this->docs->buildSystemMessage($user);
+        $systemMessage .= SearchUserChat::find($chatId)?->additionalContextBlock() ?? '';
 
-
-
-
-
-
-   public function users_new_chat_update_strategy(Request $request)
-   {
-       $user = auth()->user();
-       $selectedStrategy = $request->input('selected_strategy');
-       $chatId = $request->input('chat_id');
-       $originalQuestion = $request->input('original_question');
-       $sectionsBefore = $request->input('sections_before');
-       $strategyMap = $request->input('strategy_map');
-       $isUserSelection = $request->input('is_user_selection', false); // Flag to indicate if user actually selected this
-
-       // Validate inputs
-       if (!$selectedStrategy || !$chatId || !$originalQuestion) {
-           return response()->json(['error' => 'Selected strategy, Chat ID, and original question are required.'], 400);
-       }
-
-       // Get user's documents for company context
-       $documents = Document::where('user_id', $user->id)
-           ->whereNotNull('parsed_text')
-           ->where('parse_status', 'completed')
-           ->latest()
-           ->get();
-       
-       // Inject compact per-document summaries (capped), not the full corpus.
-       $documentContext = $this->buildCompanyDocumentContext($documents);
-
-       $systemMessage = 'You are a strategy assistant. Respond only using structured ChatGPT-style text with emojis and clean formatting based on the GoalSync method.';
-       if (!empty($documentContext)) {
-           $systemMessage .= $documentContext;
-       }
-
-       // Get additional context if it exists
-       $chatData = DB::table('search_user_chat')->where('id', $chatId)->where('user_id', $user->id)->first();
-       $additionalContext = '';
-       if ($chatData && isset($chatData->additional_context) && !empty($chatData->additional_context)) {
-           $contextArray = json_decode($chatData->additional_context, true);
-           if (is_array($contextArray) && count($contextArray) > 0) {
-               $additionalContext = "\n\n--- ADDITIONAL USER CONTEXT ---\n";
-               $additionalContext .= "The user has provided the following additional context that should be considered in your responses:\n\n";
-               foreach ($contextArray as $context) {
-                   if (!empty($context['additional_details'])) {
-                       $additionalContext .= "Additional Details: " . $context['additional_details'] . "\n";
-                   }
-                   $additionalContext .= "\n";
-               }
-               $additionalContext .= "--- END ADDITIONAL USER CONTEXT ---\n";
-           }
-       }
-       if (!empty($additionalContext)) {
-           $systemMessage .= $additionalContext;
-       }
-
-       // Build prompt to regenerate sections after Strategy Map based on selected strategy
-       $prompt = <<<EOT
+        $prompt = <<<EOT
 Strategy: "$selectedStrategy"
 Goal: "$originalQuestion"
 
@@ -1957,9 +745,9 @@ Generate these 4 sections concisely:
     Ensure at least one best-case, one worst-case, and the remaining scenarios are realistic alternatives.
     Never return fewer than 3 or more than 4 scenarios.
 
-    👥 Rephrased Goals by Role  
-    - Study the uploaded org/company documents in context.  
-    - Choose the sections/roles that are most relevant to the user’s goal.  
+    👥 Rephrased Goals by Role
+    - Study the uploaded org/company documents in context.
+    - Choose the sections/roles that are most relevant to the user's goal.
     - Output 5 to 10 roles only, numbered in order.
     - For each role: role name on one line, then "Goal:" line (1–2 sentences), then "Actions:" line with EXACTLY ONE sentence on the same line (no bullets, no dashes, no line breaks, no multiple sentences).
     - Only use role titles that actually appear in the company documents.
@@ -1972,174 +760,68 @@ Generate these 4 sections concisely:
 
 EOT;
 
-       // Send to AI provider with comprehensive error handling
-       $aiProvider = $this->aiProviderLabel();
+        $provider = $this->ai->providerLabel();
 
-       try {
-           Log::info($aiProvider . ' API Request - Update Strategy', [
-               'user_id' => $user->id,
-               'chat_id' => $chatId,
-               'prompt_length' => strlen($prompt),
-               'system_message_length' => strlen($systemMessage),
-               'selected_strategy' => $selectedStrategy,
-               'has_api_key' => !empty($aiProvider === 'OpenAI' ? config('custom.openai_api_key') : config('custom.gemini_api_key')),
-           ]);
+        try {
+            Log::info("{$provider} Request - Update Strategy", ['user_id' => $user->id, 'chat_id' => $chatId, 'selected_strategy' => $selectedStrategy]);
 
-           $openAiResponse = $this->aiGenerate($systemMessage, $prompt, 3000);
+            $aiResponse = $this->ai->generate($systemMessage, $prompt, 3000);
 
-           Log::info($aiProvider . ' API Response - Update Strategy', [
-               'user_id' => $user->id,
-               'chat_id' => $chatId,
-               'status' => $openAiResponse->status(),
-               'successful' => $openAiResponse->successful(),
-               'response_length' => strlen($openAiResponse->body()),
-           ]);
+            Log::info("{$provider} Response - Update Strategy", ['user_id' => $user->id, 'chat_id' => $chatId, 'status' => $aiResponse->status()]);
+        } catch (\Throwable $e) {
+            return $this->ai->handleException($e, 'Update Strategy', $user->id, $chatId);
+        }
 
-       } catch (ConnectionException $e) {
-           Log::error($aiProvider . ' API Connection Exception - Update Strategy', [
-               'user_id' => $user->id,
-               'chat_id' => $chatId,
-               'error_message' => $e->getMessage(),
-               'error_code' => $e->getCode(),
-               'file' => $e->getFile(),
-               'line' => $e->getLine(),
-               'trace' => $e->getTraceAsString(),
-           ]);
+        if (!$aiResponse->successful()) {
+            Log::error("{$provider} Unsuccessful Response - Update Strategy", ['user_id' => $user->id, 'chat_id' => $chatId]);
 
-           return response()->json([
-               'error' => $aiProvider . ' API connection timeout. The request took too long to complete.',
-               'details' => [
-                   'message' => $e->getMessage(),
-                   'type' => 'ConnectionException',
-                   'suggestion' => 'Please try again. If the issue persists, the ' . $aiProvider . ' API may be experiencing high load.',
-               ]
-           ], 504);
+            return response()->json(['error' => "{$provider} API request failed.", 'details' => $aiResponse->body()], 500);
+        }
 
-       } catch (RequestException $e) {
-           Log::error($aiProvider . ' API Request Exception - Update Strategy', [
-               'user_id' => $user->id,
-               'chat_id' => $chatId,
-               'error_message' => $e->getMessage(),
-               'error_code' => $e->getCode(),
-               'response_body' => $e->response ? $e->response->body() : null,
-               'response_status' => $e->response ? $e->response->status() : null,
-               'file' => $e->getFile(),
-               'line' => $e->getLine(),
-           ]);
+        $updatedSections = $this->ai->extractText($aiResponse);
+        $chatTotalTokens = $this->ai->recordChatTokens($chatId, $aiResponse);
 
-           return response()->json([
-               'error' => $aiProvider . ' API request failed.',
-               'details' => [
-                   'message' => $e->getMessage(),
-                   'type' => 'RequestException',
-                   'response' => $e->response ? $e->response->body() : null,
-               ]
-           ], 500);
+        if ($isUserSelection) {
+            $chat = SearchUserChat::where('id', $chatId)->where('user_id', $user->id)->first();
 
-       } catch (\Exception $e) {
-           Log::error($aiProvider . ' API General Exception - Update Strategy', [
-               'user_id' => $user->id,
-               'chat_id' => $chatId,
-               'error_message' => $e->getMessage(),
-               'error_code' => $e->getCode(),
-               'error_class' => get_class($e),
-               'file' => $e->getFile(),
-               'line' => $e->getLine(),
-               'trace' => $e->getTraceAsString(),
-           ]);
+            if ($chat) {
+                $fullResponse = $sectionsBefore . "\n\n" . $strategyMap . "\n\n" . $updatedSections;
 
-           return response()->json([
-               'error' => 'An unexpected error occurred while processing your request.',
-               'details' => [
-                   'message' => $e->getMessage(),
-                   'type' => get_class($e),
-               ]
-           ], 500);
-       }
+                $chat->update(['response' => $fullResponse, 'selected_strategy' => $selectedStrategy]);
 
-       // Handle API errors (non-exception cases)
-       if (!$openAiResponse->successful()) {
-           Log::error($aiProvider . ' API Unsuccessful Response - Update Strategy', [
-               'user_id' => $user->id,
-               'chat_id' => $chatId,
-               'status' => $openAiResponse->status(),
-               'response_body' => $openAiResponse->body(),
-           ]);
+                $latest = SearchUserChatData::where('search_user_chat_id', $chatId)
+                    ->where('user_id', $user->id)
+                    ->latest()
+                    ->first();
 
-           return response()->json([
-               'error' => $aiProvider . ' API request failed.',
-               'details' => $openAiResponse->body()
-           ], 500);
-       }
+                if ($latest) {
+                    $latest->update(['response' => $fullResponse]);
+                }
+            }
+        }
 
-       $updatedSections = $this->extractGeminiResponseText($openAiResponse);
-       $chatTotalTokens = $this->recordChatTokens($chatId, $openAiResponse);
-
-       // Only update database if this is a user selection (not just eager loading)
-       if ($isUserSelection) {
-           // Update the chat record with the new response (combining old sections with new)
-           $chatData = DB::table('search_user_chat')->where('id', $chatId)->where('user_id', $user->id)->first();
-           
-           if ($chatData) {
-               // Combine sections before strategy + strategy map + updated sections
-               $fullUpdatedResponse = $sectionsBefore . "\n\n" . $strategyMap . "\n\n" . $updatedSections;
-
-               DB::table('search_user_chat')->where('id', $chatId)->update([
-                   'response'          => $fullUpdatedResponse,
-                   'selected_strategy' => $selectedStrategy,
-               ]);
-
-               $latestChatData = DB::table('search_user_chat_data')
-                   ->where('search_user_chat_id', $chatId)
-                   ->where('user_id', $user->id)
-                   ->orderBy('created_at', 'desc')
-                   ->first();
-
-               if ($latestChatData) {
-                   DB::table('search_user_chat_data')
-                       ->where('id', $latestChatData->id)
-                       ->update(['response' => $fullUpdatedResponse]);
-               }
-           }
-       }
-       // If eager loading, we don't update DB - just return the response for caching
-
-       // Return updated sections
-       return response()->json([
-           'updated_sections' => $updatedSections,
-           'selected_strategy' => $selectedStrategy,
-           'chat_total_tokens' => $chatTotalTokens,
-       ]);
-   }
+        return response()->json([
+            'updated_sections'  => $updatedSections,
+            'selected_strategy' => $selectedStrategy,
+            'chat_total_tokens' => $chatTotalTokens,
+        ]);
+    }
 
     public function users_new_chat_update_scenario(Request $request)
     {
-        $user = auth()->user();
+        $user             = auth()->user();
         $selectedScenario = $request->input('selected_scenario');
         $selectedStrategy = $request->input('selected_strategy');
-        $chatId = $request->input('chat_id');
+        $chatId           = $request->input('chat_id');
         $originalQuestion = $request->input('original_question');
-        $sectionsBefore = $request->input('sections_before');
-        $scenarioSection = $request->input('scenario_section');
-        $isUserSelection = $request->boolean('is_user_selection', false);
+        $sectionsBefore   = $request->input('sections_before');
+        $isUserSelection  = $request->boolean('is_user_selection', false);
 
         if (!$selectedScenario || !$chatId || !$originalQuestion) {
             return response()->json(['error' => 'Selected scenario, Chat ID, and original question are required.'], 400);
         }
 
-        $documents = Document::where('user_id', $user->id)
-            ->whereNotNull('parsed_text')
-            ->where('parse_status', 'completed')
-            ->latest()
-            ->get();
-        
-        // Inject compact per-document summaries (capped), not the full corpus.
-        $documentContext = $this->buildCompanyDocumentContext($documents);
-
-        $systemMessage = 'You are a strategy assistant. Respond only using structured ChatGPT-style text with emojis and clean formatting based on the GoalSync method.';
-        if (!empty($documentContext)) {
-            $systemMessage .= $documentContext;
-        }
+        $systemMessage = $this->docs->buildSystemMessage($user);
 
         $prompt = <<<EOT
 Strategy Context: "{$selectedStrategy}"
@@ -2155,16 +837,11 @@ Regenerate these sections tailored to the selected scenario (and strategy if pro
 - Study the uploaded org/company documents in context.
 - Select the sections/roles most relevant to this scenario (and strategy, if provided).
 - Output 5 to 10 roles only, numbered in order (1., 2., 3., ...).
-- For each role: role name on one line, then "Goal:" line (1–2 sentences), then "Actions:" line with EXACTLY ONE sentence on the same line (no bullets, no dashes, no line breaks, no multiple sentences).
+- For each role: role name on one line, then "Goal:" line (1–2 sentences), then "Actions:" line with EXACTLY ONE sentence on the same line.
 - Only use role titles that exist in the documents.
-- Translate the goal into role-specific directions referencing:
-  * The scenario chosen ("{$selectedScenario}")
-  * That role's core responsibilities
-  * Dependencies identified earlier
-- Avoid OKR phrasing - use leadership-alignment language
-- Directions must vary per role and reference scenario impacts
-- Reference at least one dependency per role
-- No template-style outputs - make each unique
+- Translate the goal into role-specific directions referencing the scenario and role responsibilities.
+- Avoid OKR phrasing - use leadership-alignment language.
+- Reference at least one dependency per role.
 
 📌 Complementary Goals
 2 goals, 1 sentence each.
@@ -2172,120 +849,42 @@ Regenerate these sections tailored to the selected scenario (and strategy if pro
 ✅ Final Outcome Summary
 2 sentences describing the scenario's impact.
 
-Keep the same emojis and section headers exactly as shown above. Use the scenario details to adjust tone, risks, and opportunities.
+Keep the same emojis and section headers exactly as shown above.
 EOT;
 
-        $aiProvider = $this->aiProviderLabel();
+        $provider = $this->ai->providerLabel();
 
         try {
-            Log::info($aiProvider . ' API Request - Update Scenario', [
-                'user_id' => $user->id,
-                'chat_id' => $chatId,
-                'scenario' => $selectedScenario,
-                'strategy' => $selectedStrategy,
-                'prompt_length' => strlen($prompt),
-                'has_api_key' => !empty($aiProvider === 'OpenAI' ? config('custom.openai_api_key') : config('custom.gemini_api_key')),
-            ]);
+            Log::info("{$provider} Request - Update Scenario", ['user_id' => $user->id, 'chat_id' => $chatId, 'scenario' => $selectedScenario]);
 
-            $openAiResponse = $this->aiGenerate($systemMessage, $prompt, 2500);
+            $aiResponse = $this->ai->generate($systemMessage, $prompt, 2500);
 
-            Log::info($aiProvider . ' API Response - Update Scenario', [
-                'user_id' => $user->id,
-                'chat_id' => $chatId,
-                'status' => $openAiResponse->status(),
-                'successful' => $openAiResponse->successful(),
-                'response_length' => strlen($openAiResponse->body()),
-            ]);
-
-        } catch (ConnectionException $e) {
-            Log::error($aiProvider . ' API Connection Exception - Update Scenario', [
-                'user_id' => $user->id,
-                'chat_id' => $chatId,
-                'error_message' => $e->getMessage(),
-                'error_code' => $e->getCode(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-
-            return response()->json([
-                'error' => $aiProvider . ' API connection timeout. The request took too long to complete.',
-                'details' => [
-                    'message' => $e->getMessage(),
-                    'type' => 'ConnectionException',
-                    'suggestion' => 'Please try again. If the issue persists, the ' . $aiProvider . ' API may be experiencing high load.',
-                ]
-            ], 504);
-
-        } catch (RequestException $e) {
-            Log::error($aiProvider . ' API Request Exception - Update Scenario', [
-                'user_id' => $user->id,
-                'chat_id' => $chatId,
-                'error_message' => $e->getMessage(),
-                'error_code' => $e->getCode(),
-                'response_body' => $e->response ? $e->response->body() : null,
-                'response_status' => $e->response ? $e->response->status() : null,
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ]);
-
-            return response()->json([
-                'error' => $aiProvider . ' API request failed.',
-                'details' => [
-                    'message' => $e->getMessage(),
-                    'type' => 'RequestException',
-                    'response' => $e->response ? $e->response->body() : null,
-                ]
-            ], 500);
-
-        } catch (\Exception $e) {
-            Log::error($aiProvider . ' API General Exception - Update Scenario', [
-                'user_id' => $user->id,
-                'chat_id' => $chatId,
-                'error_message' => $e->getMessage(),
-                'error_code' => $e->getCode(),
-                'error_class' => get_class($e),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-
-            return response()->json([
-                'error' => 'An unexpected error occurred while processing your request.',
-                'details' => [
-                    'message' => $e->getMessage(),
-                    'type' => get_class($e),
-                ]
-            ], 500);
+            Log::info("{$provider} Response - Update Scenario", ['user_id' => $user->id, 'chat_id' => $chatId, 'status' => $aiResponse->status()]);
+        } catch (\Throwable $e) {
+            return $this->ai->handleException($e, 'Update Scenario', $user->id, $chatId);
         }
 
-        if (!$openAiResponse->successful()) {
-            Log::error($aiProvider . ' API Unsuccessful Response - Update Scenario', [
-                'user_id' => $user->id,
-                'chat_id' => $chatId,
-                'status' => $openAiResponse->status(),
-                'response_body' => $openAiResponse->body(),
-            ]);
+        if (!$aiResponse->successful()) {
+            $statusCode  = $aiResponse->status();
+            $clientError = $statusCode === 429
+                ? "{$provider} API quota exceeded. Check your billing or reduce request rate."
+                : "{$provider} API request failed.";
 
-            $statusCode = $openAiResponse->status();
-            $clientError = $statusCode === 429 ? $aiProvider . ' API quota exceeded. Check your billing or reduce request rate.' : $aiProvider . ' API request failed.';
-            return response()->json([
-                'error' => $clientError,
-                'details' => $openAiResponse->json() ?? $openAiResponse->body()
-            ], $statusCode >= 400 && $statusCode < 500 ? $statusCode : 500);
+            Log::error("{$provider} Unsuccessful Response - Update Scenario", ['user_id' => $user->id, 'chat_id' => $chatId]);
+
+            return response()->json(['error' => $clientError, 'details' => $aiResponse->json() ?? $aiResponse->body()],
+                $statusCode >= 400 && $statusCode < 500 ? $statusCode : 500);
         }
 
-        $updatedSections = $this->extractGeminiResponseText($openAiResponse);
-        $chatTotalTokens = $this->recordChatTokens($chatId, $openAiResponse);
+        $updatedSections = $this->ai->extractText($aiResponse);
+        $chatTotalTokens = $this->ai->recordChatTokens($chatId, $aiResponse);
 
         if ($isUserSelection) {
-            DB::table('search_user_chat')->where('id', $chatId)->update([
-                'selected_scenario' => $selectedScenario,
-            ]);
+            SearchUserChat::where('id', $chatId)->update(['selected_scenario' => $selectedScenario]);
         }
 
         return response()->json([
-            'updated_sections' => $updatedSections,
+            'updated_sections'  => $updatedSections,
             'selected_scenario' => $selectedScenario,
             'chat_total_tokens' => $chatTotalTokens,
         ]);
@@ -2293,279 +892,155 @@ EOT;
 
     public function users_new_chat_add_context(Request $request)
     {
-        $user = auth()->user();
-        $chatId = $request->input('chat_id');
-        $userId = $request->input('user_id');
+        $user              = auth()->user();
+        $chatId            = $request->input('chat_id');
+        $userId            = $request->input('user_id');
         $additionalDetails = $request->input('additional_details', '');
 
-        // Validate
         if (!$chatId || !$userId) {
             return response()->json(['error' => 'Chat ID and User ID are required.'], 400);
         }
 
-        // Verify chat belongs to user
-        $chatData = DB::table('search_user_chat')
-            ->where('id', $chatId)
-            ->where('user_id', $user->id)
-            ->first();
+        $chat = SearchUserChat::where('id', $chatId)->where('user_id', $user->id)->first();
 
-        if (!$chatData) {
+        if (!$chat) {
             return response()->json(['error' => 'Chat session not found or access denied.'], 404);
         }
 
-        // Build context string
-        $contextParts = [];
-        if (!empty($additionalDetails)) {
-            $contextParts[] = "Additional Details: " . $additionalDetails;
-        }
-
-        $additionalContext = implode("\n", $contextParts);
-
-        // The additional_context column is provisioned by migration, so we can
-        // update it directly (no per-request SHOW COLUMNS / ALTER TABLE needed).
         try {
-            $existingContext = $chatData->additional_context ?? '';
-            $contextArray = !empty($existingContext) ? json_decode($existingContext, true) : [];
-            if (!is_array($contextArray)) {
-                $contextArray = [];
-            }
-            $contextArray[] = [
-                'additional_details' => $additionalDetails,
-                'created_at' => now()->toDateTimeString()
-            ];
-
-            DB::table('search_user_chat')
-                ->where('id', $chatId)
-                ->update(['additional_context' => json_encode($contextArray)]);
+            $chat->appendAdditionalContext($additionalDetails);
         } catch (\Exception $e) {
-            Log::error('Error saving additional context', [
-                'error' => $e->getMessage(),
-                'chat_id' => $chatId,
-                'user_id' => $user->id
-            ]);
+            Log::error('Error saving additional context', ['error' => $e->getMessage(), 'chat_id' => $chatId]);
+
             return response()->json(['error' => 'Failed to save context: ' . $e->getMessage()], 500);
         }
 
         return response()->json([
             'success' => true,
             'message' => 'Additional context saved successfully.',
-            'context' => $additionalContext
+            'context' => !empty($additionalDetails) ? "Additional Details: {$additionalDetails}" : '',
         ]);
     }
 
-      public function userschat_search_delete(Request $request,$id)
+    public function userschat_search_delete(Request $request, $id)
     {
-        $deleted = DB::table('search_user_chat')->where('id', $id)->where('user_id', auth()->id())->delete();
+        $deleted = SearchUserChat::where('id', $id)->where('user_id', auth()->id())->delete();
+
         if ($deleted) {
-            DB::table('search_user_chat_data')->where('search_user_chat_id', $id)->delete();
+            SearchUserChatData::where('search_user_chat_id', $id)->delete();
         }
+
         flash(localize('Chat deleted successfully!'));
+
         return back();
     }
 
-    
-
-
-      public function user_view_chathistory(Request $request,$id)
+    public function user_view_chathistory(Request $request, $id)
     {
-        $user = auth()->user();
-        $userhistoryview = DB::table('user_chat_answers')->where('id', $id)->where('user_id', $user->id)->first();
-        return view('backend.pages.aiChat.user-view-chat-history', compact('user','userhistoryview'));
+        $user            = auth()->user();
+        $userhistoryview = UserChatAnswer::where('id', $id)->where('user_id', $user->id)->first();
+
+        return view('backend.pages.aiChat.user-view-chat-history', compact('user', 'userhistoryview'));
     }
 
-
-      public function chatsearch_question(Request $request)
+    public function chatsearch_question(Request $request)
     {
-        $user = auth()->user();
+        $user       = auth()->user();
         $requestall = $request->all();
 
-    if(!empty($request->subcategories)){
-        $questionmenu = DB::table('subcategory_menu')->where('role',$request->chat_role_categories)->where('categories',$request->categories)->where('subcategories',$request->subcategories)->first();
-    }else{
-      $questionmenu = DB::table('subcategory_menu')->where('role',$request->chat_role_categories)->where('categories',$request->categories)->first();
-    }
+        $query = SubcategoryMenu::forRole($request->chat_role_categories)->forCategory($request->categories);
 
-      if(!empty($questionmenu)){
-        $questionmenulist = DB::table('subcategory_menu_question')->where('subcategorymenu_id',$questionmenu->id)->where('status',1)->get();
-        $useranswerdata = DB::table('user_chat_answers')
-            ->where('user_id', $user->id)
+        $questionmenu = !empty($request->subcategories)
+            ? $query->where('subcategories', $request->subcategories)->first()
+            : $query->first();
+
+        if (!$questionmenu) {
+            flash(localize('No Question Found'));
+            return back();
+        }
+
+        $questionmenulist = $questionmenu->activeQuestions()->get();
+        $useranswerdata   = UserChatAnswer::where('user_id', $user->id)
             ->where('chat_role_categories', $request->chat_role_categories)
             ->where('categories', $request->categories)
             ->where('subcategories', $request->subcategories)
             ->first();
-        return view('backend.pages.aiChat.newchat-question', compact('useranswerdata','user','questionmenu','questionmenulist','requestall'));
-      }else{
-        flash(localize('No Question Found'));
-        return back();
-      }
 
+        return view('backend.pages.aiChat.newchat-question', compact('useranswerdata', 'user', 'questionmenu', 'questionmenulist', 'requestall'));
     }
 
-
-public function chat_question_store(Request $request)
-{
-    $userId = $request->input('id');
-    $questionIds = $request->input('question');
-    $answers = $request->input('answers');
-
-    $chatRoleCategory = $request->input('chat_role_categories');
-    $category = $request->input('categories');
-    $subcategory = $request->input('subcategories');
-    $questionMenuId = $request->input('questionmenuid');
-
-    $finalAnswers = [];
-
-    foreach ($questionIds as $questionId) {
-        $answerText = $answers[$questionId] ?? null;
-
-        if ($answerText !== null) {
-            $finalAnswers[] = [
-                'question_id' => $questionId,
-                'answer' => $answerText,
-            ];
-        }
-    }
-
-    // Encode as JSON
-    $encodedAnswers = json_encode($finalAnswers);
-
-    // Check if record exists
-    $existing = DB::table('user_chat_answers')
-        ->where('user_id', $userId)
-        ->where('chat_role_categories', $chatRoleCategory)
-        ->where('categories', $category)
-        ->where('subcategories', $subcategory)
-        ->first();
-
-    if ($existing) {
-        DB::table('user_chat_answers')
-            ->where('id', $existing->id)
-            ->update([
-                'status1' => 0,
-                'answers' => $encodedAnswers,
-                'questionmenuid' => $questionMenuId,
-            ]);
-
-        $newChat = DB::table('search_user_chat')->insertGetId([
-            'user_id' => $userId,
-            'answers' => $encodedAnswers,
-            'chat_role_categories' => $chatRoleCategory,
-            'categories' => $category,
-            'subcategories' => $subcategory,
-            'questionmenuid' => $questionMenuId,
-        ]); 
-
-    } else {
-        DB::table('user_chat_answers')->insert([
-            'user_id' => $userId,
-            'answers' => $encodedAnswers,
-            'chat_role_categories' => $chatRoleCategory,
-            'categories' => $category,
-            'subcategories' => $subcategory,
-            'questionmenuid' => $questionMenuId,
-            'status1' => 0,
-        ]);
-
-        $newChat = DB::table('search_user_chat')->insertGetId([
-            'user_id' => $userId,
-            'answers' => $encodedAnswers,
-            'chat_role_categories' => $chatRoleCategory,
-            'categories' => $category,
-            'subcategories' => $subcategory,
-            'questionmenuid' => $questionMenuId,
-        ]);
-    }
-
-    flash(localize('Answers processed successfully.'));
-    return redirect('dashboard/users-new-chat/'.$newChat);
-}
-
-    /**
-     * Generate Leadership Alignment Brief
-     */
-    /**
-     * Resolve the chosen strategy name and scenario label for a chat from its
-     * stored GoalSync JSON contract. Returns [strategyName|null, scenarioLabel|null].
-     * Used as a fallback when the request doesn't carry the live UI selection.
-     */
-    private function resolveSelectionFromContract($chatId): array
+    public function chat_question_store(Request $request)
     {
-        // The first message stores the JSON contract; later follow-ups may overwrite
-        // search_user_chat.response with markdown, so scan the per-message history too.
-        $candidates = DB::table('search_user_chat_data')
-            ->where('search_user_chat_id', $chatId)
-            ->orderBy('id')
-            ->pluck('response')
-            ->all();
+        $userId         = $request->input('id');
+        $questionIds    = $request->input('question');
+        $answers        = $request->input('answers');
+        $chatRole       = $request->input('chat_role_categories');
+        $category       = $request->input('categories');
+        $subcategory    = $request->input('subcategories');
+        $questionMenuId = $request->input('questionmenuid');
 
-        $main = DB::table('search_user_chat')->where('id', $chatId)->value('response');
-        if ($main) {
-            $candidates[] = $main;
+        $finalAnswers = [];
+
+        foreach ($questionIds as $questionId) {
+            if (isset($answers[$questionId])) {
+                $finalAnswers[] = ['question_id' => $questionId, 'answer' => $answers[$questionId]];
+            }
         }
 
-        foreach ($candidates as $resp) {
-            $data = $this->extractJson((string) $resp);
-            if (!is_array($data) || empty($data['strategyMap']) || !is_array($data['strategyMap'])) {
-                continue;
-            }
+        $encodedAnswers = json_encode($finalAnswers);
+        $chatData       = [
+            'user_id'              => $userId,
+            'answers'              => $encodedAnswers,
+            'chat_role_categories' => $chatRole,
+            'categories'           => $category,
+            'subcategories'        => $subcategory,
+            'questionmenuid'       => $questionMenuId,
+        ];
 
-            $selStratId = $data['selectedStrategyId'] ?? ($data['strategyMap'][0]['id'] ?? null);
+        $existing = UserChatAnswer::where('user_id', $userId)
+            ->where('chat_role_categories', $chatRole)
+            ->where('categories', $category)
+            ->where('subcategories', $subcategory)
+            ->first();
 
-            $strategyName = null;
-            foreach ($data['strategyMap'] as $s) {
-                if (is_array($s) && ($s['id'] ?? null) === $selStratId) {
-                    $strategyName = $s['name'] ?? null;
-                    break;
-                }
-            }
-            if ($strategyName === null) {
-                $strategyName = $data['strategyMap'][0]['name'] ?? null;
-            }
-
-            $scenarioLabel = null;
-            $variant = $data['strategyVariants'][$selStratId] ?? null;
-            if (is_array($variant)) {
-                $selScenId = $variant['selectedScenarioId'] ?? ($variant['scenarios'][0]['id'] ?? null);
-                foreach (($variant['scenarios'] ?? []) as $sc) {
-                    if (is_array($sc) && ($sc['id'] ?? null) === $selScenId) {
-                        $scenarioLabel = $sc['label'] ?? null;
-                        break;
-                    }
-                }
-                if ($scenarioLabel === null) {
-                    $scenarioLabel = $variant['scenarios'][0]['label'] ?? null;
-                }
-            }
-
-            return [$strategyName, $scenarioLabel];
+        if ($existing) {
+            $existing->update(['status1' => 0, 'answers' => $encodedAnswers, 'questionmenuid' => $questionMenuId]);
+        } else {
+            UserChatAnswer::create(array_merge($chatData, ['status1' => 0]));
         }
 
-        return [null, null];
+        $newChat = SearchUserChat::create($chatData);
+
+        flash(localize('Answers processed successfully.'));
+
+        return redirect('dashboard/users-new-chat/' . $newChat->id);
     }
+
+    // ---------------------------------------------------------------------------
+    // Leadership Alignment Brief & Action Table
+    // ---------------------------------------------------------------------------
 
     public function generate_leadership_alignment_brief(Request $request)
     {
-        $user = auth()->user();
-        $chatId = $request->input('chat_id');
+        $user             = auth()->user();
+        $chatId           = $request->input('chat_id');
         $selectedStrategy = trim((string) $request->input('selected_strategy'));
         $selectedScenario = trim((string) $request->input('selected_scenario'));
         $originalQuestion = $request->input('original_question');
-        $fullResponse = $request->input('full_response');
+        $fullResponse     = $request->input('full_response');
 
         if (!$chatId || !$originalQuestion) {
             return response()->json(['error' => 'Chat ID and original question are required.'], 400);
         }
 
-        if (!DB::table('search_user_chat')->where('id', $chatId)->where('user_id', $user->id)->exists()) {
+        if (!SearchUserChat::where('id', $chatId)->where('user_id', $user->id)->exists()) {
             return response()->json(['error' => 'Chat not found or access denied.'], 403);
         }
 
-        // The frontend only sends the selection from in-page JS state, which can be
-        // empty (e.g. a chat reopened from history), and the selection is not
-        // persisted as its own column. Fall back to the names recorded in the
-        // stored GoalSync contract so the brief never shows "Not provided".
+        // Fall back to names from the stored contract if JS state is missing (e.g. history reload).
         if ($selectedStrategy === '' || $selectedScenario === '') {
             [$stratFromContract, $scenFromContract] = $this->resolveSelectionFromContract($chatId);
+
             if ($selectedStrategy === '' && $stratFromContract) {
                 $selectedStrategy = $stratFromContract;
             }
@@ -2574,20 +1049,7 @@ public function chat_question_store(Request $request)
             }
         }
 
-        // Get user's documents
-        $documents = Document::where('user_id', $user->id)
-            ->whereNotNull('parsed_text')
-            ->where('parse_status', 'completed')
-            ->latest()
-            ->get();
-        
-        // Inject compact per-document summaries (capped), not the full corpus.
-        $documentContext = $this->buildCompanyDocumentContext($documents);
-
-        $systemMessage = 'You are an executive strategy assistant. Provide executive-ready, consulting-style summaries.';
-        if (!empty($documentContext)) {
-            $systemMessage .= $documentContext;
-        }
+        $systemMessage = $this->docs->buildSystemMessage($user, 'You are an executive strategy assistant. Provide executive-ready, consulting-style summaries.');
 
         $prompt = <<<EOT
 Provide an executive-ready alignment summary in a clean, structured consulting format.
@@ -2604,11 +1066,8 @@ Generate a Leadership Alignment Brief with the following structure:
 
 📋 LEADERSHIP ALIGNMENT BRIEF
 
-**Decision Chosen:**
-[Name of the selected decision path]
-
-**Scenario Selected:**
-[Name of the selected scenario]
+**Decision Chosen:** [Name of the selected decision path]
+**Scenario Selected:** [Name of the selected scenario]
 
 **Top 3 Risks:**
 1. [Risk 1 with brief description]
@@ -2620,111 +1079,58 @@ Generate a Leadership Alignment Brief with the following structure:
 2. [Dependency 2 - specific teams/roles/resources]
 3. [Dependency 3 - specific teams/roles/resources]
 
-**Teams Impacted:**
-[List specific teams/roles that will be affected]
+**Teams Impacted:** [List specific teams/roles that will be affected]
+**Alignment Score:** [Low/Med/High] - [Brief rationale]
+**Recommended Next Step for Leadership:** [1-2 sentences with specific, actionable recommendation]
 
-**Alignment Score:**
-[Low/Med/High] - [Brief rationale]
-
-**Recommended Next Step for Leadership:**
-[1-2 sentences with specific, actionable recommendation]
-
-Format:
-- Use clean, structured bullet points
-- No fluff - be concise and actionable
-- Executive-ready language
-- Consulting-style format
-- For "Decision Chosen" and "Scenario Selected", use the Context values above when present; if either is blank, infer the most likely chosen path/scenario from the Full Analysis Context. NEVER output "Not provided" or leave them blank.
+Format: concise, executive-ready, consulting-style. For "Decision Chosen" and "Scenario Selected", infer from context if blank — NEVER output "Not provided".
 EOT;
 
         try {
-            $openAiResponse = $this->aiGenerate($systemMessage, $prompt, 2000);
+            $aiResponse = $this->ai->generate($systemMessage, $prompt, 2000);
 
-            if ($openAiResponse->successful()) {
-                $brief = $this->extractGeminiResponseText($openAiResponse);
-                $chatTotalTokens = $this->recordChatTokens($chatId, $openAiResponse);
-
-                // Save brief to database
-                try {
-                    DB::table('search_user_chat')
-                        ->where('id', $chatId)
-                        ->where('user_id', $user->id)
-                        ->update(['leadership_brief' => $brief]);
-                } catch (\Exception $e) {
-                    Log::error('Failed to save leadership brief to database', [
-                        'chat_id' => $chatId,
-                        'error'   => $e->getMessage(),
-                    ]);
-                    return response()->json([
-                        'success'           => true,
-                        'brief'             => $brief,
-                        'chat_total_tokens' => $chatTotalTokens,
-                        'warning'           => 'Brief generated but could not be saved: ' . $e->getMessage(),
-                    ]);
-                }
-                
-                return response()->json([
-                    'success' => true,
-                    'brief' => $brief,
-                    'chat_total_tokens' => $chatTotalTokens
-                ]);
-            } else {
-                return response()->json([
-                    'error' => 'Failed to generate alignment brief.',
-                    'details' => $openAiResponse->body()
-                ], 500);
+            if (!$aiResponse->successful()) {
+                return response()->json(['error' => 'Failed to generate alignment brief.', 'details' => $aiResponse->body()], 500);
             }
-        } catch (\Exception $e) {
-            Log::error('Leadership Alignment Brief Generation Failed', [
-                'user_id' => $user->id,
-                'chat_id' => $chatId,
-                'error' => $e->getMessage()
-            ]);
 
-            return response()->json([
-                'error' => 'An error occurred while generating the alignment brief.',
-                'details' => $e->getMessage()
-            ], 500);
+            $brief           = $this->ai->extractText($aiResponse);
+            $chatTotalTokens = $this->ai->recordChatTokens($chatId, $aiResponse);
+
+            try {
+                SearchUserChat::where('id', $chatId)->where('user_id', $user->id)->update(['leadership_brief' => $brief]);
+            } catch (\Exception $e) {
+                Log::error('Failed to save leadership brief', ['chat_id' => $chatId, 'error' => $e->getMessage()]);
+
+                return response()->json(['success' => true, 'brief' => $brief, 'chat_total_tokens' => $chatTotalTokens, 'warning' => 'Brief generated but could not be saved: ' . $e->getMessage()]);
+            }
+
+            return response()->json(['success' => true, 'brief' => $brief, 'chat_total_tokens' => $chatTotalTokens]);
+        } catch (\Exception $e) {
+            Log::error('Leadership Alignment Brief Generation Failed', ['user_id' => $user->id, 'chat_id' => $chatId, 'error' => $e->getMessage()]);
+
+            return response()->json(['error' => 'An error occurred while generating the alignment brief.', 'details' => $e->getMessage()], 500);
         }
     }
 
-    /**
-     * Generate a Recommended Action Table (Role -> one recommended action)
-     * from the existing chat context, scenario, strategy and role goals.
-     * Returns structured rows so the frontend can render the decision column.
-     */
     public function generate_recommended_action_table(Request $request)
     {
-        $user = auth()->user();
-        $chatId = $request->input('chat_id');
+        $user             = auth()->user();
+        $chatId           = $request->input('chat_id');
         $selectedStrategy = $request->input('selected_strategy');
         $selectedScenario = $request->input('selected_scenario');
         $originalQuestion = $request->input('original_question');
-        $fullResponse = $request->input('full_response');
-        $roleGoalsText = $request->input('role_goals_text');
+        $fullResponse     = $request->input('full_response');
+        $roleGoalsText    = $request->input('role_goals_text');
 
         if (!$chatId || !$originalQuestion) {
             return response()->json(['error' => 'Chat ID and original question are required.'], 400);
         }
 
-        if (!DB::table('search_user_chat')->where('id', $chatId)->where('user_id', $user->id)->exists()) {
+        if (!SearchUserChat::where('id', $chatId)->where('user_id', $user->id)->exists()) {
             return response()->json(['error' => 'Chat not found or access denied.'], 403);
         }
 
-        // Company documents context (same source the brief uses)
-        $documents = Document::where('user_id', $user->id)
-            ->whereNotNull('parsed_text')
-            ->where('parse_status', 'completed')
-            ->latest()
-            ->get();
-
-        // Inject compact per-document summaries (capped), not the full corpus.
-        $documentContext = $this->buildCompanyDocumentContext($documents);
-
-        $systemMessage = 'You are an executive strategy assistant. Return ONLY valid JSON. No markdown, no code fences, no commentary.';
-        if (!empty($documentContext)) {
-            $systemMessage .= $documentContext;
-        }
+        $systemMessage = $this->docs->buildSystemMessage($user, 'You are an executive strategy assistant. Return ONLY valid JSON. No markdown, no code fences, no commentary.');
 
         $prompt = <<<EOT
 Based on the strategy work below, produce a Recommended Action Table.
@@ -2744,90 +1150,150 @@ Output a JSON object with EXACTLY this shape:
 {"rows":[{"role":"<role title>","action":"<one concrete recommended action sentence>"}]}
 
 Rules:
-- 5 to 8 rows.
-- Use only roles that appear in the role goals / documents above.
+- 5 to 8 rows. Use only roles that appear in the role goals / documents above.
 - "action" = exactly ONE specific, decision-ready sentence (no bullets, no line breaks, no numbering).
 - Tailor each action to the chosen scenario and strategy.
 - Return ONLY the JSON object, nothing else.
 EOT;
 
         try {
-            $aiResponse = $this->aiGenerate($systemMessage, $prompt, 1500, 0.7, true);
+            $aiResponse = $this->ai->generate($systemMessage, $prompt, 1500, 0.7, true);
 
-            if ($aiResponse->successful()) {
-                $text = $this->extractGeminiResponseText($aiResponse);
-                $chatTotalTokens = $this->recordChatTokens($chatId, $aiResponse);
-                $rows = $this->parseRecommendedActionRows($text);
-
-                if (empty($rows)) {
-                    return response()->json([
-                        'error' => 'No rows could be parsed from the AI response.',
-                        'raw' => $text,
-                    ], 500);
-                }
-
-                return response()->json(['success' => true, 'rows' => $rows, 'chat_total_tokens' => $chatTotalTokens]);
+            if (!$aiResponse->successful()) {
+                return response()->json(['error' => 'Failed to generate recommended action table.', 'details' => $aiResponse->body()], 500);
             }
 
-            return response()->json([
-                'error' => 'Failed to generate recommended action table.',
-                'details' => $aiResponse->body(),
-            ], 500);
+            $text            = $this->ai->extractText($aiResponse);
+            $chatTotalTokens = $this->ai->recordChatTokens($chatId, $aiResponse);
+            $rows            = $this->parseRecommendedActionRows($text);
+
+            if (empty($rows)) {
+                return response()->json(['error' => 'No rows could be parsed from the AI response.', 'raw' => $text], 500);
+            }
+
+            return response()->json(['success' => true, 'rows' => $rows, 'chat_total_tokens' => $chatTotalTokens]);
         } catch (\Exception $e) {
-            Log::error('Recommended Action Table Generation Failed', [
-                'user_id' => $user->id,
-                'chat_id' => $chatId,
-                'error' => $e->getMessage(),
-            ]);
+            Log::error('Recommended Action Table Generation Failed', ['user_id' => $user->id, 'chat_id' => $chatId, 'error' => $e->getMessage()]);
 
-            return response()->json([
-                'error' => 'An error occurred while generating the recommended action table.',
-                'details' => $e->getMessage(),
-            ], 500);
+            return response()->json(['error' => 'An error occurred while generating the recommended action table.', 'details' => $e->getMessage()], 500);
         }
     }
 
-    /**
-     * Tolerant JSON object extractor. Strips ``` fences and any prose the model
-     * may add around the object, then decodes. Returns an associative array or
-     * null. Shared by all JSON-mode generation endpoints.
-     */
-    private function extractJson($text)
+    // ---------------------------------------------------------------------------
+    // Export
+    // ---------------------------------------------------------------------------
+
+    public function export_role_goals(Request $request)
     {
-        if (!$text) {
-            return null;
+        $user          = auth()->user();
+        $roleGoalsText = $request->input('role_goals_text');
+        $goal          = $request->input('goal', '');
+        $scenario      = $request->input('scenario', '');
+        $strategy      = $request->input('strategy', '');
+
+        if (!$roleGoalsText) {
+            return response()->json(['error' => 'Role goals text is required.'], 400);
         }
 
-        $clean = trim($text);
-        $clean = preg_replace('/^```(?:json)?/i', '', $clean);
-        $clean = preg_replace('/```$/', '', $clean);
-        $clean = trim($clean);
+        $roleGoals = $this->parseRoleGoalsFromText($roleGoalsText);
 
-        // Isolate the outermost JSON object if the model added prose around it.
-        $start = strpos($clean, '{');
-        $end = strrpos($clean, '}');
-        if ($start !== false && $end !== false && $end > $start) {
-            $clean = substr($clean, $start, $end - $start + 1);
+        if (empty($roleGoals)) {
+            return response()->json(['error' => 'No role goals found to export.'], 400);
         }
 
-        $data = json_decode($clean, true);
+        try {
+            return Excel::download(new RoleGoalsExport($roleGoals, $goal, $scenario, $strategy), 'role_goals_' . date('Y-m-d_His') . '.xlsx');
+        } catch (\Exception $e) {
+            Log::error('Role Goals Export Failed', ['user_id' => $user->id, 'error' => $e->getMessage()]);
 
-        return is_array($data) ? $data : null;
+            return response()->json(['error' => 'Failed to export role goals.', 'details' => $e->getMessage()], 500);
+        }
     }
 
-    /**
-     * Parse the {"rows":[{"role","action"}]} JSON the model returns,
-     * tolerating code fences or stray text around the JSON object.
-     */
-    private function parseRecommendedActionRows($text)
-    {
-        $data = $this->extractJson($text);
+    // ---------------------------------------------------------------------------
+    // Private helpers
+    // ---------------------------------------------------------------------------
 
+    private function resolveAdditionalContext(Request $request, SearchUserChat $chat, $additionalContext): string
+    {
+        if ($additionalContext && is_array($additionalContext) && !empty($additionalContext['additional_details'])) {
+            try {
+                $chat->appendAdditionalContext($additionalContext['additional_details']);
+            } catch (\Exception $e) {
+                Log::error('Error saving context to database', ['error' => $e->getMessage()]);
+            }
+
+            return "\n\n--- ADDITIONAL USER CONTEXT (FROM THIS REQUEST) ---\n"
+                . "Additional Details: " . $additionalContext['additional_details']
+                . "\n--- END ADDITIONAL USER CONTEXT ---\n";
+        }
+
+        return $chat->additionalContextBlock();
+    }
+
+    private function resolveSelectionFromContract($chatId): array
+    {
+        $candidates = SearchUserChatData::where('search_user_chat_id', $chatId)
+            ->orderBy('id')
+            ->pluck('response')
+            ->all();
+
+        $main = SearchUserChat::where('id', $chatId)->value('response');
+
+        if ($main) {
+            $candidates[] = $main;
+        }
+
+        foreach ($candidates as $resp) {
+            $data = $this->ai->parseJson((string) $resp);
+
+            if (!is_array($data) || empty($data['strategyMap'])) {
+                continue;
+            }
+
+            $selStratId   = $data['selectedStrategyId'] ?? ($data['strategyMap'][0]['id'] ?? null);
+            $strategyName = null;
+
+            foreach ($data['strategyMap'] as $s) {
+                if (is_array($s) && ($s['id'] ?? null) === $selStratId) {
+                    $strategyName = $s['name'] ?? null;
+                    break;
+                }
+            }
+
+            $strategyName  = $strategyName ?? ($data['strategyMap'][0]['name'] ?? null);
+            $scenarioLabel = null;
+            $variant       = $data['strategyVariants'][$selStratId] ?? null;
+
+            if (is_array($variant)) {
+                $selScenId = $variant['selectedScenarioId'] ?? ($variant['scenarios'][0]['id'] ?? null);
+
+                foreach (($variant['scenarios'] ?? []) as $sc) {
+                    if (is_array($sc) && ($sc['id'] ?? null) === $selScenId) {
+                        $scenarioLabel = $sc['label'] ?? null;
+                        break;
+                    }
+                }
+
+                $scenarioLabel = $scenarioLabel ?? ($variant['scenarios'][0]['label'] ?? null);
+            }
+
+            return [$strategyName, $scenarioLabel];
+        }
+
+        return [null, null];
+    }
+
+    private function parseRecommendedActionRows($text): array
+    {
+        $data = $this->ai->parseJson($text);
         $rows = [];
+
         if (is_array($data) && isset($data['rows']) && is_array($data['rows'])) {
             foreach ($data['rows'] as $r) {
-                $role = isset($r['role']) ? trim($r['role']) : '';
+                $role   = isset($r['role']) ? trim($r['role']) : '';
                 $action = isset($r['action']) ? trim(preg_replace('/\s+/', ' ', $r['action'])) : '';
+
                 if ($role !== '' && $action !== '') {
                     $rows[] = ['role' => $role, 'action' => $action];
                 }
@@ -2837,85 +1303,33 @@ EOT;
         return $rows;
     }
 
-    /**
-     * Export Role-Based Goals to Spreadsheet
-     */
-    public function export_role_goals(Request $request)
+    private function parseRoleGoalsFromText($text): array
     {
-        $user = auth()->user();
-        $roleGoalsText = $request->input('role_goals_text');
-        $goal = $request->input('goal', '');
-        $scenario = $request->input('scenario', '');
-        $strategy = $request->input('strategy', '');
-
-        if (!$roleGoalsText) {
-            return response()->json(['error' => 'Role goals text is required.'], 400);
-        }
-
-        // Parse role goals from text
-        $roleGoals = $this->parseRoleGoalsFromText($roleGoalsText);
-
-        if (empty($roleGoals)) {
-            return response()->json(['error' => 'No role goals found to export.'], 400);
-        }
-
-        try {
-            $export = new RoleGoalsExport($roleGoals, $goal, $scenario, $strategy);
-            $fileName = 'role_goals_' . date('Y-m-d_His') . '.xlsx';
-            
-            return Excel::download($export, $fileName);
-        } catch (\Exception $e) {
-            Log::error('Role Goals Export Failed', [
-                'user_id' => $user->id,
-                'error' => $e->getMessage()
-            ]);
-
-            return response()->json([
-                'error' => 'Failed to export role goals.',
-                'details' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Parse role goals from text format
-     */
-    private function parseRoleGoalsFromText($text)
-    {
-        $roleGoals = [];
-        $lines = explode("\n", $text);
-
-        $currentRole = null;
-        $currentGoal = '';
+        $roleGoals      = [];
+        $currentRole    = null;
+        $currentGoal    = '';
         $currentActions = [];
-        $mode = null; // 'goal' | 'actions' | 'role'
+        $mode           = null;
 
         $flush = function () use (&$roleGoals, &$currentRole, &$currentGoal, &$currentActions) {
             if ($currentRole && (trim($currentGoal) !== '' || !empty($currentActions))) {
-                $roleGoals[] = [
-                    'role'    => $currentRole,
-                    'goal'    => trim($currentGoal),
-                    'actions' => implode("\n", $currentActions),
-                    'notes'   => '',
-                ];
+                $roleGoals[] = ['role' => $currentRole, 'goal' => trim($currentGoal), 'actions' => implode("\n", $currentActions), 'notes' => ''];
             }
         };
 
-        foreach ($lines as $line) {
+        foreach (explode("\n", $text) as $line) {
             $line = trim($line);
 
-            // Skip empty lines and section headers
             if (empty($line) || strpos($line, '👥') !== false || stripos($line, 'Rephrased Goals') !== false) {
                 continue;
             }
 
-            // "Goal:" line
             if (preg_match('/^Goal:\s*(.+)$/i', $line, $m)) {
                 $currentGoal = trim($m[1]);
-                $mode = 'goal';
+                $mode        = 'goal';
                 continue;
             }
-            // "Actions:" header (may carry inline text)
+
             if (preg_match('/^Actions:\s*(.*)$/i', $line, $m)) {
                 $mode = 'actions';
                 if (trim($m[1]) !== '') {
@@ -2923,7 +1337,7 @@ EOT;
                 }
                 continue;
             }
-            // Bullet line -> action or goal continuation depending on mode
+
             if (preg_match('/^[-•*]\s*(.+)$/', $line, $m)) {
                 if ($mode === 'actions') {
                     $currentActions[] = trim($m[1]);
@@ -2932,22 +1346,22 @@ EOT;
                 }
                 continue;
             }
-            // Role line (numbered or Title-case). Checked AFTER Goal/Actions/bullets.
+
             if (preg_match('/^(\d+\.?\s*)?([A-Z][^:]+?):?\s*$/', $line, $m)) {
                 $flush();
-                $currentRole = trim($m[2]);
-                $currentGoal = '';
+                $currentRole    = trim($m[2]);
+                $currentGoal    = '';
                 $currentActions = [];
-                $mode = 'role';
+                $mode           = 'role';
                 continue;
             }
-            // Continuation text
+
             if ($currentRole) {
                 if ($mode === 'actions') {
                     $currentActions[] = $line;
                 } else {
                     $currentGoal = trim(($currentGoal !== '' ? $currentGoal . ' ' : '') . $line);
-                    $mode = 'goal';
+                    $mode        = 'goal';
                 }
             }
         }
@@ -2957,4 +1371,3 @@ EOT;
         return $roleGoals;
     }
 }
-
