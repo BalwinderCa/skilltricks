@@ -1126,13 +1126,42 @@ EOT;
         $originalQuestion = $request->input('original_question');
         $fullResponse = $request->input('full_response');
         $roleGoalsText = $request->input('role_goals_text');
+        $checkOnly = filter_var($request->input('check_only', false), FILTER_VALIDATE_BOOLEAN);
 
-        if (! $chatId || ! $originalQuestion) {
-            return response()->json(['error' => 'Chat ID and original question are required.'], 400);
+        if (! $chatId) {
+            return response()->json(['error' => 'Chat ID is required.'], 400);
         }
 
         if (! SearchUserChat::where('id', $chatId)->where('user_id', $user->id)->exists()) {
             return response()->json(['error' => 'Chat not found or access denied.'], 403);
+        }
+
+        // First, check if expected states already exist for this chat ID
+        $existingStates = ExpectedState::where('search_user_chat_id', $chatId)->get();
+        if ($existingStates->isNotEmpty()) {
+            $rows = $existingStates->map(function ($state) {
+                return [
+                    'id' => $state->id,
+                    'role' => $state->role,
+                    'action' => $state->recommended_action,
+                    'decision' => $state->decision,
+                    'success_metric' => $state->success_metric,
+                    'target_value' => $state->target_value,
+                    'target_date' => $state->target_date ? Carbon::parse($state->target_date)->toDateString() : null,
+                    'resources_committed' => $state->resources_committed,
+                    'depends_on_id' => $state->depends_on_id,
+                ];
+            })->all();
+
+            return response()->json(['success' => true, 'rows' => $rows, 'from_cache' => true]);
+        }
+
+        if ($checkOnly) {
+            return response()->json(['success' => false, 'rows' => []]);
+        }
+
+        if (! $originalQuestion) {
+            return response()->json(['error' => 'Original question is required for generation.'], 400);
         }
 
         $systemMessage = $this->docs->buildSystemMessage($user, 'You are an executive strategy assistant. Return ONLY valid JSON. No markdown, no code fences, no commentary.');
@@ -1174,6 +1203,26 @@ EOT;
 
             if (empty($rows)) {
                 return response()->json(['error' => 'No rows could be parsed from the AI response.', 'raw' => $text], 500);
+            }
+
+            // Persist the newly generated rows to the expected_states database table so they are saved
+            foreach ($rows as &$row) {
+                $state = ExpectedState::updateOrCreate(
+                    [
+                        'search_user_chat_id' => $chatId,
+                        'role' => $row['role'],
+                    ],
+                    [
+                        'recommended_action' => $row['action'],
+                    ]
+                );
+                $row['id'] = $state->id;
+                $row['decision'] = $state->decision;
+                $row['success_metric'] = $state->success_metric;
+                $row['target_value'] = $state->target_value;
+                $row['target_date'] = $state->target_date ? Carbon::parse($state->target_date)->toDateString() : null;
+                $row['resources_committed'] = $state->resources_committed;
+                $row['depends_on_id'] = $state->depends_on_id;
             }
 
             return response()->json(['success' => true, 'rows' => $rows, 'chat_total_tokens' => $chatTotalTokens]);

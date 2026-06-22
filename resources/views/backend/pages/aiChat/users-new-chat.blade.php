@@ -3504,7 +3504,7 @@ document.addEventListener('click', function (e) {
     }
 
     // Build the Recommended Action Table HTML with a 3-option decision column.
-    // No option is pre-selected ("do nothing for now" is the default state).
+    // Restores pre-selected choices from the database and highlights active commitments.
     window.renderRecommendedActionTable = function(rows, container) {
         const choices = ['Act on it', 'Review in detail', 'Not viable for us'];
         let html = '<div class="response-text"><div class="table-responsive">'
@@ -3519,12 +3519,30 @@ document.addEventListener('click', function (e) {
             let opts = '';
             choices.forEach((c, j) => {
                 const id = `action_choice_${i}_${j}`;
+                let checkedAttr = '';
+                
+                // Map database decision keyword to UI choice text
+                let matchesChoice = false;
+                if (r.decision === 'act_on_it' && c === 'Act on it') matchesChoice = true;
+                if (r.decision === 'review_in_detail' && c === 'Review in detail') matchesChoice = true;
+                if (r.decision === 'not_viable' && c === 'Not viable for us') matchesChoice = true;
+                
+                if (matchesChoice) {
+                    checkedAttr = 'checked';
+                }
+
                 opts += `<div class="form-check">
-                    <input class="form-check-input action-choice-input" type="radio" name="action_choice_${i}" id="${id}" value="${escapeActionHtml(c)}" data-role="${role}" data-action="${action}">
+                    <input class="form-check-input action-choice-input" type="radio" name="action_choice_${i}" id="${id}" value="${escapeActionHtml(c)}" data-role="${role}" data-action="${action}" ${checkedAttr}>
                     <label class="form-check-label" for="${id}">${c}</label>
                 </div>`;
             });
-            html += `<tr>
+
+            let rowStyle = '';
+            if (r.decision === 'act_on_it') {
+                rowStyle = 'class="table-success" style="background-color: rgba(25, 135, 84, 0.1);"';
+            }
+
+            html += `<tr ${rowStyle}>
                 <td><strong>${role}</strong></td>
                 <td>${action}</td>
                 <td>${opts}</td>
@@ -4090,7 +4108,7 @@ document.addEventListener('click', function (e) {
     }, 1200);
 
     // Call backend to generate the table from existing chat/scenario/role data
-    function generateRecommendedActionTable(roleGoalsSection, genBtn, resultDiv) {
+    function generateRecommendedActionTable(roleGoalsSection, genBtn, resultDiv, suggestionBox) {
         genBtn.disabled = true;
         resultDiv.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split me-2"></i>Generating recommended action table...</div>';
 
@@ -4120,6 +4138,9 @@ document.addEventListener('click', function (e) {
             genBtn.disabled = false;
             if (data.chat_total_tokens !== undefined) window.setChatTokenTotal(data.chat_total_tokens);
             if (data.success && Array.isArray(data.rows) && data.rows.length) {
+                if (suggestionBox) {
+                    suggestionBox.style.display = 'none';
+                }
                 window.renderRecommendedActionTable(data.rows, resultDiv);
             } else {
                 resultDiv.innerHTML = '<div class="alert alert-warning"><i class="bi bi-exclamation-triangle me-2"></i>Could not generate table: ' + (data.error || 'no rows returned') + '</div>';
@@ -4129,6 +4150,36 @@ document.addEventListener('click', function (e) {
             genBtn.disabled = false;
             resultDiv.innerHTML = '<div class="alert alert-danger">Error generating table: ' + err.message + '</div>';
         });
+    }
+
+    // Check if the recommended action table already exists in the database on load,
+    // and if so, render it and hide the Suggestion Box.
+    function checkAndLoadExistingTable(roleGoalsSection, resultDiv, suggestionBox) {
+        const chatId = window.chatChatId || (document.getElementById('chat_id') ? document.getElementById('chat_id').value : '');
+        if (!chatId) return;
+
+        const roleGoalsText = (roleGoalsSection.textContent || roleGoalsSection.innerText || '').trim();
+
+        fetch('{{ route("users-new-chat-generate-action-table.index") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+            body: JSON.stringify({
+                chat_id: chatId,
+                original_question: window.chatQuestion || '',
+                check_only: true,
+                role_goals_text: roleGoalsText
+            })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success && Array.isArray(data.rows) && data.rows.length) {
+                if (suggestionBox) {
+                    suggestionBox.style.display = 'none';
+                }
+                window.renderRecommendedActionTable(data.rows, resultDiv);
+            }
+        })
+        .catch(err => console.error('Error auto-loading action table:', err));
     }
 
     // Inject the "Refining the Workflow Output" suggestion + button into every
@@ -4156,9 +4207,9 @@ document.addEventListener('click', function (e) {
             if (targetCard.querySelector('.action-table-suggestion')) return; // already added
 
             const wrap = document.createElement('div');
-            wrap.className = 'action-table-suggestion mt-3';
+            wrap.className = 'action-table-suggestion';
             wrap.innerHTML = `
-                <div class="action-table-suggestion-box">
+                <div class="action-table-suggestion-box mt-3 mb-3">
                     <div class="ats-title"><i class="bi bi-lightbulb me-1"></i>Refining the Workflow Output</div>
                     <button type="button" class="btn btn-primary btn-sm generate-action-table-btn mt-2">
                         <i class="bi bi-table me-1"></i>Generate Recommended Action Table
@@ -4172,11 +4223,15 @@ document.addEventListener('click', function (e) {
 
             const genBtn = wrap.querySelector('.generate-action-table-btn');
             const resultDiv = wrap.querySelector('.action-table-result');
+            const suggestionBox = wrap.querySelector('.action-table-suggestion-box');
             genBtn.addEventListener('click', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
-                generateRecommendedActionTable(roleGoalsSection, genBtn, resultDiv);
+                generateRecommendedActionTable(roleGoalsSection, genBtn, resultDiv, suggestionBox);
             });
+
+            // Automatically check if a pre-saved table exists on load
+            checkAndLoadExistingTable(roleGoalsSection, resultDiv, suggestionBox);
         });
     }
 
