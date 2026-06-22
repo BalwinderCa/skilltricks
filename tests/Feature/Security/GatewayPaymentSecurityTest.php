@@ -2,10 +2,13 @@
 
 namespace Tests\Feature\Security;
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class GatewayPaymentSecurityTest extends TestCase
 {
+    use RefreshDatabase;
+
     public function test_razorpay_payment_requires_payment_id(): void
     {
         $response = $this->post(route('razorpay.payment'), []);

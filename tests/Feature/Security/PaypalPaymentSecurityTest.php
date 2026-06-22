@@ -2,10 +2,13 @@
 
 namespace Tests\Feature\Security;
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class PaypalPaymentSecurityTest extends TestCase
 {
+    use RefreshDatabase;
+
     public function test_paypal_subscription_success_requires_subscription_id(): void
     {
         $response = $this->post(route('paypal.success'), []);

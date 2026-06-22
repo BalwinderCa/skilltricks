@@ -2,10 +2,13 @@
 
 namespace Tests\Feature\Security;
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class DemoRoutesSecurityTest extends TestCase
 {
+    use RefreshDatabase;
+
     public function test_demo_db_cron_returns_404_when_not_local(): void
     {
         config(['custom.demo_mode' => 'On']);
