@@ -120,7 +120,7 @@ return [
             /*'strict' => false,*/
 
             // 'engine' => 'innoDb',
-            'engine' => 'null',
+            'engine' => null,
 
             'options' => extension_loaded('pdo_mysql') ? array_filter([
 
