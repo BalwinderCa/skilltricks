@@ -32,3 +32,4 @@ Thumbs.db
 /id_skilltricks_new.pub
 /.env.testing
 /yesterday_db.gz
+/staging.sql
