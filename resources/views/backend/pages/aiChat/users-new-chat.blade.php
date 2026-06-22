@@ -3503,6 +3503,23 @@ document.addEventListener('click', function (e) {
             .replace(/"/g, '&quot;');
     }
 
+    // Helper to dynamically update row classes and background colors based on chosen decision
+    window.updateRowStyle = function(row, decision) {
+        row.classList.remove('table-success', 'table-warning', 'table-danger');
+        row.style.backgroundColor = '';
+
+        if (decision === 'Act on it' || decision === 'act_on_it') {
+            row.classList.add('table-success');
+            row.style.backgroundColor = 'rgba(25, 135, 84, 0.1)';
+        } else if (decision === 'Review in detail' || decision === 'review_in_detail') {
+            row.classList.add('table-warning');
+            row.style.backgroundColor = 'rgba(255, 193, 7, 0.1)';
+        } else if (decision === 'Not viable for us' || decision === 'not_viable') {
+            row.classList.add('table-danger');
+            row.style.backgroundColor = 'rgba(220, 53, 69, 0.1)';
+        }
+    };
+
     // Build the Recommended Action Table HTML with a 3-option decision column.
     // Restores pre-selected choices from the database and highlights active commitments.
     window.renderRecommendedActionTable = function(rows, container) {
@@ -3537,12 +3554,20 @@ document.addEventListener('click', function (e) {
                 </div>`;
             });
 
+            let rowClass = '';
             let rowStyle = '';
             if (r.decision === 'act_on_it') {
-                rowStyle = 'class="table-success" style="background-color: rgba(25, 135, 84, 0.1);"';
+                rowClass = 'table-success';
+                rowStyle = 'style="background-color: rgba(25, 135, 84, 0.1);"';
+            } else if (r.decision === 'review_in_detail') {
+                rowClass = 'table-warning';
+                rowStyle = 'style="background-color: rgba(255, 193, 7, 0.1);"';
+            } else if (r.decision === 'not_viable') {
+                rowClass = 'table-danger';
+                rowStyle = 'style="background-color: rgba(220, 53, 69, 0.1);"';
             }
 
-            html += `<tr ${rowStyle}>
+            html += `<tr class="${rowClass}" ${rowStyle}>
                 <td><strong>${role}</strong></td>
                 <td>${action}</td>
                 <td>${opts}</td>
@@ -3562,6 +3587,7 @@ document.addEventListener('click', function (e) {
                 const role = this.dataset.role;
                 const action = this.dataset.action;
                 const name = this.name;
+                const row = this.closest('tr');
                 
                 if (val === 'Act on it') {
                     // Open the commitment handshake modal
@@ -3596,7 +3622,11 @@ document.addEventListener('click', function (e) {
                     window.activeCommitmentInput = this;
                 } else {
                     // Instantly save "Review in detail" or "Not viable for us"
-                    saveActionChoice(role, action, val);
+                    saveActionChoice(role, action, val, null, null, null, false, null, function(success) {
+                        if (success && row) {
+                            window.updateRowStyle(row, val);
+                        }
+                    });
                 }
                 
                 // Update wasChecked states for group
@@ -3708,8 +3738,7 @@ document.addEventListener('click', function (e) {
                             if (window.activeCommitmentInput) {
                                 const row = window.activeCommitmentInput.closest('tr');
                                 if (row) {
-                                    row.classList.add('table-success');
-                                    row.style.backgroundColor = 'rgba(25, 135, 84, 0.1)';
+                                    window.updateRowStyle(row, 'act_on_it');
                                 }
                             }
                             
