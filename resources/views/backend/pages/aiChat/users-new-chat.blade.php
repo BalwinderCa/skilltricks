@@ -1778,9 +1778,20 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
         const loadingDiv = document.createElement('div');
         loadingDiv.className = 'bot-message';
         loadingDiv.innerHTML = `
-            <div class="text-center text-info" style="padding: 20px;">
-                <img class="custom-loder" width="150" height="150" src="${loaderImageUrl}" alt="Loading..." style="display: block; margin: 0 auto 10px auto; max-width: 150px; height: auto;">
-                <div class="mt-2">please wait...</div>
+            <div class="bot-message-progress-wrapper p-4 bg-light rounded shadow-sm" style="max-width: 500px; margin: 0 auto;">
+                <div class="d-flex align-items-center mb-2">
+                    <div class="spinner-border spinner-border-sm text-primary me-2" role="status" aria-hidden="true"></div>
+                    <strong class="text-primary small">StrategiStudio is analyzing your goal...</strong>
+                </div>
+                <div class="progress" style="height: 10px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" 
+                         role="progressbar" 
+                         style="width: 100%">
+                    </div>
+                </div>
+                <div class="mt-2 text-muted small text-start" style="font-size: 0.8rem; line-height: 1.4;">
+                    Generating strategic pathways, department roles, and scenario simulations. Please hold on...
+                </div>
             </div>`;
         if (currentUserCard) {
             currentUserCard.appendChild(loadingDiv);
