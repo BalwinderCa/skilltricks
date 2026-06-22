@@ -51,6 +51,51 @@ jobs:
       - name: PHPUnit
         run: vendor/bin/phpunit
 
+  deploy:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [tests, pint]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Execute Remote Deploy Commands over SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.STAGING_SSH_HOST }}
+          port: ${{ secrets.STAGING_SSH_PORT }}
+          username: ${{ secrets.STAGING_SSH_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          timeout: 120s
+          script: |
+            echo "==> Deploying to Staging Server"
+            cd public_html/staging
+            
+            echo "==> Enabling Maintenance Mode"
+            php artisan down || true
+            
+            echo "==> Pulling latest code from main"
+            git fetch origin main
+            git reset --hard origin/main
+            
+            echo "==> Syncing optimized composer dependencies"
+            composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+            
+            echo "==> Running database migrations"
+            php artisan migrate --force
+            
+            echo "==> Rebuilding route and template caches"
+            php artisan route:cache
+            php artisan view:cache
+            php artisan config:clear
+            
+            echo "==> Restarting background queues"
+            php artisan queue:restart
+            
+            echo "==> Lifting Maintenance Mode"
+            php artisan up
+            
+            echo "✓ Staging deployment finished successfully!"
+
+
   pint:
     name: Pint (changed files)
     runs-on: ubuntu-latest
