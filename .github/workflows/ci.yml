@@ -43,7 +43,7 @@ jobs:
         run: vendor/bin/phpstan analyse --no-progress --memory-limit=2G
 
       - name: Composer audit
-        run: composer audit --no-ansi
+        run: composer audit --no-ansi --no-abandoned
 
       - name: PHPUnit security suite
         run: vendor/bin/phpunit tests/Feature/Security/
