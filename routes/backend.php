@@ -298,6 +298,11 @@ Route::group(
                 Route::post('/users-new-chat-generate-alignment-brief', [AiChatController::class, 'generate_leadership_alignment_brief'])->name('users-new-chat-generate-alignment-brief.index');
                 Route::post('/users-new-chat-export-role-goals', [AiChatController::class, 'export_role_goals'])->name('users-new-chat-export-role-goals.index');
                 Route::post('/users-new-chat-generate-action-table', [AiChatController::class, 'generate_recommended_action_table'])->name('users-new-chat-generate-action-table.index');
+                Route::post('/users-new-chat-save-expected-state', [AiChatController::class, 'save_expected_state'])->name('users-new-chat-save-expected-state.index');
+                Route::get('/users-new-chat-progress-data', [AiChatController::class, 'get_progress_data'])->name('users-new-chat-progress-data.index');
+                Route::post('/users-new-chat-save-observed-state', [AiChatController::class, 'save_observed_state'])->name('users-new-chat-save-observed-state.index');
+                Route::post('/users-new-chat-generate-intervention', [AiChatController::class, 'generate_intervention'])->name('users-new-chat-generate-intervention.index');
+                Route::post('/users-new-chat-activate-intervention', [AiChatController::class, 'activate_intervention'])->name('users-new-chat-activate-intervention.index');
                 Route::get('/userchathistory', [AiChatController::class, 'userchathistory'])->name('userchathistory.index');
                 Route::get('/user-view-chathistory/{id}', [AiChatController::class, 'user_view_chathistory'])->name('user-view-chathistory.index');
                 Route::get('/users-chat-search-delete/{id}', [AiChatController::class, 'userschat_search_delete'])->name('users-chat-search-delete.index');

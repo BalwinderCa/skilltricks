@@ -14,6 +14,9 @@ use App\Models\ChatCategory;
 use App\Models\ChatRoleCategory;
 use App\Models\SearchUserChat;
 use App\Models\SearchUserChatData;
+use App\Models\ExpectedState;
+use App\Models\ObservedState;
+use App\Models\Intervention;
 use App\Models\SubcategoryMenu;
 use App\Models\SubcategoryMenuQuestion;
 use App\Models\SubscriptionPackage;
@@ -1176,6 +1179,258 @@ EOT;
             Log::error('Recommended Action Table Generation Failed', ['user_id' => $user->id, 'chat_id' => $chatId, 'error' => $e->getMessage()]);
 
             return response()->json(['error' => 'An error occurred while generating the recommended action table.', 'details' => $e->getMessage()], 500);
+        }
+    }
+
+    public function save_expected_state(Request $request)
+    {
+        $user = auth()->user();
+        $chatId = $request->input('chat_id');
+        $role = $request->input('role');
+        $recommendedAction = $request->input('recommended_action');
+        $decision = $request->input('decision');
+        $successMetric = $request->input('success_metric');
+        $targetValue = $request->input('target_value');
+        $targetDate = $request->input('target_date');
+        $resourcesCommitted = $request->input('resources_committed', false);
+        $dependsOnId = $request->input('depends_on_id');
+
+        if (!$chatId || !$role || !$recommendedAction || !$decision) {
+            return response()->json(['error' => 'Chat ID, role, action, and decision are required.'], 400);
+        }
+
+        // Verify ownership
+        if (!SearchUserChat::where('id', $chatId)->where('user_id', $user->id)->exists()) {
+            return response()->json(['error' => 'Chat not found or access denied.'], 403);
+        }
+
+        try {
+            $expectedState = ExpectedState::updateOrCreate(
+                [
+                    'search_user_chat_id' => $chatId,
+                    'role' => $role,
+                ],
+                [
+                    'recommended_action' => $recommendedAction,
+                    'decision' => $decision,
+                    'success_metric' => $successMetric,
+                    'target_value' => $targetValue,
+                    'target_date' => $targetDate ? Carbon::parse($targetDate)->toDateString() : null,
+                    'resources_committed' => filter_var($resourcesCommitted, FILTER_VALIDATE_BOOLEAN),
+                    'depends_on_id' => $dependsOnId ?: null,
+                ]
+            );
+
+            return response()->json(['success' => true, 'expected_state' => $expectedState]);
+        } catch (\Exception $e) {
+            Log::error('Failed to save expected state', ['user_id' => $user->id, 'chat_id' => $chatId, 'error' => $e->getMessage()]);
+            return response()->json(['error' => 'An error occurred while saving expected state.', 'details' => $e->getMessage()], 500);
+        }
+    }
+
+    public function get_progress_data(Request $request)
+    {
+        $user = auth()->user();
+        $chatId = $request->input('chat_id');
+
+        if (!$chatId) {
+            return response()->json(['error' => 'Chat ID is required.'], 400);
+        }
+
+        // Verify ownership
+        if (!SearchUserChat::where('id', $chatId)->where('user_id', $user->id)->exists()) {
+            return response()->json(['error' => 'Chat not found or access denied.'], 403);
+        }
+
+        try {
+            // Eager load the latest observation, latest intervention, and dependency info
+            $states = ExpectedState::with(['latestObservation', 'latestIntervention', 'dependsOn.latestObservation'])
+                ->where('search_user_chat_id', $chatId)
+                ->where('decision', 'act_on_it') // Only retrieve active commitments
+                ->get();
+
+            $today = Carbon::now()->toDateString();
+            $alerts = [];
+
+            foreach ($states as $state) {
+                $obs = $state->latestObservation;
+                $status = $obs ? $obs->status : 'Scheduled';
+                $driftStatus = 'None';
+
+                if ($status === 'Complete') {
+                    $driftStatus = 'None';
+                } elseif ($state->target_date && Carbon::parse($state->target_date)->toDateString() < $today) {
+                    $driftStatus = 'Timeline Drift'; // Overdue
+                } elseif ($state->depends_on_id && $state->dependsOn) {
+                    $dep = $state->dependsOn;
+                    $depObs = $dep->latestObservation;
+                    $depStatus = $depObs ? $depObs->status : 'Scheduled';
+                    
+                    $depIsOverdue = $dep->target_date && Carbon::parse($dep->target_date)->toDateString() < $today;
+                    
+                    if ($depStatus === 'Blocked' || ($depStatus !== 'Complete' && $depIsOverdue)) {
+                        $driftStatus = 'Dependency Blocked';
+                        $alerts[] = "🔔 Alert: <strong>{$state->role}</strong> is blocked because <strong>{$dep->role}</strong> has not completed their task '<em>{$dep->recommended_action}</em>'.";
+                    }
+                }
+
+                $state->drift_status = $driftStatus;
+            }
+
+            return response()->json([
+                'success' => true, 
+                'states' => $states,
+                'leadership_alerts' => $alerts
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to fetch progress data', ['user_id' => $user->id, 'chat_id' => $chatId, 'error' => $e->getMessage()]);
+            return response()->json(['error' => 'An error occurred while fetching progress data.', 'details' => $e->getMessage()], 500);
+        }
+    }
+
+    public function save_observed_state(Request $request)
+    {
+        $user = auth()->user();
+        $expectedStateId = $request->input('expected_state_id');
+        $actualValue = $request->input('actual_value');
+        $status = $request->input('status'); // e.g. Scheduled, In Progress, Complete, Blocked
+        $observationDate = $request->input('observation_date');
+        $statusNotes = $request->input('status_notes');
+
+        if (!$expectedStateId || !$status || !$observationDate) {
+            return response()->json(['error' => 'Expected State ID, status, and observation date are required.'], 400);
+        }
+
+        try {
+            // Find ExpectedState and verify ownership via the relationship
+            $expectedState = ExpectedState::with('searchUserChat')->find($expectedStateId);
+
+            if (!$expectedState || !$expectedState->searchUserChat || $expectedState->searchUserChat->user_id !== $user->id) {
+                return response()->json(['error' => 'Expected state not found or access denied.'], 403);
+            }
+
+            $observedState = ObservedState::create([
+                'expected_state_id' => $expectedStateId,
+                'actual_value' => $actualValue,
+                'status' => $status,
+                'observation_date' => Carbon::parse($observationDate)->toDateString(),
+                'source' => 'Manual',
+                'status_notes' => $statusNotes,
+            ]);
+
+            return response()->json(['success' => true, 'observed_state' => $observedState]);
+        } catch (\Exception $e) {
+            Log::error('Failed to save observed state', ['user_id' => $user->id, 'expected_state_id' => $expectedStateId, 'error' => $e->getMessage()]);
+            return response()->json(['error' => 'An error occurred while saving progress.', 'details' => $e->getMessage()], 500);
+        }
+    }
+
+    public function generate_intervention(Request $request)
+    {
+        $user = auth()->user();
+        $expectedStateId = $request->input('expected_state_id');
+
+        if (!$expectedStateId) {
+            return response()->json(['error' => 'Expected State ID is required.'], 400);
+        }
+
+        try {
+            // Find ExpectedState and verify ownership via relationships
+            $expectedState = ExpectedState::with(['searchUserChat', 'latestObservation', 'dependsOn'])
+                ->find($expectedStateId);
+
+            if (!$expectedState || !$expectedState->searchUserChat || $expectedState->searchUserChat->user_id !== $user->id) {
+                return response()->json(['error' => 'Expected state not found or access denied.'], 403);
+            }
+
+            $chat = $expectedState->searchUserChat;
+            $obs = $expectedState->latestObservation;
+            $status = $obs ? $obs->status : 'Scheduled';
+            
+            // Collect context for the AI prompt
+            $goal = $chat->search ?: 'Increase Product Adoption';
+            $role = $expectedState->role;
+            $action = $expectedState->recommended_action;
+            $metric = $expectedState->success_metric;
+            $targetDate = $expectedState->target_date ? Carbon::parse($expectedState->target_date)->toDateString() : 'None';
+            
+            $statusNotes = $obs && $obs->status_notes ? $obs->status_notes : 'None provided';
+            $actualValue = $obs && $obs->actual_value ? $obs->actual_value : 'None logged';
+
+            // Determine specific blocker type
+            $blockerDetail = "Overdue/Delayed";
+            if ($status === 'Blocked') {
+                $blockerDetail = "Explicitly blocked with notes: {$statusNotes}";
+            } elseif ($expectedState->depends_on_id && $expectedState->dependsOn) {
+                $dep = $expectedState->dependsOn;
+                $blockerDetail = "Blocked on the preceding role '{$dep->role}' completing their task '{$dep->recommended_action}'";
+            }
+
+            $systemMessage = "You are an executive strategy intervention consultant. Given the context of a stalled organizational objective, recommend exactly one concrete, high-impact corrective action (2-3 sentences max) to resolve the bottleneck and get the team back on track.";
+            
+            $prompt = "STRATEGIC CONTEXT:\n"
+                . "- Overall Business Goal: \"{$goal}\"\n"
+                . "- Accountable Department/Role: {$role}\n"
+                . "- Strategic Commitment / Objective Action: \"{$action}\"\n"
+                . "- Target Success KPI: \"{$metric}\"\n"
+                . "- Planned Target Date: {$targetDate}\n\n"
+                . "CURRENT EXECUTION STATUS:\n"
+                . "- Current Status of Task: {$status}\n"
+                . "- Current Progress / Actual Logged Value: \"{$actualValue}\"\n"
+                . "- Roadblock/Blocker Details: \"{$blockerDetail}\"\n"
+                . "- Notes from the field: \"{$statusNotes}\"\n\n"
+                . "TASK:\n"
+                . "Recommend exactly one highly practical, tactical, and contextually specific intervention (2-3 sentences max) that the leadership can activate to unblock {$role} and accelerate delivery. Speak directly, confidently, and professionally.";
+
+            // Call the application's configured AI Engine (Gemini / Vertex AI or OpenAI)
+            $aiResponse = $this->ai->generate($systemMessage, $prompt, 1000);
+
+            if (!$aiResponse->successful()) {
+                return response()->json(['error' => 'AI Engine request failed.', 'details' => $aiResponse->body()], 500);
+            }
+
+            $recommendationText = $this->ai->extractText($aiResponse);
+            $this->ai->recordChatTokens($chat->id, $aiResponse);
+
+            // Store the intervention
+            $intervention = Intervention::create([
+                'expected_state_id' => $expectedStateId,
+                'ai_recommendation' => trim($recommendationText),
+                'status' => 'proposed',
+            ]);
+
+            return response()->json(['success' => true, 'intervention' => $intervention]);
+        } catch (\Exception $e) {
+            Log::error('Failed to generate intervention', ['user_id' => $user->id, 'expected_state_id' => $expectedStateId, 'error' => $e->getMessage()]);
+            return response()->json(['error' => 'An error occurred while generating recommendation.', 'details' => $e->getMessage()], 500);
+        }
+    }
+
+    public function activate_intervention(Request $request)
+    {
+        $user = auth()->user();
+        $interventionId = $request->input('intervention_id');
+
+        if (!$interventionId) {
+            return response()->json(['error' => 'Intervention ID is required.'], 400);
+        }
+
+        try {
+            $intervention = Intervention::with('expectedState.searchUserChat')->find($interventionId);
+
+            if (!$intervention || !$intervention->expectedState || !$intervention->expectedState->searchUserChat || $intervention->expectedState->searchUserChat->user_id !== $user->id) {
+                return response()->json(['error' => 'Intervention not found or access denied.'], 403);
+            }
+
+            $intervention->update([
+                'status' => 'active',
+                'activated_at' => Carbon::now(),
+            ]);
+
+            return response()->json(['success' => true, 'intervention' => $intervention]);
+        } catch (\Exception $e) {
+            Log::error('Failed to activate intervention', ['user_id' => $user->id, 'intervention_id' => $interventionId, 'error' => $e->getMessage()]);
+            return response()->json(['error' => 'An error occurred while activating intervention.', 'details' => $e->getMessage()], 500);
         }
     }
 

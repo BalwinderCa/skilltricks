@@ -829,6 +829,125 @@
         </div>
     </div>
 
+    <!-- Commitment Handshake Modal -->
+    <div class="modal fade" id="commitmentHandshakeModal" tabindex="-1" aria-labelledby="commitmentHandshakeModalLabel" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="commitmentHandshakeModalLabel">
+                        <i class="bi bi-hand-thumbs-up me-2"></i>Stage 1: The Commitment Handshake
+                    </h5>
+                    <button type="button" class="btn-close" id="commitmentModalCloseBtn" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="commitmentForm">
+                        <div class="mb-3">
+                            <label class="form-label font-weight-bold">Accountable Role</label>
+                            <input type="text" class="form-control text-dark font-weight-bold" id="commitment-role" readonly style="background-color: #f8f9fa;">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label font-weight-bold">Bound Objective / Action</label>
+                            <textarea class="form-control text-dark" id="commitment-action" rows="2" readonly style="background-color: #f8f9fa;"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="commitment-metric" class="form-label font-weight-bold">Success Metric (KPI) <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="commitment-metric" placeholder="e.g. 15% increase in click-through rate for UK-specific landing pages" required>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="commitment-value" class="form-label font-weight-bold">Target Value</label>
+                                <input type="text" class="form-control" id="commitment-value" placeholder="e.g. 15%">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="commitment-date" class="form-label font-weight-bold">Target Date</label>
+                                <input type="date" class="form-control" id="commitment-date">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="commitment-depends-on" class="form-label font-weight-bold"><i class="bi bi-link-45deg text-primary me-1"></i>Dependency Link (Preceding Role)</label>
+                            <select class="form-select" id="commitment-depends-on">
+                                <option value="">-- No preceding dependency --</option>
+                            </select>
+                            <small class="text-muted">If this task requires another department's commitment to be completed first, select it here.</small>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="commitment-resources" required>
+                            <label class="form-check-label text-warning font-weight-bold" for="commitment-resources">
+                                Resource Checklist: Do you have the budget/personnel to execute this now?
+                            </label>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="commitmentCancelBtn" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="confirmCommitmentBtn">
+                        <i class="bi bi-shield-check me-1"></i> Confirm & Activate Commitment
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Log Progress Modal -->
+    <div class="modal fade" id="logProgressModal" tabindex="-1" aria-labelledby="logProgressModalLabel" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="logProgressModalLabel">
+                        <i class="bi bi-graph-up-arrow me-2"></i>Log Actual Execution Progress (Observed State)
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="progressForm">
+                        <input type="hidden" id="progress-state-id">
+                        <div class="mb-3">
+                            <label class="form-label font-weight-bold">Owner / Role</label>
+                            <input type="text" class="form-control text-dark font-weight-bold" id="progress-role" readonly style="background-color: #f8f9fa;">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label font-weight-bold">Objective Action</label>
+                            <textarea class="form-control text-dark" id="progress-action" rows="2" readonly style="background-color: #f8f9fa;"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label font-weight-bold">Target Metric / KPI</label>
+                            <input type="text" class="form-control text-dark" id="progress-metric" readonly style="background-color: #f8f9fa;">
+                        </div>
+                        <div class="mb-3">
+                            <label for="progress-status" class="form-label font-weight-bold">Current Status <span class="text-danger">*</span></label>
+                            <select class="form-select" id="progress-status" required>
+                                <option value="Scheduled">Scheduled</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="Complete">Complete</option>
+                                <option value="Blocked">Blocked</option>
+                            </select>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="progress-value" class="form-label font-weight-bold">Actual Value Achieved <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="progress-value" placeholder="e.g. 5% lift, 2 partners" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="progress-date" class="form-label font-weight-bold">Observation Date <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control" id="progress-date" required>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="progress-notes" class="form-label font-weight-bold">Status Notes / Execution Details</label>
+                            <textarea class="form-control" id="progress-notes" rows="3" placeholder="Describe any blockers, dependencies, or key accomplishments..."></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="saveProgressBtn">
+                        <i class="bi bi-save me-1"></i> Save Progress Update
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 @endsection
 
 
@@ -3390,7 +3509,7 @@ document.addEventListener('click', function (e) {
             choices.forEach((c, j) => {
                 const id = `action_choice_${i}_${j}`;
                 opts += `<div class="form-check">
-                    <input class="form-check-input action-choice-input" type="radio" name="action_choice_${i}" id="${id}" value="${escapeActionHtml(c)}" data-role="${role}">
+                    <input class="form-check-input action-choice-input" type="radio" name="action_choice_${i}" id="${id}" value="${escapeActionHtml(c)}" data-role="${role}" data-action="${action}">
                     <label class="form-check-label" for="${id}">${c}</label>
                 </div>`;
             });
@@ -3403,7 +3522,561 @@ document.addEventListener('click', function (e) {
 
         html += '</tbody></table></div></div>';
         container.innerHTML = html;
+
+        // Wire up change listeners on the inputs
+        const inputs = container.querySelectorAll('.action-choice-input');
+        inputs.forEach(input => {
+            input.dataset.wasChecked = input.checked ? 'true' : 'false';
+            
+            input.addEventListener('change', function() {
+                const val = this.value;
+                const role = this.dataset.role;
+                const action = this.dataset.action;
+                const name = this.name;
+                
+                if (val === 'Act on it') {
+                    // Open the commitment handshake modal
+                    const modalEl = document.getElementById('commitmentHandshakeModal');
+                    const modal = new bootstrap.Modal(modalEl);
+                    
+                    document.getElementById('commitment-role').value = role;
+                    document.getElementById('commitment-action').value = action;
+                    document.getElementById('commitment-metric').value = '';
+                    document.getElementById('commitment-value').value = '';
+                    document.getElementById('commitment-date').value = '';
+                    document.getElementById('commitment-resources').checked = false;
+
+                    // Populate dependency dropdown dynamically from window.activeCommitments
+                    const depSelect = document.getElementById('commitment-depends-on');
+                    depSelect.innerHTML = '<option value="">-- No preceding dependency --</option>';
+                    if (Array.isArray(window.activeCommitments)) {
+                        window.activeCommitments.forEach(c => {
+                            if (c.role !== role) {
+                                const opt = document.createElement('option');
+                                opt.value = c.id;
+                                opt.textContent = `[${c.role}] ${c.recommended_action.substring(0, 50)}...`;
+                                depSelect.appendChild(opt);
+                            }
+                        });
+                    }
+                    
+                    // Show modal
+                    modal.show();
+                    
+                    // Track which input triggered the modal
+                    window.activeCommitmentInput = this;
+                } else {
+                    // Instantly save "Review in detail" or "Not viable for us"
+                    saveActionChoice(role, action, val);
+                }
+                
+                // Update wasChecked states for group
+                container.querySelectorAll(`input[name="${name}"]`).forEach(inp => {
+                    inp.dataset.wasChecked = inp.checked ? 'true' : 'false';
+                });
+            });
+        });
     };
+
+    // Helper to send the decision choice to the backend
+    function saveActionChoice(role, action, decision, metric, targetVal, date, resources, dependsOnId, callback) {
+        const chatId = window.chatChatId || (document.getElementById('chat_id') ? document.getElementById('chat_id').value : '');
+        
+        let decisionKey = 'review_in_detail';
+        if (decision === 'Act on it' || decision === 'act_on_it') {
+            decisionKey = 'act_on_it';
+        } else if (decision === 'Not viable for us') {
+            decisionKey = 'not_viable';
+        }
+        
+        fetch('{{ route("users-new-chat-save-expected-state.index") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+            body: JSON.stringify({
+                chat_id: chatId,
+                role: role,
+                recommended_action: action,
+                decision: decisionKey,
+                success_metric: metric || null,
+                target_value: targetVal || null,
+                target_date: date || null,
+                resources_committed: resources || false,
+                depends_on_id: dependsOnId || null
+            })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                // Show a small feedback message
+                if (typeof notify !== 'undefined' && notify.success) {
+                    notify.success(`Decision for ${role} saved.`);
+                } else {
+                    console.log(`Saved decision for ${role}`);
+                }
+                if (callback) callback(true);
+            } else {
+                alert('Failed to save decision: ' + (data.error || 'unknown error'));
+                if (callback) callback(false);
+            }
+        })
+        .catch(err => {
+            alert('Error saving decision: ' + err.message);
+            if (callback) callback(false);
+        });
+    }
+
+    // Modal Confirmation and Cancellation Handling
+    document.addEventListener('DOMContentLoaded', function() {
+        const modalEl = document.getElementById('commitmentHandshakeModal');
+        if (modalEl) {
+            modalEl.addEventListener('hidden.bs.modal', function () {
+                // If we didn't successfully activate commitment, reset the radio button
+                if (window.activeCommitmentInput && !window.commitmentConfirmed) {
+                    window.activeCommitmentInput.checked = false;
+                    window.activeCommitmentInput.dataset.wasChecked = 'false';
+                    
+                    const name = window.activeCommitmentInput.name;
+                    const container = window.activeCommitmentInput.closest('table');
+                    if (container) {
+                        const siblings = container.querySelectorAll(`input[name="${name}"]`);
+                        siblings.forEach(sibling => {
+                            if (sibling !== window.activeCommitmentInput && sibling.dataset.wasChecked === 'true') {
+                                sibling.checked = true;
+                            }
+                        });
+                    }
+                    window.activeCommitmentInput = null;
+                }
+                window.commitmentConfirmed = false;
+            });
+            
+            const confirmBtn = document.getElementById('confirmCommitmentBtn');
+            if (confirmBtn) {
+                confirmBtn.addEventListener('click', function() {
+                    const form = document.getElementById('commitmentForm');
+                    if (!form.checkValidity()) {
+                        form.reportValidity();
+                        return;
+                    }
+                    
+                    const role = document.getElementById('commitment-role').value;
+                    const action = document.getElementById('commitment-action').value;
+                    const metric = document.getElementById('commitment-metric').value;
+                    const val = document.getElementById('commitment-value').value;
+                    const date = document.getElementById('commitment-date').value;
+                    const resources = document.getElementById('commitment-resources').checked;
+                    const dependsOnId = document.getElementById('commitment-depends-on').value;
+                    
+                    confirmBtn.disabled = true;
+                    confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Activating...';
+                    
+                    saveActionChoice(role, action, 'act_on_it', metric, val, date, resources, dependsOnId, function(success) {
+                        confirmBtn.disabled = false;
+                        confirmBtn.innerHTML = '<i class="bi bi-shield-check me-1"></i> Confirm & Activate Commitment';
+                        
+                        if (success) {
+                            window.commitmentConfirmed = true;
+                            if (window.activeCommitmentInput) {
+                                const row = window.activeCommitmentInput.closest('tr');
+                                if (row) {
+                                    row.classList.add('table-success');
+                                    row.style.backgroundColor = 'rgba(25, 135, 84, 0.1)';
+                                }
+                            }
+                            
+                            // Close modal
+                            const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                            modal.hide();
+
+                            // Refresh progress tracker
+                            window.refreshProgressTile();
+                        }
+                    });
+                });
+            }
+        }
+
+        // Wire up save progress confirmation button
+        const saveProgressBtn = document.getElementById('saveProgressBtn');
+        if (saveProgressBtn) {
+            saveProgressBtn.addEventListener('click', function() {
+                const form = document.getElementById('progressForm');
+                if (!form.checkValidity()) {
+                    form.reportValidity();
+                    return;
+                }
+
+                const stateId = document.getElementById('progress-state-id').value;
+                const status = document.getElementById('progress-status').value;
+                const value = document.getElementById('progress-value').value;
+                const date = document.getElementById('progress-date').value;
+                const notes = document.getElementById('progress-notes').value;
+
+                saveProgressBtn.disabled = true;
+                saveProgressBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Saving...';
+
+                fetch('{{ route("users-new-chat-save-observed-state.index") }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+                    body: JSON.stringify({
+                        expected_state_id: stateId,
+                        status: status,
+                        actual_value: value,
+                        observation_date: date,
+                        status_notes: notes
+                    })
+                })
+                .then(r => r.json())
+                .then(data => {
+                    saveProgressBtn.disabled = false;
+                    saveProgressBtn.innerHTML = '<i class="bi bi-save me-1"></i> Save Progress Update';
+
+                    if (data.success) {
+                        if (typeof notify !== 'undefined' && notify.success) {
+                            notify.success('Execution progress successfully updated.');
+                        }
+                        
+                        // Close modal
+                        const modalEl = document.getElementById('logProgressModal');
+                        const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                        modal.hide();
+
+                        // Dynamic update: refresh the progress tile
+                        window.refreshProgressTile();
+                    } else {
+                        alert('Failed to save progress update: ' + (data.error || 'unknown error'));
+                    }
+                })
+                .catch(err => {
+                    saveProgressBtn.disabled = false;
+                    saveProgressBtn.innerHTML = '<i class="bi bi-save me-1"></i> Save Progress Update';
+                    alert('Error saving progress update: ' + err.message);
+                });
+            });
+        }
+    });
+
+    // Fetch and render Strategic Progress Tile
+    window.refreshProgressTile = function() {
+        const chatId = window.chatChatId || (document.getElementById('chat_id') ? document.getElementById('chat_id').value : '');
+        if (!chatId) return;
+
+        const tileContainers = document.querySelectorAll('.progress-tile-container');
+        if (!tileContainers.length) return;
+
+        fetch(`{{ route("users-new-chat-progress-data.index") }}?chat_id=${chatId}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.success && Array.isArray(data.states) && data.states.length > 0) {
+                // Populate window global commitments list so modal dropdowns can link them
+                window.activeCommitments = data.states;
+
+                tileContainers.forEach(container => {
+                    container.style.display = 'block';
+                    
+                    let alertHtml = '';
+                    if (Array.isArray(data.leadership_alerts) && data.leadership_alerts.length > 0) {
+                        alertHtml = `<div class="alert alert-warning mb-3 shadow-sm border-warning animate__animated animate__fadeIn">
+                            <h6 class="alert-heading font-weight-bold"><i class="bi bi-exclamation-triangle-fill me-2 text-warning"></i>Active Organizational Roadblocks (Dependency Alerts)</h6>
+                            <ul class="mb-0 text-dark small" style="padding-left: 1.2rem;">`;
+                        data.leadership_alerts.forEach(alert => {
+                            alertHtml += `<li>${alert}</li>`;
+                        });
+                        alertHtml += '</ul></div>';
+                    }
+
+                    let html = `
+                        <div class="card shadow-sm border-primary">
+                            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                                <h6 class="mb-0 text-white"><i class="bi bi-shield-check me-2"></i>Stage 3: The "Closed-Loop" Feedback Tracker</h6>
+                                <span class="badge bg-light text-primary">${data.states.length} Commitments</span>
+                            </div>
+                            <div class="card-body">
+                                ${alertHtml}
+                                <div class="table-responsive">
+                                    <table class="table table-hover align-middle mb-0">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Milestone (Role)</th>
+                                                <th>Strategic Bound Objective / Action</th>
+                                                <th>Target KPI / Expected State</th>
+                                                <th>Actual KPI / Observed State</th>
+                                                <th>Status</th>
+                                                <th class="text-end">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>`;
+
+                    data.states.forEach(state => {
+                        const obs = state.latest_observation || {};
+                        const status = obs.status || 'Scheduled';
+                        const actual = obs.actual_value || 'No data logged yet';
+                        const targetDate = state.target_date ? new Date(state.target_date).toLocaleDateString() : 'No date set';
+                        const obsDate = obs.observation_date ? new Date(obs.observation_date).toLocaleDateString() : '';
+                        
+                        let badgeClass = 'bg-secondary';
+                        let displayStatus = status;
+
+                        if (state.drift_status === 'Timeline Drift') {
+                            badgeClass = 'bg-danger';
+                            displayStatus = 'Overdue';
+                        } else if (state.drift_status === 'Dependency Blocked') {
+                            badgeClass = 'bg-danger';
+                            displayStatus = 'Dependency Blocked';
+                        } else if (status === 'In Progress') {
+                            badgeClass = 'bg-warning text-dark';
+                        } else if (status === 'Complete') {
+                            badgeClass = 'bg-success';
+                        } else if (status === 'Blocked') {
+                            badgeClass = 'bg-danger';
+                        }
+
+                        let rowClass = '';
+                        let dependencyText = '';
+                        if (state.drift_status === 'Dependency Blocked') {
+                            rowClass = 'table-warning';
+                            if (state.depends_on) {
+                                dependencyText = `<div class="text-danger small mt-1"><i class="bi bi-exclamation-triangle-fill me-1"></i>Blocked on <strong>${escapeActionHtml(state.depends_on.role)}</strong></div>`;
+                            }
+                        }
+
+                        let resolveBtn = '';
+                        if (state.drift_status === 'Timeline Drift' || state.drift_status === 'Dependency Blocked') {
+                            resolveBtn = `<button class="btn btn-outline-warning btn-sm resolve-drift-btn me-1" type="button" data-state-id="${state.id}">
+                                <i class="bi bi-lightbulb"></i> Resolve Drift
+                            </button>`;
+                        }
+
+                        let interventionRow = '';
+                        const activeInt = state.latest_intervention;
+                        if (activeInt) {
+                            let intPanelClass = activeInt.status === 'active' ? 'border-success bg-success-subtle text-dark' : 'border-warning bg-warning-subtle text-dark';
+                            let intBadge = activeInt.status === 'active' 
+                                ? '<span class="badge bg-success mb-2"><i class="bi bi-shield-fill-check me-1"></i>Active Intervention</span>' 
+                                : '<span class="badge bg-warning text-dark mb-2"><i class="bi bi-lightbulb-fill me-1"></i>Proposed Alignment Intervention</span>';
+                            
+                            let intButton = activeInt.status === 'proposed' 
+                                ? `<button class="btn btn-success btn-sm activate-int-btn ms-3 float-end" type="button" data-int-id="${activeInt.id}">
+                                    <i class="bi bi-play-circle me-1"></i> Activate Intervention
+                                   </button>` 
+                                : '<span class="badge bg-success ms-3 float-end"><i class="bi bi-check-circle-fill me-1"></i>Activated</span>';
+
+                            interventionRow = `
+                                <tr id="intervention-row-${state.id}">
+                                    <td colspan="6" class="p-3" style="background-color: #fcfcfc;">
+                                        <div class="card p-3 border ${intPanelClass} shadow-sm">
+                                            <div class="d-flex justify-content-between align-items-start mb-1">
+                                                <div>${intBadge}</div>
+                                                ${intButton}
+                                            </div>
+                                            <p class="mb-0 text-dark small" style="line-height: 1.5; font-style: italic;">"${escapeActionHtml(activeInt.ai_recommendation)}"</p>
+                                        </div>
+                                    </td>
+                                </tr>`;
+                        } else {
+                            // Empty panel for future dynamic generations
+                            interventionRow = `
+                                <tr id="intervention-row-${state.id}" style="display: none;">
+                                    <td colspan="6" class="p-3" style="background-color: #fcfcfc;">
+                                        <div class="card p-3 border border-warning bg-warning-subtle text-dark shadow-sm">
+                                            <div class="intervention-panel-content animate__animated animate__fadeIn"></div>
+                                        </div>
+                                    </td>
+                                </tr>`;
+                        }
+
+                        const stateJson = escapeActionHtml(JSON.stringify(state));
+
+                        html += `
+                            <tr class="${rowClass}">
+                                <td>
+                                    <strong>${escapeActionHtml(state.role)}</strong>
+                                    ${dependencyText}
+                                </td>
+                                <td><span class="text-muted small">${escapeActionHtml(state.recommended_action)}</span></td>
+                                <td>
+                                    <div><i class="bi bi-bullseye text-danger me-1"></i>${escapeActionHtml(state.success_metric)}</div>
+                                    <div class="text-muted small mt-1"><i class="bi bi-calendar-event me-1"></i>Target: ${targetDate}</div>
+                                </td>
+                                <td>
+                                    <div><i class="bi bi-activity text-primary me-1"></i>${escapeActionHtml(actual)}</div>
+                                    ${obsDate ? `<div class="text-muted small mt-1"><i class="bi bi-calendar-check me-1"></i>As of: ${obsDate}</div>` : ''}
+                                </td>
+                                <td>
+                                    <span class="badge ${badgeClass}">${displayStatus}</span>
+                                </td>
+                                <td class="text-end">
+                                    ${resolveBtn}
+                                    <button class="btn btn-outline-primary btn-sm log-progress-btn" type="button" 
+                                            data-state='${stateJson}'>
+                                        <i class="bi bi-pencil-square"></i> Log Progress
+                                    </button>
+                                </td>
+                            </tr>
+                            ${interventionRow}`;
+                    });
+
+                    html += `
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>`;
+                    
+                    container.innerHTML = html;
+
+                    // Helper to wire up action listener for activating interventions
+                    function wireActivateInterventionButton(btn) {
+                        if (!btn) return;
+                        btn.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            
+                            const intId = this.dataset.intId;
+                            this.disabled = true;
+                            this.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Activating...';
+                            
+                            fetch('{{ route("users-new-chat-activate-intervention.index") }}', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+                                body: JSON.stringify({ intervention_id: intId })
+                            })
+                            .then(r => r.json())
+                            .then(data => {
+                                if (data.success) {
+                                    if (typeof notify !== 'undefined' && notify.success) {
+                                        notify.success('Strategic alignment intervention activated successfully.');
+                                    }
+                                    const card = this.closest('.card');
+                                    if (card) {
+                                        card.className = 'card p-3 border border-success bg-success-subtle text-dark shadow-sm';
+                                        const headerDiv = card.querySelector('.d-flex');
+                                        if (headerDiv) {
+                                            headerDiv.innerHTML = '<div><span class="badge bg-success mb-2"><i class="bi bi-shield-fill-check me-1"></i>Active Intervention</span></div><span class="badge bg-success ms-3 float-end"><i class="bi bi-check-circle-fill me-1"></i>Activated</span>';
+                                        }
+                                    }
+                                } else {
+                                    this.disabled = false;
+                                    this.innerHTML = '<i class="bi bi-play-circle me-1"></i> Activate Intervention';
+                                    alert('Failed to activate intervention: ' + (data.error || 'unknown error'));
+                                }
+                            })
+                            .catch(err => {
+                                this.disabled = false;
+                                this.innerHTML = '<i class="bi bi-play-circle me-1"></i> Activate Intervention';
+                                alert('Error activating intervention: ' + err.message);
+                            });
+                        });
+                    }
+
+                    // Wire up dynamic Resolve Drift button click handler
+                    container.querySelectorAll('.resolve-drift-btn').forEach(btn => {
+                        btn.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            
+                            const stateId = this.dataset.stateId;
+                            const row = document.getElementById(`intervention-row-${stateId}`);
+                            if (!row) return;
+
+                            const contentDiv = row.querySelector('.intervention-panel-content');
+                            
+                            row.style.display = 'table-row';
+                            if (contentDiv) {
+                                contentDiv.innerHTML = `<div class="d-flex align-items-center py-2">
+                                    <div class="spinner-border spinner-border-sm text-warning me-2" role="status"></div>
+                                    <span class="small font-weight-bold">AI Engine (Gemini) is analyzing blockages and drafting executive recommendations...</span>
+                                </div>`;
+                            }
+
+                            this.disabled = true;
+
+                            fetch('{{ route("users-new-chat-generate-intervention.index") }}', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+                                body: JSON.stringify({ expected_state_id: stateId })
+                            })
+                            .then(r => r.json())
+                            .then(data => {
+                                this.disabled = false;
+                                if (data.success && data.intervention) {
+                                    const int = data.intervention;
+                                    row.innerHTML = `
+                                        <td colspan="6" class="p-3" style="background-color: #fcfcfc;">
+                                            <div class="card p-3 border border-warning bg-warning-subtle text-dark shadow-sm">
+                                                <div class="d-flex justify-content-between align-items-start mb-1">
+                                                    <div><span class="badge bg-warning text-dark mb-2"><i class="bi bi-lightbulb-fill me-1"></i>Proposed Alignment Intervention</span></div>
+                                                    <button class="btn btn-success btn-sm activate-int-btn ms-3 float-end" type="button" data-int-id="${int.id}">
+                                                        <i class="bi bi-play-circle me-1"></i> Activate Intervention
+                                                    </button>
+                                                </div>
+                                                <p class="mb-0 text-dark small" style="line-height: 1.5; font-style: italic;">"${escapeActionHtml(int.ai_recommendation)}"</p>
+                                            </div>
+                                        </td>`;
+                                    
+                                    wireActivateInterventionButton(row.querySelector('.activate-int-btn'));
+                                } else {
+                                    if (contentDiv) {
+                                        contentDiv.innerHTML = `<div class="text-danger small font-weight-bold"><i class="bi bi-exclamation-circle me-1"></i>Failed to generate recommendation: ${data.error || 'unknown error'}</div>`;
+                                    }
+                                }
+                            })
+                            .catch(err => {
+                                this.disabled = false;
+                                if (contentDiv) {
+                                    contentDiv.innerHTML = `<div class="text-danger small font-weight-bold"><i class="bi bi-exclamation-circle me-1"></i>Error: ${err.message}</div>`;
+                                }
+                            });
+                        });
+                    });
+
+                    // Wire up any initial activate-int-btn on page load
+                    container.querySelectorAll('.activate-int-btn').forEach(btn => {
+                        wireActivateInterventionButton(btn);
+                    });
+
+                    // Wire up the log-progress buttons inside this newly created HTML
+                    container.querySelectorAll('.log-progress-btn').forEach(btn => {
+                        btn.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            
+                            const stateData = JSON.parse(this.dataset.state);
+                            const obs = stateData.latest_observation || {};
+                            
+                            document.getElementById('progress-state-id').value = stateData.id;
+                            document.getElementById('progress-role').value = stateData.role;
+                            document.getElementById('progress-action').value = stateData.recommended_action;
+                            document.getElementById('progress-metric').value = stateData.success_metric;
+                            
+                            document.getElementById('progress-status').value = obs.status || 'In Progress';
+                            document.getElementById('progress-value').value = obs.actual_value || '';
+                            document.getElementById('progress-notes').value = obs.status_notes || '';
+                            
+                            // Set current date by default
+                            const today = new Date().toISOString().split('T')[0];
+                            document.getElementById('progress-date').value = today;
+
+                            const modalEl = document.getElementById('logProgressModal');
+                            const modal = new bootstrap.Modal(modalEl);
+                            modal.show();
+                        });
+                    });
+                });
+            } else {
+                tileContainers.forEach(container => {
+                    container.style.display = 'none';
+                    container.innerHTML = '';
+                });
+            }
+        })
+        .catch(err => console.error('Error refreshing progress tile:', err));
+    };
+
+    // Auto-refresh progress tile on page load if chat ID exists
+    setTimeout(() => {
+        window.refreshProgressTile();
+    }, 1200);
 
     // Call backend to generate the table from existing chat/scenario/role data
     function generateRecommendedActionTable(roleGoalsSection, genBtn, resultDiv) {
@@ -3481,6 +4154,7 @@ document.addEventListener('click', function (e) {
                     </button>
                 </div>
                 <div class="action-table-result mt-3"></div>
+                <div class="progress-tile-container mt-4" style="display: none;"></div>
             `;
 
             targetCard.appendChild(wrap);
