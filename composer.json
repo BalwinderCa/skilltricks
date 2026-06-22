@@ -22,6 +22,7 @@
         "laravel/socialite": "^5.5",
         "laravel/tinker": "^2.10.1",
         "laravel/ui": "^4.0",
+        "prabowosd/laravel-collective-html": "^1.1",
         "league/flysystem-aws-s3-v3": "^3.24.0",
         "maatwebsite/excel": "^3.1",
         "mercadopago/dx-php": "^2.5",

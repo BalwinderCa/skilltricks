@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "83684ca12afb2d0624d5034f0795f8a9",
+    "content-hash": "dde7557344776342441906ae6a1797fc",
     "packages": [
         {
             "name": "anandsiddharth/laravel-paytm-wallet",
@@ -6968,6 +6968,74 @@
                 }
             ],
             "time": "2026-06-14T23:24:10+00:00"
+        },
+        {
+            "name": "prabowosd/laravel-collective-html",
+            "version": "v1.1.2",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/prabowosd/laravel-collective-html.git",
+                "reference": "cfc4d3e5c10c47dc4040debd0b510eee5949d1cb"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/prabowosd/laravel-collective-html/zipball/cfc4d3e5c10c47dc4040debd0b510eee5949d1cb",
+                "reference": "cfc4d3e5c10c47dc4040debd0b510eee5949d1cb",
+                "shasum": ""
+            },
+            "require": {
+                "illuminate/http": "^10.0|^11.0|^12.0|^13.0",
+                "illuminate/routing": "^10.0|^11.0|^12.0|^13.0",
+                "illuminate/session": "^10.0|^11.0|^12.0|^13.0",
+                "illuminate/support": "^10.0|^11.0|^12.0|^13.0",
+                "illuminate/view": "^10.0|^11.0|^12.0|^13.0",
+                "php": "^8.2"
+            },
+            "require-dev": {
+                "illuminate/database": "^10.0|^11.0|^12.0|^13.0",
+                "mockery/mockery": "^1.6",
+                "phpunit/phpunit": "^10.0|^11.0"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "aliases": {
+                        "Form": "Collective\\Html\\FormFacade",
+                        "Html": "Collective\\Html\\HtmlFacade"
+                    },
+                    "providers": [
+                        "Collective\\Html\\HtmlServiceProvider"
+                    ]
+                },
+                "branch-alias": {
+                    "dev-main": "1.1.x-dev"
+                }
+            },
+            "autoload": {
+                "files": [
+                    "src/helpers.php"
+                ],
+                "psr-4": {
+                    "Collective\\Html\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Satrio Dwi Prabowo",
+                    "email": "sdp@starset.id"
+                }
+            ],
+            "description": "HTML and Form Builders for the Laravel Framework (Laravel 10-13 compatible).",
+            "homepage": "https://github.com/prabowosd/laravel-collective-html",
+            "support": {
+                "issues": "https://github.com/prabowosd/laravel-collective-html/issues",
+                "source": "https://github.com/prabowosd/laravel-collective-html"
+            },
+            "time": "2026-05-27T04:30:46+00:00"
         },
         {
             "name": "psr/cache",
