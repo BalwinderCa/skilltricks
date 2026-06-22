@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -17,11 +18,11 @@ return new class extends Migration
         $isBigInt = true;
 
         if (Schema::hasTable('search_user_chat')) {
-            $connection = Illuminate\Support\Facades\DB::connection();
+            $connection = DB::connection();
             $driver = $connection->getDriverName();
             if ($driver === 'mysql') {
-                $columnInfo = Illuminate\Support\Facades\DB::select("SHOW COLUMNS FROM `search_user_chat` LIKE 'id'");
-                if (!empty($columnInfo)) {
+                $columnInfo = DB::select("SHOW COLUMNS FROM `search_user_chat` LIKE 'id'");
+                if (! empty($columnInfo)) {
                     $type = strtolower($columnInfo[0]->Type);
                     $isUnsigned = (strpos($type, 'unsigned') !== false);
                     $isBigInt = (strpos($type, 'bigint') !== false);
@@ -31,7 +32,7 @@ return new class extends Migration
 
         Schema::create('expected_states', function (Blueprint $table) use ($isUnsigned, $isBigInt) {
             $table->id();
-            
+
             if ($isBigInt) {
                 if ($isUnsigned) {
                     $table->unsignedBigInteger('search_user_chat_id');
@@ -57,10 +58,10 @@ return new class extends Migration
 
             // Set up relationship/indexes
             $table->foreign('search_user_chat_id')
-                  ->references('id')
-                  ->on('search_user_chat')
-                  ->onDelete('cascade');
-            
+                ->references('id')
+                ->on('search_user_chat')
+                ->onDelete('cascade');
+
             $table->index(['search_user_chat_id', 'role']);
         });
     }
