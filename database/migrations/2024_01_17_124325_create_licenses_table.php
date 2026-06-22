@@ -22,8 +22,10 @@ class CreateLicensesTable extends Migration
             $table->timestamps();
         });
 
-        \App\Models\SystemSetting::query()->create([
-            "default_max_result_length_blog_wizard" => 500
+        \App\Models\SystemSetting::query()->updateOrCreate([
+            'entity' => 'default_max_result_length_blog_wizard'
+        ], [
+            'value' => '500'
         ]);
 
     }

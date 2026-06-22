@@ -1,64 +1,57 @@
 {
+    "$schema": "https://getcomposer.org/schema.json",
     "name": "laravel/laravel",
     "type": "project",
-    "description": "The Laravel Framework.",
-    "keywords": [
-        "framework",
-        "laravel"
-    ],
+    "description": "The skeleton application for the Laravel framework.",
+    "keywords": ["laravel", "framework"],
     "license": "MIT",
     "require": {
-        "php": "^8.1|^8.2",
+        "php": "^8.2",
         "anandsiddharth/laravel-paytm-wallet": "^2.0",
-        "copyleaks/php-plagiarism-checker": "^4.0",
+        "copyleaks/php-plagiarism-checker": "4.1.2",
         "deepseek-php/deepseek-laravel": "^2.0",
-        "fruitcake/laravel-cors": "^2.0",
         "google/cloud-storage": "^1.33",
         "google/cloud-text-to-speech": "^1.6",
-        "guzzlehttp/guzzle": "^7.0.1",
         "iyzico/iyzipay-php": "^2.0",
         "josiasmontag/laravel-recaptchav3": "^1.0",
-        "kingflamez/laravelrave": "^4.2",
+        "kingflamez/laravelrave": "dev-master",
         "laracasts/flash": "^3.2",
-        "laravel/cashier": "14.8",
-        "laravel/framework": "^9.0",
-        "laravel/sanctum": "^2.11",
+        "laravel/cashier": "^15.0",
+        "laravel/framework": "^12.0",
+        "laravel/sanctum": "^4.0",
         "laravel/socialite": "^5.5",
-        "laravel/tinker": "^2.5",
-        "laravel/ui": "^3.4",
-        "laravelcollective/html": "^6.4",
+        "laravel/tinker": "^2.10.1",
+        "laravel/ui": "^4.0",
         "league/flysystem-aws-s3-v3": "^3.24.0",
         "maatwebsite/excel": "^3.1",
         "mercadopago/dx-php": "^2.5",
         "midtrans/midtrans-php": "^2.5",
         "mollie/mollie-api-php": "^2.60",
         "mozex/anthropic-laravel": "^1.2",
-        "niklasravnsborg/laravel-pdf": "^4.1",
-        "nwidart/laravel-modules": "^8.3",
+        "nwidart/laravel-modules": "^11.0",
         "orhanerday/open-ai": "^4.7",
         "parsecsv/php-parsecsv": "^1.3",
-        "paypal/paypal-checkout-sdk": "^1.0",
-        "phpoffice/phpspreadsheet": "1.21",
+        "paypal/paypal-server-sdk": "^1.0",
+        "phpoffice/phpspreadsheet": "^1.21",
         "razorpay/razorpay": "^2.8",
         "royryando/laravel-duitku": "^1.0",
         "silviolleite/laravelpwa": "^2.0",
         "smalot/pdfparser": "^2.8",
-        "spatie/laravel-permission": "^5.7",
+        "spatie/laravel-html": "^3.0",
+        "spatie/laravel-permission": "^6.0",
         "srmklive/paypal": "~3.0",
-        "stripe/stripe-php": "^10.10",
-        "unicodeveloper/laravel-paystack": "^1.1",
+        "stripe/stripe-php": "^16.2",
+        "devrabiul/laravel-paystack": "dev-master",
         "yoomoney/yookassa-sdk-php": "^2.0"
     },
     "require-dev": {
-        "barryvdh/laravel-debugbar": "^3.7",
-        "fakerphp/faker": "^1.9.1",
-        "laravel/pint": "^1.29",
-        "laravel/sail": "^1.0.1",
-        "mockery/mockery": "^1.4.4",
-        "nunomaduro/collision": "^6.1",
-        "nunomaduro/larastan": "^2.0",
-        "phpunit/phpunit": "^9.5.10",
-        "spatie/laravel-ignition": "^1.0"
+        "fakerphp/faker": "^1.23",
+        "laravel/pail": "^1.2.2",
+        "laravel/pint": "^1.24",
+        "laravel/sail": "^1.41",
+        "mockery/mockery": "^1.6",
+        "nunomaduro/collision": "^8.6",
+        "phpunit/phpunit": "^11.5.50"
     },
     "autoload": {
         "psr-4": {
@@ -77,6 +70,22 @@
         }
     },
     "scripts": {
+        "setup": [
+            "composer install",
+            "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
+            "@php artisan key:generate",
+            "@php artisan migrate --force",
+            "npm install",
+            "npm run build"
+        ],
+        "dev": [
+            "Composer\\Config::disableProcessTimeout",
+            "npx concurrently -c \"#93c5fd,#c4b5fd,#fb7185,#fdba74\" \"php artisan serve\" \"php artisan queue:listen --tries=1 --timeout=0\" \"php artisan pail --timeout=0\" \"npm run dev\" --names=server,queue,logs,vite --kill-others"
+        ],
+        "test": [
+            "@php artisan config:clear --ansi",
+            "@php artisan test"
+        ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
             "@php artisan package:discover --ansi"
@@ -88,7 +97,12 @@
             "@php -r \"file_exists('.env') || copy('.env.example', '.env');\""
         ],
         "post-create-project-cmd": [
-            "@php artisan key:generate --ansi"
+            "@php artisan key:generate --ansi",
+            "@php -r \"file_exists('database/database.sqlite') || touch('database/database.sqlite');\"",
+            "@php artisan migrate --graceful --ansi"
+        ],
+        "pre-package-uninstall": [
+            "Illuminate\\Foundation\\ComposerScripts::prePackageUninstall"
         ]
     },
     "extra": {
@@ -101,9 +115,11 @@
         "preferred-install": "dist",
         "sort-packages": true,
         "allow-plugins": {
-            "php-http/discovery": true
+            "pestphp/pest-plugin": true,
+            "php-http/discovery": true,
+            "wikimedia/composer-merge-plugin": true
         }
     },
-    "minimum-stability": "dev",
+    "minimum-stability": "stable",
     "prefer-stable": true
 }

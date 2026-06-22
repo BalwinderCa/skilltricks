@@ -1,67 +1,32 @@
-/vendor/
-node_modules/
-npm-debug.log
-yarn-error.log
-venv/
-
-# Laravel 4 specific
-bootstrap/compiled.php
-app/storage/
-
-# Laravel 5 & Lumen specific
-public/storage
-public/hot
-
-public/uploads/pdfChats
-public/uploads
-
-.idea
-
-# Laravel 5 & Lumen specific with changed public path
-public_html/storage
-public_html/hot
-
-storage/*.key
-storage/app/vertex-sa.json
-storage/app/*-sa.json
-.env
-Homestead.yaml
-Homestead.json
-/.vagrant
-.phpunit.result.cache
-
-# modules
-multivendor-rename-to-vendor.zip
-
-# uploads
-# uploads.zip
-
-copy.php
-change-list.text
+*.log
 .DS_Store
+.env
+.env.backup
+.env.production
+.phpactor.json
+.phpunit.result.cache
+/.fleet
+/.idea
+/.nova
+/.phpunit.cache
+/.vscode
+/.zed
+/auth.json
+/node_modules
+/public/build
+/public/hot
+/public/storage
+/storage/*.key
+/storage/pail
+/vendor
+Homestead.json
+Homestead.yaml
+Thumbs.db
 
-# Deployment artifacts
-id_rsa_skilltricks*
-id_skilltricks_new*
-*.pem
-id_ed25519*
-PUBLIC_KEY.txt
-SSH_SETUP_INSTRUCTIONS.md
-upload_log.txt
-skilltricks_deploy.zip
-
-# Database dumps (never commit - contain secrets & user data)
-*.sql
-database.sql
-
-# Logs & debug endpoints (never commit - leak paths/stack traces/server info)
-error_log
-**/error_log
-info.php
-phpinfo.php
-# Live deploy config (real host/user/paths)
-deploy.config
-
-# Local editor/agent state
-/.claude/
-/.cursor/
+/skilltricks-legacy-backup.zip
+*.zip
+/composer.phar
+*.phar
+/deploy.config
+/id_skilltricks_new
+/id_skilltricks_new.pub

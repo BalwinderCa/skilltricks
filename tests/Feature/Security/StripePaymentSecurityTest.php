@@ -33,12 +33,12 @@ class StripePaymentSecurityTest extends TestCase
     {
         config(['custom.stripe_secret' => 'sk_test_fake']);
 
-        $session = \Stripe\Checkout\Session::constructFrom([
+        $session = (object) [
             'id' => 'cs_test_unpaid',
             'object' => 'checkout.session',
             'payment_status' => 'unpaid',
             'payment_intent' => null,
-        ]);
+        ];
 
         Mockery::mock('alias:' . \Stripe\Checkout\Session::class)
             ->shouldReceive('retrieve')

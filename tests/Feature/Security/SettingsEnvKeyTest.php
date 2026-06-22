@@ -15,9 +15,10 @@ class SettingsEnvKeyTest extends TestCase
     {
         parent::setUp();
 
-        Permission::create([
+        Permission::firstOrCreate([
             'name' => 'general_settings',
             'guard_name' => 'web',
+        ], [
             'group_name' => 'system_settings',
         ]);
 

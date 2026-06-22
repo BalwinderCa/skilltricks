@@ -55,6 +55,18 @@ return new class extends Migration
             return;
         }
 
+        if (DB::getDriverName() === 'sqlite') {
+            // Under SQLite (testing), just attempt to add index or skip to avoid syntax error
+            try {
+                Schema::table($table, function (Blueprint $blueprint) use ($columns, $indexName) {
+                    $blueprint->index($columns, $indexName);
+                });
+            } catch (\Exception $e) {
+                // Ignore if already exists in sqlite
+            }
+            return;
+        }
+
         $exists = collect(DB::select("SHOW INDEX FROM `{$table}` WHERE Key_name = ?", [$indexName]))->isNotEmpty();
 
         if (! $exists) {
@@ -67,6 +79,17 @@ return new class extends Migration
     private function dropIndexIfExists(string $table, string $indexName): void
     {
         if (! Schema::hasTable($table)) {
+            return;
+        }
+
+        if (DB::getDriverName() === 'sqlite') {
+            try {
+                Schema::table($table, function (Blueprint $blueprint) use ($indexName) {
+                    $blueprint->dropIndex($indexName);
+                });
+            } catch (\Exception $e) {
+                // Ignore if doesn't exist in sqlite
+            }
             return;
         }
 
