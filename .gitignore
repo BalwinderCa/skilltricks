@@ -30,3 +30,4 @@ Thumbs.db
 /deploy.config
 /id_skilltricks_new
 /id_skilltricks_new.pub
+/.env.testing
