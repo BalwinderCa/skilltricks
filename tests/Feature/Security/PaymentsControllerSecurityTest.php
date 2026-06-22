@@ -15,7 +15,7 @@ class PaymentsControllerSecurityTest extends TestCase
     {
         Session::put('payment_method', 'bogus_gateway');
 
-        $response = (new PaymentsController())->initPayment();
+        $response = (new PaymentsController)->initPayment();
 
         $this->assertTrue($response->isRedirect());
         $this->assertStringContainsString(
