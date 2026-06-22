@@ -7,7 +7,6 @@ use App\Http\Services\SmsServices;
 use App\Jobs\User\EmailConfirmationJob;
 use App\Jobs\User\WelcomeJob;
 use App\Mail\User\EmailConfirmationMail;
-use App\Providers\RouteServiceProvider;
 use Illuminate\Foundation\Auth\VerifiesEmails;
 use App\Models\User;
 use Carbon\Carbon;
@@ -34,7 +33,7 @@ class VerificationController extends Controller
      *
      * @var string
      */
-    protected $redirectTo = RouteServiceProvider::HOME;
+    protected $redirectTo = '/dashboard';
 
     /**
      * Create a new controller instance.

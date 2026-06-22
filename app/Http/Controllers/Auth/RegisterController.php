@@ -36,8 +36,6 @@ use Illuminate\Support\Facades\Hash;
 
 use App\Jobs\User\EmailConfirmationJob;
 
-use App\Providers\RouteServiceProvider;
-
 use Illuminate\Support\Facades\Validator;
 
 use Illuminate\Support\Facades\Notification;
@@ -90,7 +88,7 @@ class RegisterController extends Controller
 
      */
 
-    protected $redirectTo = RouteServiceProvider::HOME;
+    protected $redirectTo = '/dashboard';
 
 
 
