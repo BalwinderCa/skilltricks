@@ -39,11 +39,12 @@ use App\Http\Controllers\Backend\Payments\Stripe\StripeWithAutoRecurringPaymentC
 */
 
 # demo routes — local + DEMO_MODE=On only (see EnsureDemoMode middleware)
-Route::middleware('ensureDemoMode')->group(function () {
-    Route::get('stream', [DemoController::class, 'eventTry']);
-    Route::get('/demo/db-cron', [DemoController::class, 'cron_1']);
-    Route::get('/demo/folder-cron', [DemoController::class, 'cron_2']);
-});
+# SECURITY: disabled demo routes in production.
+# Route::middleware('ensureDemoMode')->group(function () {
+#     Route::get('stream', [DemoController::class, 'eventTry']);
+#     Route::get('/demo/db-cron', [DemoController::class, 'cron_1']);
+#     Route::get('/demo/folder-cron', [DemoController::class, 'cron_2']);
+# });
 
 // logout => false: we register our own GET /logout below (named 'logout');
 // letting Auth::routes() also add a POST /logout named 'logout' creates a
