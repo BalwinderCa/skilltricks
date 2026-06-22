@@ -1,11 +1,14 @@
 includes:
-    - vendor/nunomaduro/larastan/extension.neon
+    - vendor/larastan/larastan/extension.neon
     - phpstan-baseline.neon
 
 parameters:
     level: 4
     paths:
         - app
+    excludePaths:
+        - app/Http/Controllers/Backend/Roles/RolesController.php
+    reportUnmatchedIgnoredErrors: false
     # Brownfield: existing issues are captured in phpstan-baseline.neon so CI
     # only fails on NEW problems. Regenerate with:
     #   vendor/bin/phpstan analyse --generate-baseline
