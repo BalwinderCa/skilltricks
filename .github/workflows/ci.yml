@@ -39,6 +39,9 @@ jobs:
       - name: Generate app key
         run: php artisan key:generate
 
+      - name: Run migrations
+        run: php artisan migrate --force
+
       - name: PHPStan (baseline = only new issues fail)
         run: vendor/bin/phpstan analyse --no-progress --memory-limit=2G
 
