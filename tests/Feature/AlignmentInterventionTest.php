@@ -7,9 +7,9 @@ use App\Models\Intervention;
 use App\Models\SearchUserChat;
 use App\Models\User;
 use App\Services\AI\AiProviderService;
+use GuzzleHttp\Psr7\Response;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Response as ClientResponse;
-use Mockery;
 use Tests\TestCase;
 
 class AlignmentInterventionTest extends TestCase
@@ -49,9 +49,9 @@ class AlignmentInterventionTest extends TestCase
 
         // Mock the application's AI Provider Service
         $aiMock = $this->mock(AiProviderService::class);
-        
+
         // We mock generate to return a successful ClientResponse
-        $mockGuzzleResponse = new \GuzzleHttp\Psr7\Response(200, [], json_encode(['choices' => []]));
+        $mockGuzzleResponse = new Response(200, [], json_encode(['choices' => []]));
         $mockClientResponse = new ClientResponse($mockGuzzleResponse);
 
         $aiMock->shouldReceive('generate')
@@ -81,7 +81,7 @@ class AlignmentInterventionTest extends TestCase
                 'expected_state_id' => $expectedState->id,
                 'ai_recommendation' => 'Mock AI Intervention: Reallocate resources to unblock the campaign.',
                 'status' => 'proposed',
-            ]
+            ],
         ]);
 
         $this->assertDatabaseHas('interventions', [
@@ -129,7 +129,7 @@ class AlignmentInterventionTest extends TestCase
             'intervention' => [
                 'id' => $intervention->id,
                 'status' => 'active',
-            ]
+            ],
         ]);
 
         $this->assertDatabaseHas('interventions', [

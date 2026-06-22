@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\ExpectedState;
 use App\Models\SearchUserChat;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;

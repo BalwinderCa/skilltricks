@@ -12,13 +12,12 @@ use App\Models\AiChatPrompt;
 use App\Models\AiChatPromptGroup;
 use App\Models\ChatCategory;
 use App\Models\ChatRoleCategory;
+use App\Models\ExpectedState;
+use App\Models\Intervention;
+use App\Models\ObservedState;
 use App\Models\SearchUserChat;
 use App\Models\SearchUserChatData;
-use App\Models\ExpectedState;
-use App\Models\ObservedState;
-use App\Models\Intervention;
 use App\Models\SubcategoryMenu;
-use App\Models\SubcategoryMenuQuestion;
 use App\Models\SubscriptionPackage;
 use App\Models\UserChatAnswer;
 use App\Services\AI\AiProviderService;
@@ -125,18 +124,18 @@ EOT;
             if ($package->allow_ai_chat == 0) {
                 abort(403);
             }
-        } elseif (!auth()->user()->can('ai_chat')) {
+        } elseif (! auth()->user()->can('ai_chat')) {
             abort(403);
         }
 
         $conditions = [['type', 'chat']];
 
-        if (!isCustomer()) {
+        if (! isCustomer()) {
             $chatExpertIds = $writeBotService->getAiChatCategories(null, null, $conditions);
-            $chatExperts   = $writeBotService->getAiChatCategories(true, 1, $conditions);
+            $chatExperts = $writeBotService->getAiChatCategories(true, 1, $conditions);
         } else {
             $chatExpertIds = $writeBotService->getAiChatCategories(null, 1, $conditions);
-            $chatExperts   = $writeBotService->getAiChatCategories(true, 1, $conditions);
+            $chatExperts = $writeBotService->getAiChatCategories(true, 1, $conditions);
         }
 
         $chatListQuery = AiChat::orderBy('updated_at', 'DESC')
@@ -146,20 +145,20 @@ EOT;
 
         $searchKey = null;
 
-        if (!empty($request->search)) {
-            $chatListQuery->where('title', 'like', '%' . $request->search . '%');
+        if (! empty($request->search)) {
+            $chatListQuery->where('title', 'like', '%'.$request->search.'%');
             $searchKey = $request->search;
         }
 
-        $chatList = !empty($request->expert)
+        $chatList = ! empty($request->expert)
             ? $chatListQuery->where('ai_chat_category_id', $request->expert)->get()
             : $chatListQuery->where('ai_chat_category_id', 1)->get();
 
-        $promptGroups    = AiChatPromptGroup::oldest()->get();
-        $prompts         = AiChatPrompt::latest()->get();
-        $conversation    = $chatListQuery->first();
-        $documents       = $this->docs->forUser($user);
-        $documentCount   = $documents->count();
+        $promptGroups = AiChatPromptGroup::oldest()->get();
+        $prompts = AiChatPrompt::latest()->get();
+        $conversation = $chatListQuery->first();
+        $documents = $this->docs->forUser($user);
+        $documentCount = $documents->count();
         $documentContext = $documents->pluck('parsed_text')->filter()->implode("\n\n--- Document Separator ---\n\n");
 
         return view('backend.pages.aiChat.index', compact(
@@ -177,7 +176,7 @@ EOT;
 
             if ($package->allow_ai_chat == 0) {
                 return response()->json([
-                    'status'  => 400,
+                    'status' => 400,
                     'success' => false,
                     'message' => localize('AI Chat is not available in this package, please upgrade you plan'),
                 ]);
@@ -188,45 +187,45 @@ EOT;
 
         if (empty($expert)) {
             return response()->json([
-                'status'              => 400,
+                'status' => 400,
                 'ai_chat_category_id' => $request->ai_chat_category_id,
-                'success'             => false,
-                'message'             => localize('Expert not found'),
+                'success' => false,
+                'message' => localize('Expert not found'),
             ]);
         }
 
-        $conversation                      = new AiChat;
-        $conversation->user_id             = $user->id;
+        $conversation = new AiChat;
+        $conversation->user_id = $user->id;
         $conversation->ai_chat_category_id = $request->ai_chat_category_id;
-        $conversation->title               = $expert->name . localize(' Chat');
+        $conversation->title = $expert->name.localize(' Chat');
         $conversation->save();
 
         $result = $expert->role === 'default'
             ? localize("Hello! I am $expert->name, and I'm here to answer your all questions.")
             : localize("Hello! I am $expert->name, and I'm $expert->role. $expert->assists_with.");
 
-        $message             = new AiChatMessage;
+        $message = new AiChatMessage;
         $message->ai_chat_id = $conversation->id;
-        $message->user_id    = $user->id;
-        $message->response   = $result;
-        $message->result     = $result;
+        $message->user_id = $user->id;
+        $message->response = $result;
+        $message->result = $result;
         $message->save();
 
-        $chatList      = AiChat::latest()->where('ai_chat_category_id', $expert->id)->where('user_id', $user->id)->get();
-        $promptGroups  = AiChatPromptGroup::oldest()->get();
-        $prompts       = AiChatPrompt::latest()->get();
+        $chatList = AiChat::latest()->where('ai_chat_category_id', $expert->id)->where('user_id', $user->id)->get();
+        $promptGroups = AiChatPromptGroup::oldest()->get();
+        $prompts = AiChatPrompt::latest()->get();
         $documentCount = $this->docs->forUser($user)->count();
 
         return response()->json([
-            'status'            => 200,
-            'chatList'          => view('backend.pages.aiChat.inc.chat-list', compact('chatList'))->render(),
+            'status' => 200,
+            'chatList' => view('backend.pages.aiChat.inc.chat-list', compact('chatList'))->render(),
             'messagesContainer' => view('backend.pages.aiChat.inc.messages-container', compact('conversation', 'promptGroups', 'prompts', 'documentCount'))->render(),
         ]);
     }
 
     public function update(Request $request)
     {
-        $conversation        = AiChat::findOrFail((int) $request->chatId);
+        $conversation = AiChat::findOrFail((int) $request->chatId);
         $conversation->title = $request->value;
         $conversation->save();
     }
@@ -249,18 +248,18 @@ EOT;
 
         if (isCustomer() && availableDataCheck('words') <= 10) {
             return response()->json([
-                'status'              => 400,
+                'status' => 400,
                 'ai_chat_category_id' => $request->category_id,
-                'success'             => false,
-                'message'             => localize('Your word balance is low, please upgrade you plan'),
+                'success' => false,
+                'message' => localize('Your word balance is low, please upgrade you plan'),
             ]);
         }
 
-        $message             = new AiChatMessage;
+        $message = new AiChatMessage;
         $message->ai_chat_id = $chat->id;
-        $message->user_id    = $user->id;
-        $message->prompt     = $request->prompt;
-        $message->result     = $request->prompt;
+        $message->user_id = $user->id;
+        $message->prompt = $request->prompt;
+        $message->result = $request->prompt;
         $message->save();
 
         $message->aiChat->touch();
@@ -271,10 +270,10 @@ EOT;
         $request->session()->put('real_time_data', $request->real_time_data == 1 ? 1 : null);
 
         return response()->json([
-            'status'              => 200,
+            'status' => 200,
             'ai_chat_category_id' => $request->category_id,
-            'success'             => false,
-            'message'             => '',
+            'success' => false,
+            'message' => '',
         ]);
     }
 
@@ -283,7 +282,7 @@ EOT;
         $request = request();
         $request->merge(['stream' => true, 'content_type' => 'ai_chat']);
 
-        return (new IntegrationService())->contentGenerator(aiChatEngine(), $request);
+        return (new IntegrationService)->contentGenerator(aiChatEngine(), $request);
     }
 
     public function updateUserWords($tokens, $user)
@@ -296,7 +295,7 @@ EOT;
     public function updateBalanceStopGeneration(Request $request)
     {
         $randomNumber = session()->get('random_number');
-        $user         = user();
+        $user = user();
 
         if ($randomNumber && isCustomer()) {
             $aiChatMessage = AiChatMessage::where('random_number', $randomNumber)
@@ -322,33 +321,33 @@ EOT;
             return response()->json(['status' => 400]);
         }
 
-        $user          = auth()->user();
-        $promptGroups  = AiChatPromptGroup::oldest()->get();
-        $prompts       = AiChatPrompt::latest()->get();
+        $user = auth()->user();
+        $promptGroups = AiChatPromptGroup::oldest()->get();
+        $prompts = AiChatPrompt::latest()->get();
         $documentCount = $this->docs->forUser($user)->count();
 
         return response()->json([
-            'status'            => 200,
+            'status' => 200,
             'messagesContainer' => view('backend.pages.aiChat.inc.messages-container', compact('conversation', 'promptGroups', 'prompts', 'documentCount'))->render(),
         ]);
     }
 
     public function getConversations(Request $request)
     {
-        $conversationsQuery  = AiChat::where('ai_chat_category_id', (int) $request->ai_chat_category_id)
+        $conversationsQuery = AiChat::where('ai_chat_category_id', (int) $request->ai_chat_category_id)
             ->where('user_id', auth()->id())
             ->latest('updated_at');
 
-        $chatList            = $conversationsQuery->get();
-        $conversation        = $conversationsQuery->first();
-        $promptGroups        = AiChatPromptGroup::oldest()->get();
-        $prompts             = AiChatPrompt::latest()->get();
+        $chatList = $conversationsQuery->get();
+        $conversation = $conversationsQuery->first();
+        $promptGroups = AiChatPromptGroup::oldest()->get();
+        $prompts = AiChatPrompt::latest()->get();
         $ai_chat_category_id = $request->ai_chat_category_id;
 
         return response()->json([
-            'status'              => 200,
+            'status' => 200,
             'ai_chat_category_id' => $ai_chat_category_id,
-            'chatRight'           => view('backend.pages.aiChat.inc.chat-right', compact('conversation', 'chatList', 'promptGroups', 'prompts'))->render(),
+            'chatRight' => view('backend.pages.aiChat.inc.chat-right', compact('conversation', 'chatList', 'promptGroups', 'prompts'))->render(),
         ]);
     }
 
@@ -356,6 +355,7 @@ EOT;
     {
         if ($request->email == null) {
             flash(localize('Please type an email'))->error();
+
             return back();
         }
 
@@ -363,11 +363,11 @@ EOT;
 
         try {
             Mail::to($request->email)->queue(new EmailManager([
-                'view'         => 'emails.chat',
-                'from'         => config('custom.mail_from_address'),
-                'subject'      => $conversation->title,
+                'view' => 'emails.chat',
+                'from' => config('custom.mail_from_address'),
+                'subject' => $conversation->title,
                 'conversation' => $conversation,
-                'messages'     => $conversation->messages,
+                'messages' => $conversation->messages,
             ]));
 
             flash(localize('Chat successfully sent to email'))->success();
@@ -381,21 +381,22 @@ EOT;
     public function downloadChatHistory(Request $request)
     {
         try {
-            $type         = $request->type;
+            $type = $request->type;
             $conversation = AiChat::findOrFail((int) $request->chatId);
-            $messages     = $conversation->messages;
-            $name         = $conversation->category ? $conversation->category->name : 'ai_chat';
+            $messages = $conversation->messages;
+            $name = $conversation->category ? $conversation->category->name : 'ai_chat';
 
-            if (!$messages) {
+            if (! $messages) {
                 flash(localize('No Message Fund'));
+
                 return redirect()->back();
             }
 
             $data = ['messages' => $messages, 'conversation' => $conversation, 'type' => $type];
 
             if (in_array($type, ['html', 'word'])) {
-                $ext      = $type === 'html' ? '.html' : '.doc';
-                $filePath = public_path('/') . str_replace(' ', '_', $name) . $ext;
+                $ext = $type === 'html' ? '.html' : '.doc';
+                $filePath = public_path('/').str_replace(' ', '_', $name).$ext;
 
                 if (file_exists($filePath)) {
                     unlink($filePath);
@@ -424,16 +425,16 @@ EOT;
 
     public function newchat(Request $request)
     {
-        $user               = auth()->user();
+        $user = auth()->user();
         $chatrolecategories = ChatRoleCategory::active()->get();
-        $chatcategories     = ChatCategory::active()->forRole($user->chat_role_categories)->get();
+        $chatcategories = ChatCategory::active()->forRole($user->chat_role_categories)->get();
 
         return view('backend.pages.aiChat.newchat', compact('user', 'chatrolecategories', 'chatcategories'));
     }
 
     public function userchathistory(Request $request)
     {
-        $user            = auth()->user();
+        $user = auth()->user();
         $userhistorydata = UserChatAnswer::where('user_id', $user->id)->get();
 
         return view('backend.pages.aiChat.user-chat-history', compact('user', 'userhistorydata'));
@@ -441,24 +442,24 @@ EOT;
 
     public function newusers_new_chat(Request $request)
     {
-        $user    = auth()->user();
+        $user = auth()->user();
         $newChat = SearchUserChat::create(['user_id' => $user->id, 'status1' => 0]);
 
         flash(localize('New Chat.'));
 
-        return redirect('dashboard/users-new-chat/' . $newChat->id);
+        return redirect('dashboard/users-new-chat/'.$newChat->id);
     }
 
     public function users_new_chat(Request $request, $id)
     {
-        $user         = auth()->user();
-        $searchKey    = null;
+        $user = auth()->user();
+        $searchKey = null;
         $promptGroups = AiChatPromptGroup::oldest()->get();
-        $prompts      = AiChatPrompt::latest();
+        $prompts = AiChatPrompt::latest();
 
         if ($request->search != null) {
-            $prompts   = $prompts->where('title', 'like', '%' . $request->search . '%')
-                ->orWhere('prompt', 'like', '%' . $request->search . '%');
+            $prompts = $prompts->where('title', 'like', '%'.$request->search.'%')
+                ->orWhere('prompt', 'like', '%'.$request->search.'%');
             $searchKey = $request->search;
         }
 
@@ -468,9 +469,9 @@ EOT;
             ->where('user_id', $user->id)
             ->get();
 
-        $today         = Carbon::now()->startOfDay();
-        $yesterday     = Carbon::yesterday()->startOfDay();
-        $sevenDaysAgo  = Carbon::now()->subDays(7)->startOfDay();
+        $today = Carbon::now()->startOfDay();
+        $yesterday = Carbon::yesterday()->startOfDay();
+        $sevenDaysAgo = Carbon::now()->subDays(7)->startOfDay();
         $thirtyDaysAgo = Carbon::now()->subDays(30)->startOfDay();
 
         $searchuserchatdatanew = SearchUserChatData::where('user_id', $user->id)
@@ -495,9 +496,9 @@ EOT;
 
         $chatRecord = SearchUserChat::where('id', $id)->where('user_id', $user->id)->first();
 
-        $chatTotalTokens        = (int) ($chatRecord->total_tokens ?? 0);
+        $chatTotalTokens = (int) ($chatRecord->total_tokens ?? 0);
         $selectedStrategyFromDB = $chatRecord->selected_strategy ?? null;
-        $leadershipBriefFromDB  = !empty($chatRecord->leadership_brief) ? $chatRecord->leadership_brief : null;
+        $leadershipBriefFromDB = ! empty($chatRecord->leadership_brief) ? $chatRecord->leadership_brief : null;
 
         return view('backend.pages.aiChat.users-new-chat', compact(
             'user', 'promptGroups', 'prompts', 'searchKey', 'searchuserchatdata', 'id',
@@ -508,17 +509,17 @@ EOT;
 
     public function generate_strategy_variant(Request $request)
     {
-        $user              = auth()->user();
-        $chatId            = $request->input('chat_id');
-        $question          = $request->input('original_question');
-        $strategyName      = trim((string) $request->input('strategy_name'));
+        $user = auth()->user();
+        $chatId = $request->input('chat_id');
+        $question = $request->input('original_question');
+        $strategyName = trim((string) $request->input('strategy_name'));
         $strategyRationale = trim((string) $request->input('strategy_rationale'));
 
-        if (!$chatId || !$question || $strategyName === '') {
+        if (! $chatId || ! $question || $strategyName === '') {
             return response()->json(['error' => 'Chat ID, original question and strategy name are required.'], 400);
         }
 
-        $documents     = $this->docs->forUser($user);
+        $documents = $this->docs->forUser($user);
         $systemMessage = $this->docs->buildSystemMessage($user, 'You are an executive strategy assistant trained in the GoalSync framework. Return ONLY valid JSON. No markdown, no code fences, no commentary.');
 
         $rationaleLine = $strategyRationale !== '' ? "Strategy rationale: \"{$strategyRationale}\"\n" : '';
@@ -564,13 +565,13 @@ EOT;
         try {
             $aiResponse = $this->ai->generate($systemMessage, $prompt, 3000, 0.7, true);
 
-            if (!$aiResponse->successful()) {
+            if (! $aiResponse->successful()) {
                 return response()->json(['error' => 'Failed to generate strategy variant.', 'details' => $aiResponse->body()], 500);
             }
 
-            $text            = $this->ai->extractText($aiResponse);
+            $text = $this->ai->extractText($aiResponse);
             $chatTotalTokens = $this->ai->recordChatTokens($chatId, $aiResponse);
-            $variant         = $this->ai->parseJson($text);
+            $variant = $this->ai->parseJson($text);
 
             if ($variant === null) {
                 Log::warning('Strategy variant JSON parse failed', ['user_id' => $user->id, 'chat_id' => $chatId, 'preview' => substr((string) $text, 0, 300)]);
@@ -586,45 +587,45 @@ EOT;
 
     public function users_new_chat_ask(Request $request)
     {
-        $user              = auth()->user();
-        $question          = $request->input('question');
-        $chatId            = $request->input('chat_id');
+        $user = auth()->user();
+        $question = $request->input('question');
+        $chatId = $request->input('chat_id');
         $additionalContext = $request->input('additional_context');
 
-        if (!$question || !$chatId) {
+        if (! $question || ! $chatId) {
             return response()->json(['error' => 'Question and Chat ID are required.'], 400);
         }
 
         $previousContext = UserChatAnswer::where('user_id', $user->id)->latest()->first();
-        $chat            = SearchUserChat::where('id', $chatId)->where('user_id', $user->id)->first();
+        $chat = SearchUserChat::where('id', $chatId)->where('user_id', $user->id)->first();
 
-        if (!$chat) {
-            $chat   = SearchUserChat::create(['user_id' => $user->id, 'status1' => 0]);
+        if (! $chat) {
+            $chat = SearchUserChat::create(['user_id' => $user->id, 'status1' => 0]);
             $chatId = $chat->id;
         }
 
-        $isFirstMessage    = $chat->isFirstMessage();
-        $documents         = $this->docs->forUser($user);
+        $isFirstMessage = $chat->isFirstMessage();
+        $documents = $this->docs->forUser($user);
         $documentNamesList = $this->docs->buildNamesList($documents);
 
         $systemMessage = 'You are a strategy assistant. Respond only using structured ChatGPT-style text with emojis and clean formatting based on the GoalSync method.';
 
         if ($isFirstMessage) {
             $systemMessage .= $this->docs->buildContext($documents);
-        } elseif (!empty($documentNamesList)) {
+        } elseif (! empty($documentNamesList)) {
             $systemMessage .= "\n\n--- COMPANY DOCUMENTS (names only) ---\n"
-                . "Full document text was provided earlier in this session. The available company documents are:\n"
-                . $documentNamesList
-                . "--- END COMPANY DOCUMENTS ---\n";
+                ."Full document text was provided earlier in this session. The available company documents are:\n"
+                .$documentNamesList
+                ."--- END COMPANY DOCUMENTS ---\n";
         }
 
         $systemMessage .= $this->resolveAdditionalContext($request, $chat, $additionalContext);
 
         $responseFormat = 'markdown';
-        $provider       = $this->ai->providerLabel();
+        $provider = $this->ai->providerLabel();
 
         if ($isFirstMessage) {
-            $prompt         = $this->goalSyncJsonPrompt($question, $documentNamesList);
+            $prompt = $this->goalSyncJsonPrompt($question, $documentNamesList);
             $responseFormat = 'json';
 
             try {
@@ -666,8 +667,8 @@ EOT;
             }
         }
 
-        if (!$aiResponse->successful()) {
-            $statusCode  = $aiResponse->status();
+        if (! $aiResponse->successful()) {
+            $statusCode = $aiResponse->status();
             $clientError = $statusCode === 429
                 ? "{$provider} API quota exceeded. Check your billing or reduce request rate."
                 : "{$provider} API request failed.";
@@ -679,7 +680,7 @@ EOT;
         }
 
         $responseContent = $this->ai->extractText($aiResponse);
-        $usage           = $this->ai->extractUsage($aiResponse);
+        $usage = $this->ai->extractUsage($aiResponse);
         $chatTotalTokens = $this->ai->recordChatTokens($chatId, $aiResponse);
 
         if ($responseContent === '') {
@@ -694,46 +695,46 @@ EOT;
         }
 
         $commonData = [
-            'user_id'              => $user->id,
-            'answers'              => $previousContext->answers ?? null,
+            'user_id' => $user->id,
+            'answers' => $previousContext->answers ?? null,
             'chat_role_categories' => $previousContext->chat_role_categories ?? null,
-            'categories'           => $previousContext->categories ?? null,
-            'subcategories'        => $previousContext->subcategories ?? null,
-            'questionmenuid'       => $previousContext->questionmenuid ?? null,
-            'search'               => $question,
-            'response'             => $responseContent,
+            'categories' => $previousContext->categories ?? null,
+            'subcategories' => $previousContext->subcategories ?? null,
+            'questionmenuid' => $previousContext->questionmenuid ?? null,
+            'search' => $question,
+            'response' => $responseContent,
         ];
 
         SearchUserChat::where('id', $chatId)->update($commonData);
         SearchUserChatData::create(array_merge($commonData, ['search_user_chat_id' => $chatId]));
 
         return response()->json([
-            'question'          => $question,
-            'answer'            => $responseContent,
-            'format'            => $responseFormat,
-            'usage'             => $usage,
+            'question' => $question,
+            'answer' => $responseContent,
+            'format' => $responseFormat,
+            'usage' => $usage,
             'chat_total_tokens' => $chatTotalTokens,
-            'chat_id'           => $chatId,
-            'previousContext'   => $previousContext ? (object)['status1' => $previousContext->status1, 'status2' => $previousContext->status2] : null,
-            'chectdata'         => $chat         ? (object)['status1' => $chat->status1,         'status2' => $chat->status2]         : null,
+            'chat_id' => $chatId,
+            'previousContext' => $previousContext ? (object) ['status1' => $previousContext->status1, 'status2' => $previousContext->status2] : null,
+            'chectdata' => $chat ? (object) ['status1' => $chat->status1,         'status2' => $chat->status2] : null,
         ]);
     }
 
     public function users_new_chat_update_strategy(Request $request)
     {
-        $user             = auth()->user();
+        $user = auth()->user();
         $selectedStrategy = $request->input('selected_strategy');
-        $chatId           = $request->input('chat_id');
+        $chatId = $request->input('chat_id');
         $originalQuestion = $request->input('original_question');
-        $sectionsBefore   = $request->input('sections_before');
-        $strategyMap      = $request->input('strategy_map');
-        $isUserSelection  = $request->input('is_user_selection', false);
+        $sectionsBefore = $request->input('sections_before');
+        $strategyMap = $request->input('strategy_map');
+        $isUserSelection = $request->input('is_user_selection', false);
 
-        if (!$selectedStrategy || !$chatId || !$originalQuestion) {
+        if (! $selectedStrategy || ! $chatId || ! $originalQuestion) {
             return response()->json(['error' => 'Selected strategy, Chat ID, and original question are required.'], 400);
         }
 
-        $systemMessage  = $this->docs->buildSystemMessage($user);
+        $systemMessage = $this->docs->buildSystemMessage($user);
         $systemMessage .= SearchUserChat::find($chatId)?->additionalContextBlock() ?? '';
 
         $prompt = <<<EOT
@@ -775,7 +776,7 @@ EOT;
             return $this->ai->handleException($e, 'Update Strategy', $user->id, $chatId);
         }
 
-        if (!$aiResponse->successful()) {
+        if (! $aiResponse->successful()) {
             Log::error("{$provider} Unsuccessful Response - Update Strategy", ['user_id' => $user->id, 'chat_id' => $chatId]);
 
             return response()->json(['error' => "{$provider} API request failed.", 'details' => $aiResponse->body()], 500);
@@ -788,7 +789,7 @@ EOT;
             $chat = SearchUserChat::where('id', $chatId)->where('user_id', $user->id)->first();
 
             if ($chat) {
-                $fullResponse = $sectionsBefore . "\n\n" . $strategyMap . "\n\n" . $updatedSections;
+                $fullResponse = $sectionsBefore."\n\n".$strategyMap."\n\n".$updatedSections;
 
                 $chat->update(['response' => $fullResponse, 'selected_strategy' => $selectedStrategy]);
 
@@ -804,7 +805,7 @@ EOT;
         }
 
         return response()->json([
-            'updated_sections'  => $updatedSections,
+            'updated_sections' => $updatedSections,
             'selected_strategy' => $selectedStrategy,
             'chat_total_tokens' => $chatTotalTokens,
         ]);
@@ -812,15 +813,15 @@ EOT;
 
     public function users_new_chat_update_scenario(Request $request)
     {
-        $user             = auth()->user();
+        $user = auth()->user();
         $selectedScenario = $request->input('selected_scenario');
         $selectedStrategy = $request->input('selected_strategy');
-        $chatId           = $request->input('chat_id');
+        $chatId = $request->input('chat_id');
         $originalQuestion = $request->input('original_question');
-        $sectionsBefore   = $request->input('sections_before');
-        $isUserSelection  = $request->boolean('is_user_selection', false);
+        $sectionsBefore = $request->input('sections_before');
+        $isUserSelection = $request->boolean('is_user_selection', false);
 
-        if (!$selectedScenario || !$chatId || !$originalQuestion) {
+        if (! $selectedScenario || ! $chatId || ! $originalQuestion) {
             return response()->json(['error' => 'Selected scenario, Chat ID, and original question are required.'], 400);
         }
 
@@ -867,8 +868,8 @@ EOT;
             return $this->ai->handleException($e, 'Update Scenario', $user->id, $chatId);
         }
 
-        if (!$aiResponse->successful()) {
-            $statusCode  = $aiResponse->status();
+        if (! $aiResponse->successful()) {
+            $statusCode = $aiResponse->status();
             $clientError = $statusCode === 429
                 ? "{$provider} API quota exceeded. Check your billing or reduce request rate."
                 : "{$provider} API request failed.";
@@ -887,7 +888,7 @@ EOT;
         }
 
         return response()->json([
-            'updated_sections'  => $updatedSections,
+            'updated_sections' => $updatedSections,
             'selected_scenario' => $selectedScenario,
             'chat_total_tokens' => $chatTotalTokens,
         ]);
@@ -895,18 +896,18 @@ EOT;
 
     public function users_new_chat_add_context(Request $request)
     {
-        $user              = auth()->user();
-        $chatId            = $request->input('chat_id');
-        $userId            = $request->input('user_id');
+        $user = auth()->user();
+        $chatId = $request->input('chat_id');
+        $userId = $request->input('user_id');
         $additionalDetails = $request->input('additional_details', '');
 
-        if (!$chatId || !$userId) {
+        if (! $chatId || ! $userId) {
             return response()->json(['error' => 'Chat ID and User ID are required.'], 400);
         }
 
         $chat = SearchUserChat::where('id', $chatId)->where('user_id', $user->id)->first();
 
-        if (!$chat) {
+        if (! $chat) {
             return response()->json(['error' => 'Chat session not found or access denied.'], 404);
         }
 
@@ -915,13 +916,13 @@ EOT;
         } catch (\Exception $e) {
             Log::error('Error saving additional context', ['error' => $e->getMessage(), 'chat_id' => $chatId]);
 
-            return response()->json(['error' => 'Failed to save context: ' . $e->getMessage()], 500);
+            return response()->json(['error' => 'Failed to save context: '.$e->getMessage()], 500);
         }
 
         return response()->json([
             'success' => true,
             'message' => 'Additional context saved successfully.',
-            'context' => !empty($additionalDetails) ? "Additional Details: {$additionalDetails}" : '',
+            'context' => ! empty($additionalDetails) ? "Additional Details: {$additionalDetails}" : '',
         ]);
     }
 
@@ -940,7 +941,7 @@ EOT;
 
     public function user_view_chathistory(Request $request, $id)
     {
-        $user            = auth()->user();
+        $user = auth()->user();
         $userhistoryview = UserChatAnswer::where('id', $id)->where('user_id', $user->id)->first();
 
         return view('backend.pages.aiChat.user-view-chat-history', compact('user', 'userhistoryview'));
@@ -948,22 +949,23 @@ EOT;
 
     public function chatsearch_question(Request $request)
     {
-        $user       = auth()->user();
+        $user = auth()->user();
         $requestall = $request->all();
 
         $query = SubcategoryMenu::forRole($request->chat_role_categories)->forCategory($request->categories);
 
-        $questionmenu = !empty($request->subcategories)
+        $questionmenu = ! empty($request->subcategories)
             ? $query->where('subcategories', $request->subcategories)->first()
             : $query->first();
 
-        if (!$questionmenu) {
+        if (! $questionmenu) {
             flash(localize('No Question Found'));
+
             return back();
         }
 
         $questionmenulist = $questionmenu->activeQuestions()->get();
-        $useranswerdata   = UserChatAnswer::where('user_id', $user->id)
+        $useranswerdata = UserChatAnswer::where('user_id', $user->id)
             ->where('chat_role_categories', $request->chat_role_categories)
             ->where('categories', $request->categories)
             ->where('subcategories', $request->subcategories)
@@ -974,12 +976,12 @@ EOT;
 
     public function chat_question_store(Request $request)
     {
-        $userId         = $request->input('id');
-        $questionIds    = $request->input('question');
-        $answers        = $request->input('answers');
-        $chatRole       = $request->input('chat_role_categories');
-        $category       = $request->input('categories');
-        $subcategory    = $request->input('subcategories');
+        $userId = $request->input('id');
+        $questionIds = $request->input('question');
+        $answers = $request->input('answers');
+        $chatRole = $request->input('chat_role_categories');
+        $category = $request->input('categories');
+        $subcategory = $request->input('subcategories');
         $questionMenuId = $request->input('questionmenuid');
 
         $finalAnswers = [];
@@ -991,13 +993,13 @@ EOT;
         }
 
         $encodedAnswers = json_encode($finalAnswers);
-        $chatData       = [
-            'user_id'              => $userId,
-            'answers'              => $encodedAnswers,
+        $chatData = [
+            'user_id' => $userId,
+            'answers' => $encodedAnswers,
             'chat_role_categories' => $chatRole,
-            'categories'           => $category,
-            'subcategories'        => $subcategory,
-            'questionmenuid'       => $questionMenuId,
+            'categories' => $category,
+            'subcategories' => $subcategory,
+            'questionmenuid' => $questionMenuId,
         ];
 
         $existing = UserChatAnswer::where('user_id', $userId)
@@ -1016,7 +1018,7 @@ EOT;
 
         flash(localize('Answers processed successfully.'));
 
-        return redirect('dashboard/users-new-chat/' . $newChat->id);
+        return redirect('dashboard/users-new-chat/'.$newChat->id);
     }
 
     // ---------------------------------------------------------------------------
@@ -1025,18 +1027,18 @@ EOT;
 
     public function generate_leadership_alignment_brief(Request $request)
     {
-        $user             = auth()->user();
-        $chatId           = $request->input('chat_id');
+        $user = auth()->user();
+        $chatId = $request->input('chat_id');
         $selectedStrategy = trim((string) $request->input('selected_strategy'));
         $selectedScenario = trim((string) $request->input('selected_scenario'));
         $originalQuestion = $request->input('original_question');
-        $fullResponse     = $request->input('full_response');
+        $fullResponse = $request->input('full_response');
 
-        if (!$chatId || !$originalQuestion) {
+        if (! $chatId || ! $originalQuestion) {
             return response()->json(['error' => 'Chat ID and original question are required.'], 400);
         }
 
-        if (!SearchUserChat::where('id', $chatId)->where('user_id', $user->id)->exists()) {
+        if (! SearchUserChat::where('id', $chatId)->where('user_id', $user->id)->exists()) {
             return response()->json(['error' => 'Chat not found or access denied.'], 403);
         }
 
@@ -1092,11 +1094,11 @@ EOT;
         try {
             $aiResponse = $this->ai->generate($systemMessage, $prompt, 2000);
 
-            if (!$aiResponse->successful()) {
+            if (! $aiResponse->successful()) {
                 return response()->json(['error' => 'Failed to generate alignment brief.', 'details' => $aiResponse->body()], 500);
             }
 
-            $brief           = $this->ai->extractText($aiResponse);
+            $brief = $this->ai->extractText($aiResponse);
             $chatTotalTokens = $this->ai->recordChatTokens($chatId, $aiResponse);
 
             try {
@@ -1104,7 +1106,7 @@ EOT;
             } catch (\Exception $e) {
                 Log::error('Failed to save leadership brief', ['chat_id' => $chatId, 'error' => $e->getMessage()]);
 
-                return response()->json(['success' => true, 'brief' => $brief, 'chat_total_tokens' => $chatTotalTokens, 'warning' => 'Brief generated but could not be saved: ' . $e->getMessage()]);
+                return response()->json(['success' => true, 'brief' => $brief, 'chat_total_tokens' => $chatTotalTokens, 'warning' => 'Brief generated but could not be saved: '.$e->getMessage()]);
             }
 
             return response()->json(['success' => true, 'brief' => $brief, 'chat_total_tokens' => $chatTotalTokens]);
@@ -1117,19 +1119,19 @@ EOT;
 
     public function generate_recommended_action_table(Request $request)
     {
-        $user             = auth()->user();
-        $chatId           = $request->input('chat_id');
+        $user = auth()->user();
+        $chatId = $request->input('chat_id');
         $selectedStrategy = $request->input('selected_strategy');
         $selectedScenario = $request->input('selected_scenario');
         $originalQuestion = $request->input('original_question');
-        $fullResponse     = $request->input('full_response');
-        $roleGoalsText    = $request->input('role_goals_text');
+        $fullResponse = $request->input('full_response');
+        $roleGoalsText = $request->input('role_goals_text');
 
-        if (!$chatId || !$originalQuestion) {
+        if (! $chatId || ! $originalQuestion) {
             return response()->json(['error' => 'Chat ID and original question are required.'], 400);
         }
 
-        if (!SearchUserChat::where('id', $chatId)->where('user_id', $user->id)->exists()) {
+        if (! SearchUserChat::where('id', $chatId)->where('user_id', $user->id)->exists()) {
             return response()->json(['error' => 'Chat not found or access denied.'], 403);
         }
 
@@ -1162,13 +1164,13 @@ EOT;
         try {
             $aiResponse = $this->ai->generate($systemMessage, $prompt, 1500, 0.7, true);
 
-            if (!$aiResponse->successful()) {
+            if (! $aiResponse->successful()) {
                 return response()->json(['error' => 'Failed to generate recommended action table.', 'details' => $aiResponse->body()], 500);
             }
 
-            $text            = $this->ai->extractText($aiResponse);
+            $text = $this->ai->extractText($aiResponse);
             $chatTotalTokens = $this->ai->recordChatTokens($chatId, $aiResponse);
-            $rows            = $this->parseRecommendedActionRows($text);
+            $rows = $this->parseRecommendedActionRows($text);
 
             if (empty($rows)) {
                 return response()->json(['error' => 'No rows could be parsed from the AI response.', 'raw' => $text], 500);
@@ -1195,12 +1197,12 @@ EOT;
         $resourcesCommitted = $request->input('resources_committed', false);
         $dependsOnId = $request->input('depends_on_id');
 
-        if (!$chatId || !$role || !$recommendedAction || !$decision) {
+        if (! $chatId || ! $role || ! $recommendedAction || ! $decision) {
             return response()->json(['error' => 'Chat ID, role, action, and decision are required.'], 400);
         }
 
         // Verify ownership
-        if (!SearchUserChat::where('id', $chatId)->where('user_id', $user->id)->exists()) {
+        if (! SearchUserChat::where('id', $chatId)->where('user_id', $user->id)->exists()) {
             return response()->json(['error' => 'Chat not found or access denied.'], 403);
         }
 
@@ -1224,6 +1226,7 @@ EOT;
             return response()->json(['success' => true, 'expected_state' => $expectedState]);
         } catch (\Exception $e) {
             Log::error('Failed to save expected state', ['user_id' => $user->id, 'chat_id' => $chatId, 'error' => $e->getMessage()]);
+
             return response()->json(['error' => 'An error occurred while saving expected state.', 'details' => $e->getMessage()], 500);
         }
     }
@@ -1233,12 +1236,12 @@ EOT;
         $user = auth()->user();
         $chatId = $request->input('chat_id');
 
-        if (!$chatId) {
+        if (! $chatId) {
             return response()->json(['error' => 'Chat ID is required.'], 400);
         }
 
         // Verify ownership
-        if (!SearchUserChat::where('id', $chatId)->where('user_id', $user->id)->exists()) {
+        if (! SearchUserChat::where('id', $chatId)->where('user_id', $user->id)->exists()) {
             return response()->json(['error' => 'Chat not found or access denied.'], 403);
         }
 
@@ -1265,9 +1268,9 @@ EOT;
                     $dep = $state->dependsOn;
                     $depObs = $dep->latestObservation;
                     $depStatus = $depObs ? $depObs->status : 'Scheduled';
-                    
+
                     $depIsOverdue = $dep->target_date && Carbon::parse($dep->target_date)->toDateString() < $today;
-                    
+
                     if ($depStatus === 'Blocked' || ($depStatus !== 'Complete' && $depIsOverdue)) {
                         $driftStatus = 'Dependency Blocked';
                         $alerts[] = "🔔 Alert: <strong>{$state->role}</strong> is blocked because <strong>{$dep->role}</strong> has not completed their task '<em>{$dep->recommended_action}</em>'.";
@@ -1278,12 +1281,13 @@ EOT;
             }
 
             return response()->json([
-                'success' => true, 
+                'success' => true,
                 'states' => $states,
-                'leadership_alerts' => $alerts
+                'leadership_alerts' => $alerts,
             ]);
         } catch (\Exception $e) {
             Log::error('Failed to fetch progress data', ['user_id' => $user->id, 'chat_id' => $chatId, 'error' => $e->getMessage()]);
+
             return response()->json(['error' => 'An error occurred while fetching progress data.', 'details' => $e->getMessage()], 500);
         }
     }
@@ -1297,7 +1301,7 @@ EOT;
         $observationDate = $request->input('observation_date');
         $statusNotes = $request->input('status_notes');
 
-        if (!$expectedStateId || !$status || !$observationDate) {
+        if (! $expectedStateId || ! $status || ! $observationDate) {
             return response()->json(['error' => 'Expected State ID, status, and observation date are required.'], 400);
         }
 
@@ -1305,7 +1309,7 @@ EOT;
             // Find ExpectedState and verify ownership via the relationship
             $expectedState = ExpectedState::with('searchUserChat')->find($expectedStateId);
 
-            if (!$expectedState || !$expectedState->searchUserChat || $expectedState->searchUserChat->user_id !== $user->id) {
+            if (! $expectedState instanceof ExpectedState || ! $expectedState->searchUserChat || $expectedState->searchUserChat->user_id !== $user->id) {
                 return response()->json(['error' => 'Expected state not found or access denied.'], 403);
             }
 
@@ -1321,6 +1325,7 @@ EOT;
             return response()->json(['success' => true, 'observed_state' => $observedState]);
         } catch (\Exception $e) {
             Log::error('Failed to save observed state', ['user_id' => $user->id, 'expected_state_id' => $expectedStateId, 'error' => $e->getMessage()]);
+
             return response()->json(['error' => 'An error occurred while saving progress.', 'details' => $e->getMessage()], 500);
         }
     }
@@ -1330,7 +1335,7 @@ EOT;
         $user = auth()->user();
         $expectedStateId = $request->input('expected_state_id');
 
-        if (!$expectedStateId) {
+        if (! $expectedStateId) {
             return response()->json(['error' => 'Expected State ID is required.'], 400);
         }
 
@@ -1339,26 +1344,26 @@ EOT;
             $expectedState = ExpectedState::with(['searchUserChat', 'latestObservation', 'dependsOn'])
                 ->find($expectedStateId);
 
-            if (!$expectedState || !$expectedState->searchUserChat || $expectedState->searchUserChat->user_id !== $user->id) {
+            if (! $expectedState instanceof ExpectedState || ! $expectedState->searchUserChat || $expectedState->searchUserChat->user_id !== $user->id) {
                 return response()->json(['error' => 'Expected state not found or access denied.'], 403);
             }
 
             $chat = $expectedState->searchUserChat;
             $obs = $expectedState->latestObservation;
             $status = $obs ? $obs->status : 'Scheduled';
-            
+
             // Collect context for the AI prompt
             $goal = $chat->search ?: 'Increase Product Adoption';
             $role = $expectedState->role;
             $action = $expectedState->recommended_action;
             $metric = $expectedState->success_metric;
             $targetDate = $expectedState->target_date ? Carbon::parse($expectedState->target_date)->toDateString() : 'None';
-            
+
             $statusNotes = $obs && $obs->status_notes ? $obs->status_notes : 'None provided';
             $actualValue = $obs && $obs->actual_value ? $obs->actual_value : 'None logged';
 
             // Determine specific blocker type
-            $blockerDetail = "Overdue/Delayed";
+            $blockerDetail = 'Overdue/Delayed';
             if ($status === 'Blocked') {
                 $blockerDetail = "Explicitly blocked with notes: {$statusNotes}";
             } elseif ($expectedState->depends_on_id && $expectedState->dependsOn) {
@@ -1366,26 +1371,26 @@ EOT;
                 $blockerDetail = "Blocked on the preceding role '{$dep->role}' completing their task '{$dep->recommended_action}'";
             }
 
-            $systemMessage = "You are an executive strategy intervention consultant. Given the context of a stalled organizational objective, recommend exactly one concrete, high-impact corrective action (2-3 sentences max) to resolve the bottleneck and get the team back on track.";
-            
+            $systemMessage = 'You are an executive strategy intervention consultant. Given the context of a stalled organizational objective, recommend exactly one concrete, high-impact corrective action (2-3 sentences max) to resolve the bottleneck and get the team back on track.';
+
             $prompt = "STRATEGIC CONTEXT:\n"
-                . "- Overall Business Goal: \"{$goal}\"\n"
-                . "- Accountable Department/Role: {$role}\n"
-                . "- Strategic Commitment / Objective Action: \"{$action}\"\n"
-                . "- Target Success KPI: \"{$metric}\"\n"
-                . "- Planned Target Date: {$targetDate}\n\n"
-                . "CURRENT EXECUTION STATUS:\n"
-                . "- Current Status of Task: {$status}\n"
-                . "- Current Progress / Actual Logged Value: \"{$actualValue}\"\n"
-                . "- Roadblock/Blocker Details: \"{$blockerDetail}\"\n"
-                . "- Notes from the field: \"{$statusNotes}\"\n\n"
-                . "TASK:\n"
-                . "Recommend exactly one highly practical, tactical, and contextually specific intervention (2-3 sentences max) that the leadership can activate to unblock {$role} and accelerate delivery. Speak directly, confidently, and professionally.";
+                ."- Overall Business Goal: \"{$goal}\"\n"
+                ."- Accountable Department/Role: {$role}\n"
+                ."- Strategic Commitment / Objective Action: \"{$action}\"\n"
+                ."- Target Success KPI: \"{$metric}\"\n"
+                ."- Planned Target Date: {$targetDate}\n\n"
+                ."CURRENT EXECUTION STATUS:\n"
+                ."- Current Status of Task: {$status}\n"
+                ."- Current Progress / Actual Logged Value: \"{$actualValue}\"\n"
+                ."- Roadblock/Blocker Details: \"{$blockerDetail}\"\n"
+                ."- Notes from the field: \"{$statusNotes}\"\n\n"
+                ."TASK:\n"
+                ."Recommend exactly one highly practical, tactical, and contextually specific intervention (2-3 sentences max) that the leadership can activate to unblock {$role} and accelerate delivery. Speak directly, confidently, and professionally.";
 
             // Call the application's configured AI Engine (Gemini / Vertex AI or OpenAI)
             $aiResponse = $this->ai->generate($systemMessage, $prompt, 1000);
 
-            if (!$aiResponse->successful()) {
+            if (! $aiResponse->successful()) {
                 return response()->json(['error' => 'AI Engine request failed.', 'details' => $aiResponse->body()], 500);
             }
 
@@ -1402,6 +1407,7 @@ EOT;
             return response()->json(['success' => true, 'intervention' => $intervention]);
         } catch (\Exception $e) {
             Log::error('Failed to generate intervention', ['user_id' => $user->id, 'expected_state_id' => $expectedStateId, 'error' => $e->getMessage()]);
+
             return response()->json(['error' => 'An error occurred while generating recommendation.', 'details' => $e->getMessage()], 500);
         }
     }
@@ -1411,14 +1417,14 @@ EOT;
         $user = auth()->user();
         $interventionId = $request->input('intervention_id');
 
-        if (!$interventionId) {
+        if (! $interventionId) {
             return response()->json(['error' => 'Intervention ID is required.'], 400);
         }
 
         try {
             $intervention = Intervention::with('expectedState.searchUserChat')->find($interventionId);
 
-            if (!$intervention || !$intervention->expectedState || !$intervention->expectedState->searchUserChat || $intervention->expectedState->searchUserChat->user_id !== $user->id) {
+            if (! $intervention instanceof Intervention || ! $intervention->expectedState instanceof ExpectedState || ! $intervention->expectedState->searchUserChat || $intervention->expectedState->searchUserChat->user_id !== $user->id) {
                 return response()->json(['error' => 'Intervention not found or access denied.'], 403);
             }
 
@@ -1430,6 +1436,7 @@ EOT;
             return response()->json(['success' => true, 'intervention' => $intervention]);
         } catch (\Exception $e) {
             Log::error('Failed to activate intervention', ['user_id' => $user->id, 'intervention_id' => $interventionId, 'error' => $e->getMessage()]);
+
             return response()->json(['error' => 'An error occurred while activating intervention.', 'details' => $e->getMessage()], 500);
         }
     }
@@ -1440,13 +1447,13 @@ EOT;
 
     public function export_role_goals(Request $request)
     {
-        $user          = auth()->user();
+        $user = auth()->user();
         $roleGoalsText = $request->input('role_goals_text');
-        $goal          = $request->input('goal', '');
-        $scenario      = $request->input('scenario', '');
-        $strategy      = $request->input('strategy', '');
+        $goal = $request->input('goal', '');
+        $scenario = $request->input('scenario', '');
+        $strategy = $request->input('strategy', '');
 
-        if (!$roleGoalsText) {
+        if (! $roleGoalsText) {
             return response()->json(['error' => 'Role goals text is required.'], 400);
         }
 
@@ -1457,7 +1464,7 @@ EOT;
         }
 
         try {
-            return Excel::download(new RoleGoalsExport($roleGoals, $goal, $scenario, $strategy), 'role_goals_' . date('Y-m-d_His') . '.xlsx');
+            return Excel::download(new RoleGoalsExport($roleGoals, $goal, $scenario, $strategy), 'role_goals_'.date('Y-m-d_His').'.xlsx');
         } catch (\Exception $e) {
             Log::error('Role Goals Export Failed', ['user_id' => $user->id, 'error' => $e->getMessage()]);
 
@@ -1471,7 +1478,7 @@ EOT;
 
     private function resolveAdditionalContext(Request $request, SearchUserChat $chat, $additionalContext): string
     {
-        if ($additionalContext && is_array($additionalContext) && !empty($additionalContext['additional_details'])) {
+        if ($additionalContext && is_array($additionalContext) && ! empty($additionalContext['additional_details'])) {
             try {
                 $chat->appendAdditionalContext($additionalContext['additional_details']);
             } catch (\Exception $e) {
@@ -1479,8 +1486,8 @@ EOT;
             }
 
             return "\n\n--- ADDITIONAL USER CONTEXT (FROM THIS REQUEST) ---\n"
-                . "Additional Details: " . $additionalContext['additional_details']
-                . "\n--- END ADDITIONAL USER CONTEXT ---\n";
+                .'Additional Details: '.$additionalContext['additional_details']
+                ."\n--- END ADDITIONAL USER CONTEXT ---\n";
         }
 
         return $chat->additionalContextBlock();
@@ -1502,11 +1509,11 @@ EOT;
         foreach ($candidates as $resp) {
             $data = $this->ai->parseJson((string) $resp);
 
-            if (!is_array($data) || empty($data['strategyMap'])) {
+            if (! is_array($data) || empty($data['strategyMap'])) {
                 continue;
             }
 
-            $selStratId   = $data['selectedStrategyId'] ?? ($data['strategyMap'][0]['id'] ?? null);
+            $selStratId = $data['selectedStrategyId'] ?? ($data['strategyMap'][0]['id'] ?? null);
             $strategyName = null;
 
             foreach ($data['strategyMap'] as $s) {
@@ -1516,9 +1523,9 @@ EOT;
                 }
             }
 
-            $strategyName  = $strategyName ?? ($data['strategyMap'][0]['name'] ?? null);
+            $strategyName = $strategyName ?? ($data['strategyMap'][0]['name'] ?? null);
             $scenarioLabel = null;
-            $variant       = $data['strategyVariants'][$selStratId] ?? null;
+            $variant = $data['strategyVariants'][$selStratId] ?? null;
 
             if (is_array($variant)) {
                 $selScenId = $variant['selectedScenarioId'] ?? ($variant['scenarios'][0]['id'] ?? null);
@@ -1546,7 +1553,7 @@ EOT;
 
         if (is_array($data) && isset($data['rows']) && is_array($data['rows'])) {
             foreach ($data['rows'] as $r) {
-                $role   = isset($r['role']) ? trim($r['role']) : '';
+                $role = isset($r['role']) ? trim($r['role']) : '';
                 $action = isset($r['action']) ? trim(preg_replace('/\s+/', ' ', $r['action'])) : '';
 
                 if ($role !== '' && $action !== '') {
@@ -1560,14 +1567,14 @@ EOT;
 
     private function parseRoleGoalsFromText($text): array
     {
-        $roleGoals      = [];
-        $currentRole    = null;
-        $currentGoal    = '';
+        $roleGoals = [];
+        $currentRole = null;
+        $currentGoal = '';
         $currentActions = [];
-        $mode           = null;
+        $mode = null;
 
         $flush = function () use (&$roleGoals, &$currentRole, &$currentGoal, &$currentActions) {
-            if ($currentRole && (trim($currentGoal) !== '' || !empty($currentActions))) {
+            if ($currentRole && (trim($currentGoal) !== '' || ! empty($currentActions))) {
                 $roleGoals[] = ['role' => $currentRole, 'goal' => trim($currentGoal), 'actions' => implode("\n", $currentActions), 'notes' => ''];
             }
         };
@@ -1581,7 +1588,8 @@ EOT;
 
             if (preg_match('/^Goal:\s*(.+)$/i', $line, $m)) {
                 $currentGoal = trim($m[1]);
-                $mode        = 'goal';
+                $mode = 'goal';
+
                 continue;
             }
 
@@ -1590,6 +1598,7 @@ EOT;
                 if (trim($m[1]) !== '') {
                     $currentActions[] = trim($m[1]);
                 }
+
                 continue;
             }
 
@@ -1597,17 +1606,19 @@ EOT;
                 if ($mode === 'actions') {
                     $currentActions[] = trim($m[1]);
                 } elseif ($mode === 'goal') {
-                    $currentGoal .= ' ' . trim($m[1]);
+                    $currentGoal .= ' '.trim($m[1]);
                 }
+
                 continue;
             }
 
             if (preg_match('/^(\d+\.?\s*)?([A-Z][^:]+?):?\s*$/', $line, $m)) {
                 $flush();
-                $currentRole    = trim($m[2]);
-                $currentGoal    = '';
+                $currentRole = trim($m[2]);
+                $currentGoal = '';
                 $currentActions = [];
-                $mode           = 'role';
+                $mode = 'role';
+
                 continue;
             }
 
@@ -1615,8 +1626,8 @@ EOT;
                 if ($mode === 'actions') {
                     $currentActions[] = $line;
                 } else {
-                    $currentGoal = trim(($currentGoal !== '' ? $currentGoal . ' ' : '') . $line);
-                    $mode        = 'goal';
+                    $currentGoal = trim(($currentGoal !== '' ? $currentGoal.' ' : '').$line);
+                    $mode = 'goal';
                 }
             }
         }

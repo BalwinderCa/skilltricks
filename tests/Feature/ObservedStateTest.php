@@ -68,9 +68,9 @@ class ObservedStateTest extends TestCase
                         'expected_state_id',
                         'actual_value',
                         'status',
-                    ]
-                ]
-            ]
+                    ],
+                ],
+            ],
         ]);
     }
 

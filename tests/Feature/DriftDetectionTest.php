@@ -51,7 +51,7 @@ class DriftDetectionTest extends TestCase
 
         $response->assertOk();
         $data = $response->json();
-        
+
         $this->assertEquals('Timeline Drift', $data['states'][0]['drift_status']);
     }
 
@@ -101,9 +101,9 @@ class DriftDetectionTest extends TestCase
 
         // Get the state record for Marketing (dependent)
         $marketingState = collect($data['states'])->firstWhere('role', 'Marketing');
-        
+
         $this->assertEquals('Dependency Blocked', $marketingState['drift_status']);
-        
+
         // Assert leadership alerts contains warning message
         $this->assertCount(1, $data['leadership_alerts']);
         $this->assertStringContainsString('Marketing', $data['leadership_alerts'][0]);
@@ -148,7 +148,7 @@ class DriftDetectionTest extends TestCase
         $data = $response->json();
 
         $marketingState = collect($data['states'])->firstWhere('role', 'Marketing');
-        
+
         $this->assertEquals('Dependency Blocked', $marketingState['drift_status']);
         $this->assertCount(1, $data['leadership_alerts']);
     }
