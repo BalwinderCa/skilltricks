@@ -13,9 +13,39 @@ return new class extends Migration
      */
     public function up()
     {
-        Schema::create('expected_states', function (Blueprint $table) {
+        $isUnsigned = true;
+        $isBigInt = true;
+
+        if (Schema::hasTable('search_user_chat')) {
+            $connection = Illuminate\Support\Facades\DB::connection();
+            $driver = $connection->getDriverName();
+            if ($driver === 'mysql') {
+                $columnInfo = Illuminate\Support\Facades\DB::select("SHOW COLUMNS FROM `search_user_chat` LIKE 'id'");
+                if (!empty($columnInfo)) {
+                    $type = strtolower($columnInfo[0]->Type);
+                    $isUnsigned = (strpos($type, 'unsigned') !== false);
+                    $isBigInt = (strpos($type, 'bigint') !== false);
+                }
+            }
+        }
+
+        Schema::create('expected_states', function (Blueprint $table) use ($isUnsigned, $isBigInt) {
             $table->id();
-            $table->unsignedBigInteger('search_user_chat_id');
+            
+            if ($isBigInt) {
+                if ($isUnsigned) {
+                    $table->unsignedBigInteger('search_user_chat_id');
+                } else {
+                    $table->bigInteger('search_user_chat_id');
+                }
+            } else {
+                if ($isUnsigned) {
+                    $table->unsignedInteger('search_user_chat_id');
+                } else {
+                    $table->integer('search_user_chat_id');
+                }
+            }
+
             $table->string('role');
             $table->text('recommended_action');
             $table->string('decision')->nullable(); // act_on_it, review_in_detail, not_viable
