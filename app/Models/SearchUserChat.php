@@ -8,6 +8,8 @@ class SearchUserChat extends Model
 {
     protected $table = 'search_user_chat';
 
+    public $timestamps = false;
+
     protected $fillable = [
         'user_id',
         'total_tokens',
