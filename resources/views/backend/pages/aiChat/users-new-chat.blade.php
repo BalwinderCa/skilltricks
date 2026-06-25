@@ -3527,7 +3527,7 @@ document.addEventListener('click', function (e) {
         let html = '<div class="response-text"><div class="table-responsive">'
             + '<table class="table table-bordered recommended-action-table">'
             + '<thead><tr>'
-            + '<th>Role</th><th>Recommended Action</th><th>Choice / Decision</th>'
+            + '<th>Role</th><th>Studio Action</th><th>Choice / Decision</th>'
             + '</tr></thead><tbody>';
 
         rows.forEach((r, i) => {
@@ -4139,7 +4139,7 @@ document.addEventListener('click', function (e) {
     // Call backend to generate the table from existing chat/scenario/role data
     function generateRecommendedActionTable(roleGoalsSection, genBtn, resultDiv, suggestionBox) {
         genBtn.disabled = true;
-        resultDiv.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split me-2"></i>Generating recommended action table...</div>';
+        resultDiv.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split me-2"></i>Generating studio actions...</div>';
 
         // Role goals text from this card (already collapsed to one-line actions)
         const roleGoalsText = (roleGoalsSection.textContent || roleGoalsSection.innerText || '').trim();
