@@ -1428,7 +1428,7 @@
                     if (window.briefGenerationCompleted && window.generatedBriefHtml
                         && !card.querySelector('.leadership-alignment-brief')) {
                         const finalSec = Array.from(card.querySelectorAll('.response-text')).find(el =>
-                            el.textContent.includes('✅') && el.textContent.includes('Final Outcome'));
+                            el.textContent.includes('✅') && (el.textContent.includes('Final Outcome') || el.textContent.includes('Context Derived Summary')));
                         const briefDiv = document.createElement('div');
                         briefDiv.className = 'leadership-alignment-brief mt-3';
                         const rt = document.createElement('div');
@@ -2213,7 +2213,7 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                     // Next step's data is ready, enable button
                     nextBtn.disabled = false;
                     nextBtn.classList.remove('disabled');
-                    const originalText = nextBtn.dataset.originalText || (currentStep === sections.length - 1 ? 'Finish' : 'Next');
+                    const originalText = nextBtn.dataset.originalText || (currentStep === sections.length - 1 ? 'Complete Intelligence Cycle' : 'Continue');
                     nextBtn.innerHTML = originalText;
                 }
             }
@@ -2557,9 +2557,9 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
 
                 loadingDiv.innerHTML = stepHtml + `
                     <div class="mt-2">
-                        ${currentStep > 0 ? '<button type="button" class="btn btn-secondary btn-sm prev-step-btn">Previous</button>' : ''}
+                        ${currentStep > 0 ? '<button type="button" class="btn btn-secondary btn-sm prev-step-btn">Back</button>' : ''}
                         <button type="button" class="btn btn-primary btn-sm next-step-btn">
-                            ${currentStep === sections.length - 1 ? 'Finish' : 'Next'}
+                            ${currentStep === sections.length - 1 ? 'Complete Intelligence Cycle' : 'Continue'}
                         </button>
                     </div>
                 `;
@@ -2984,7 +2984,7 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                     // Leadership Alignment Brief..." on Finish).
                     const allResponseTexts = Array.from(loadingDiv.querySelectorAll('.response-text'));
                     const finalOutcomeSection = allResponseTexts.find(el =>
-                        el.textContent.includes('✅') && el.textContent.includes('Final Outcome')
+                        el.textContent.includes('✅') && (el.textContent.includes('Final Outcome') || el.textContent.includes('Context Derived Summary'))
                     );
 
                     if (window.briefGenerationCompleted && window.generatedBriefHtml) {
@@ -3050,9 +3050,9 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                 loadingDiv.innerHTML = `
                     <div class="response-text">${marked.parse(step)}</div>
                     <div class="mt-2">
-                        ${currentStep > 0 ? '<button type="button" class="btn btn-secondary btn-sm prev-step-btn">Previous</button>' : ''}
+                        ${currentStep > 0 ? '<button type="button" class="btn btn-secondary btn-sm prev-step-btn">Back</button>' : ''}
                         <button type="button" class="btn btn-primary btn-sm next-step-btn">
-                            ${currentStep === steps.length - 1 ? 'Finish' : 'Next'}
+                            ${currentStep === steps.length - 1 ? 'Complete Intelligence Cycle' : 'Continue'}
                         </button>
                     </div>
                 `;
@@ -3251,7 +3251,7 @@ document.addEventListener('click', function (e) {
         const finalOutcomeSection = allResponseTexts.find(el => {
             const text = el.textContent || el.innerText;
             const hasCheckmark = text.includes('✅');
-            const hasFinalOutcome = text.includes('Final Outcome');
+            const hasFinalOutcome = text.includes('Final Outcome') || text.includes('Context Derived Summary');
             return hasCheckmark && hasFinalOutcome;
         });
         
@@ -3475,7 +3475,7 @@ document.addEventListener('click', function (e) {
             exportBtn.type = 'button'; // Prevent form submission
             exportBtn.className = 'btn btn-primary btn-sm export-role-goals-btn mt-3 mb-3';
             exportBtn.style.display = 'block';
-            exportBtn.innerHTML = '<i class="bi bi-download me-1"></i>Export Role Goals to Spreadsheet';
+            exportBtn.innerHTML = '<i class="bi bi-download me-1"></i>Export Contextualized Goals';
             exportBtn.addEventListener('click', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -4216,7 +4216,7 @@ document.addEventListener('click', function (e) {
     function addActionTableSuggestion() {
         const roleGoalsSections = Array.from(document.querySelectorAll('.response-text')).filter(el =>
             el.textContent.includes('👥') &&
-            (el.textContent.includes('Rephrased Goals') || el.textContent.includes('Goals by Role'))
+            (el.textContent.includes('Rephrased Goals') || el.textContent.includes('Goals by Role') || el.textContent.includes('Contextualized goals by role'))
         );
 
         roleGoalsSections.forEach(roleGoalsSection => {
@@ -4241,7 +4241,7 @@ document.addEventListener('click', function (e) {
                 <div class="action-table-suggestion-box mt-3 mb-3">
                     <div class="ats-title"><i class="bi bi-lightbulb me-1"></i>Refining the Workflow Output</div>
                     <button type="button" class="btn btn-primary btn-sm generate-action-table-btn mt-2">
-                        <i class="bi bi-table me-1"></i>Generate Recommended Action Table
+                        <i class="bi bi-table me-1"></i>Generate Studio Actions
                     </button>
                 </div>
                 <div class="action-table-result mt-3"></div>
@@ -4323,7 +4323,7 @@ document.addEventListener('click', function (e) {
         document.querySelectorAll('.next-step-btn, .gs-next').forEach(function (btn) {
             if (isLoading) {
                 const label = (btn.textContent || '').trim();
-                if (label === 'Finish' || btn.dataset.briefLock) {
+                if (label === 'Finish' || label === 'Complete Intelligence Cycle' || btn.dataset.briefLock) {
                     btn.dataset.briefLock = '1';
                     if (!btn.dataset.briefOrigText) btn.dataset.briefOrigText = btn.innerHTML;
                     btn.disabled = true;
@@ -4365,7 +4365,7 @@ document.addEventListener('click', function (e) {
         const finalOutcomeSection = allResponseTexts.find(el => {
             const text = el.textContent || el.innerText;
             const hasCheckmark = text.includes('✅');
-            const hasFinalOutcome = text.includes('Final Outcome');
+            const hasFinalOutcome = text.includes('Final Outcome') || text.includes('Context Derived Summary');
             if (hasCheckmark && hasFinalOutcome) {
             }
             return hasCheckmark && hasFinalOutcome;
@@ -4404,7 +4404,7 @@ document.addEventListener('click', function (e) {
         // Show loading indicator
         const loadingDiv = document.createElement('div');
         loadingDiv.className = 'alert alert-info mt-3 leadership-alignment-brief-loading';
-        loadingDiv.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Generating Leadership Alignment Brief...';
+        loadingDiv.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Generating Contextualized Alignment Brief...';
         finalOutcomeSection.insertAdjacentElement('afterend', loadingDiv);
         
         // Get required data
