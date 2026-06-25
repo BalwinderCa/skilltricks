@@ -1067,9 +1067,9 @@ Context:
 Full Analysis Context:
 {$fullResponse}
 
-Generate a Leadership Alignment Brief with the following structure:
+Generate a Contextualized Alignment Brief with the following structure:
 
-📋 LEADERSHIP ALIGNMENT BRIEF
+📋 CONTEXTUALIZED ALIGNMENT BRIEF
 
 **Decision Chosen:** [Name of the selected decision path]
 **Scenario Selected:** [Name of the selected scenario]

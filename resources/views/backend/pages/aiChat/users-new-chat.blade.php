@@ -1086,7 +1086,7 @@
         function sectionAcknowledgement(d) {
             if (!nonEmpty(d.acknowledgement)) return '';
             return `<div class="gs-section gs-ack">
-                <h5>🧩 Chat Acknowledgement</h5>
+                <h5>🧩 Studio Interpretation</h5>
                 <p>${esc(d.acknowledgement)}</p>
             </div>`;
         }
@@ -1096,7 +1096,7 @@
             if (!list.length) return '';
             const items = list.map(i => `<li>${esc(i)}</li>`).join('');
             return `<div class="gs-section gs-doc-insights">
-                <h5>📁 Document Insights</h5>
+                <h5>📁 Studio drawn insights</h5>
                 <ul>${items}</ul>
             </div>`;
         }
@@ -1104,7 +1104,7 @@
         function sectionGoalAssessment(d) {
             if (!nonEmpty(d.goalAssessment)) return '';
             return `<div class="gs-section gs-goal-assessment">
-                <h5>📊 Goal Assessment Summary</h5>
+                <h5>📊 Studio Assessed goal summary</h5>
                 <p>${esc(d.goalAssessment)}</p>
             </div>`;
         }
@@ -1138,7 +1138,7 @@
                 </div>`;
             }).join('');
             return `<div class="gs-section gs-strategy-map">
-                <h5>🗺️ Strategy Map (Decision Paths)</h5>
+                <h5>🗺️ Context-Derived Strategic Pathways</h5>
                 <div class="strategy-options mt-3">${rows}</div>
             </div>`;
         }
@@ -1159,7 +1159,7 @@
                 </div>`;
             }).join('');
             return `<div class="gs-section gs-scenarios">
-                <h5>🔮 Scenario Simulations</h5>
+                <h5>🔮 Studio proposed simulations</h5>
                 <div class="scenario-options mt-3">${rows}</div>
             </div>`;
         }
@@ -1182,7 +1182,7 @@
                 <div class="gs-role-action"><strong>Actions:</strong> ${esc(r.action)}</div>
             </div>`).join('');
             return `<div class="gs-section gs-roles-goals">
-                <h5>👥 Rephrased Goals by Role</h5>
+                <h5>👥 Contextualized goals by role</h5>
                 ${blocks}
             </div>`;
         }
@@ -1192,7 +1192,7 @@
             if (!list.length) return '';
             const items = list.map(g => `<li>${esc(g)}</li>`).join('');
             return `<div class="gs-section gs-complementary">
-                <h5>📌 Complementary Goals</h5>
+                <h5>📌 Studio suggested goals</h5>
                 <ul>${items}</ul>
             </div>`;
         }
@@ -1200,7 +1200,7 @@
         function sectionFinalOutcome(d) {
             if (!nonEmpty(d.finalOutcome)) return '';
             return `<div class="gs-section gs-final-outcome">
-                <h5>✅ Final Outcome Summary</h5>
+                <h5>✅ Context Derived Summary</h5>
                 <p>${esc(d.finalOutcome)}</p>
             </div>`;
         }
@@ -1403,8 +1403,8 @@
                 loadingDiv.innerHTML = `
                     <div class="response-text">${s[step](d)}</div>
                     <div class="mt-2 gs-wizard-nav">
-                        ${step > 0 ? '<button type="button" class="btn btn-secondary btn-sm gs-prev">Previous</button>' : ''}
-                        <button type="button" class="btn btn-primary btn-sm gs-next">${isLast ? 'Finish' : 'Next'}</button>
+                        ${step > 0 ? '<button type="button" class="btn btn-secondary btn-sm gs-prev">Back</button>' : ''}
+                        <button type="button" class="btn btn-primary btn-sm gs-next">${isLast ? 'Complete Intelligence Cycle' : 'Continue'}</button>
                     </div>`;
                 wireSelection();
             }
@@ -1731,7 +1731,7 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                 <i class="bi bi-plus-circle me-1"></i> Add More Context
             </button>
             <button type="button" class="btn btn-primary btn-sm skip-context-btn">
-                <i class="bi bi-arrow-right me-1"></i> Continue to StrategiStudio
+                <i class="bi bi-arrow-right me-1"></i> Launch StrategiStudio
             </button>
         </div>
     `;
