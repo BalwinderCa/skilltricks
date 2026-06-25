@@ -26,6 +26,8 @@ jobs:
           # Tests are database-free; use sqlite so nothing external is required.
           echo "DB_CONNECTION=sqlite" >> .env
           echo "DB_DATABASE=:memory:" >> .env
+          echo "APP_ENV=testing" >> .env
+          echo "SESSION_DRIVER=array" >> .env
 
       - name: Cache Composer
         uses: actions/cache@v4
