@@ -69,43 +69,14 @@ Return a SINGLE valid JSON object (no markdown, no code fences, no commentary) w
   "strategyMap": [
     {"id": "s1", "name": "Descriptive Strategy Name", "rationale": "one sentence", "teams": "IT, Operations", "tradeoffs": "what is gained vs lost", "risk": "Low|Medium|High"}
   ],
-  "selectedStrategyId": "s1",
-  "strategyVariants": {
-    "s1": {
-      "scenarios": [
-        {"id": "sc1", "label": "Best Case", "text": "one sentence"},
-        {"id": "sc2", "label": "Expected", "text": "one sentence"},
-        {"id": "sc3", "label": "Risk", "text": "one sentence"}
-      ],
-      "selectedScenarioId": "sc1",
-      "scenarioVariants": {
-        "sc1": {
-          "rolesGoals": [{"role": "Role title from documents", "goal": "1-2 sentences", "action": "EXACTLY one sentence"}],
-          "complementaryGoals": ["goal one", "goal two"],
-          "finalOutcome": "two sentences for this strategy + scenario"
-        },
-        "sc2": {
-          "rolesGoals": [{"role": "Role title from documents", "goal": "1-2 sentences", "action": "EXACTLY one sentence"}],
-          "complementaryGoals": ["goal one", "goal two"],
-          "finalOutcome": "two sentences for this strategy + scenario"
-        },
-        "sc3": {
-          "rolesGoals": [{"role": "Role title from documents", "goal": "1-2 sentences", "action": "EXACTLY one sentence"}],
-          "complementaryGoals": ["goal one", "goal two"],
-          "finalOutcome": "two sentences for this strategy + scenario"
-        }
-      }
-    }
-  }
+  "selectedStrategyId": "s1"
 }
 
 Rules:
-- "strategyMap": 3 decision paths, each with a UNIQUE id (s1, s2, s3) and a descriptive name (never "Path A/1").
-- "strategyVariants": include ONLY the selected strategy "s1". Do NOT generate variants for s2 or s3 — those are produced on demand when the user selects them.
-- The "s1" variant's "scenarioVariants" MUST contain ALL THREE keys sc1, sc2 AND sc3. Each must differ (Best Case vs Expected vs Risk).
+- "strategyMap": 3 decision paths (pathways), each with a UNIQUE id (s1, s2, s3) and a descriptive name (never "Path A/1").
+- Do NOT generate assumptions, scenarios, simulations, role goals or outcomes here. Those are produced on demand AFTER the user picks a pathway: first the pathway's assumptions are derived, then the simulations are generated from the pathway + its assumptions.
 - "acknowledgement" must be a non-empty 1-2 sentence string.
-- Each scenarioVariant's "rolesGoals": 5 to 7 DISTINCT roles using ONLY exact role titles from the documents. "action" is EXACTLY one sentence.
-- "selectedStrategyId" = "s1". The s1 variant's "selectedScenarioId" = "sc1".
+- "selectedStrategyId" = "s1".
 - Output VALID JSON only: double-quoted keys/strings, no trailing commas, no comments, no markdown.
 EOT;
     }
@@ -512,8 +483,10 @@ EOT;
         $user = auth()->user();
         $chatId = $request->input('chat_id');
         $question = $request->input('original_question');
+        $strategyId = trim((string) $request->input('strategy_id'));
         $strategyName = trim((string) $request->input('strategy_name'));
         $strategyRationale = trim((string) $request->input('strategy_rationale'));
+        $assumptions = $this->normalizeAssumptions($request->input('assumptions'));
 
         if (! $chatId || ! $question || $strategyName === '') {
             return response()->json(['error' => 'Chat ID, original question and strategy name are required.'], 400);
@@ -524,11 +497,20 @@ EOT;
 
         $rationaleLine = $strategyRationale !== '' ? "Strategy rationale: \"{$strategyRationale}\"\n" : '';
 
+        // Simulations are derived from TWO inputs: the chosen pathway and the
+        // assumptions already derived for it. Feed the assumptions in so the
+        // scenarios stay consistent with them.
+        $assumptionsBlock = '';
+        if (! empty($assumptions)) {
+            $assumptionsList = implode("\n", array_map(fn ($a) => "- {$a}", $assumptions));
+            $assumptionsBlock = "Assumptions derived for this pathway (the simulations MUST be consistent with these):\n{$assumptionsList}\n\n";
+        }
+
         $prompt = <<<EOT
 User Goal: "{$question}"
 Selected strategy: "{$strategyName}"
 {$rationaleLine}
-Generate the GoalSync variant for THIS strategy as a SINGLE valid JSON object with EXACTLY this shape:
+{$assumptionsBlock}Generate the GoalSync variant for THIS strategy as a SINGLE valid JSON object with EXACTLY this shape:
 
 {
   "scenarios": [
@@ -559,6 +541,7 @@ Generate the GoalSync variant for THIS strategy as a SINGLE valid JSON object wi
 Rules:
 - "scenarioVariants" MUST contain ALL THREE keys sc1, sc2 AND sc3.
 - Each "rolesGoals": 5 to 7 DISTINCT roles using ONLY exact role titles from the documents. "action" is EXACTLY one sentence.
+- The scenarios (simulations) MUST be consistent with the assumptions listed above when any are provided.
 - Output VALID JSON only: double-quoted keys/strings, no trailing commas, no comments, no markdown.
 EOT;
 
@@ -579,9 +562,99 @@ EOT;
                 return response()->json(['error' => 'Could not parse strategy variant.'], 502);
             }
 
+            // Keep the assumptions on the variant so they persist and re-render
+            // alongside the pathway and simulations on reload.
+            $variant['assumptions'] = $assumptions;
+
+            // Persist the pathway's assumptions + simulations into the stored
+            // contract JSON so the downstream Expected/Observed State workflow
+            // can read them later.
+            if ($strategyId !== '') {
+                $this->persistContractMutation($chatId, $user->id, function (array &$data) use ($strategyId, $variant, $assumptions) {
+                    $data['strategyVariants'] = $data['strategyVariants'] ?? [];
+                    $data['strategyVariants'][$strategyId] = $variant;
+                    $data['pathwayAssumptions'] = $data['pathwayAssumptions'] ?? [];
+                    $data['pathwayAssumptions'][$strategyId] = $assumptions;
+                    $data['selectedStrategyId'] = $strategyId;
+                });
+            }
+
             return response()->json(['success' => true, 'variant' => $variant, 'chat_total_tokens' => $chatTotalTokens]);
         } catch (\Throwable $e) {
             return $this->ai->handleException($e, 'Generate Strategy Variant', $user->id, $chatId);
+        }
+    }
+
+    public function generate_pathway_assumptions(Request $request)
+    {
+        $user = auth()->user();
+        $chatId = $request->input('chat_id');
+        $question = $request->input('original_question');
+        $strategyId = trim((string) $request->input('strategy_id'));
+        $strategyName = trim((string) $request->input('strategy_name'));
+        $strategyRationale = trim((string) $request->input('strategy_rationale'));
+
+        if (! $chatId || ! $question || $strategyName === '') {
+            return response()->json(['error' => 'Chat ID, original question and strategy name are required.'], 400);
+        }
+
+        $systemMessage = $this->docs->buildSystemMessage($user, 'You are an executive strategy assistant trained in the GoalSync framework. Return ONLY valid JSON. No markdown, no code fences, no commentary.');
+
+        $rationaleLine = $strategyRationale !== '' ? "Strategy rationale: \"{$strategyRationale}\"\n" : '';
+
+        $prompt = <<<EOT
+User Goal: "{$question}"
+Selected strategic pathway: "{$strategyName}"
+{$rationaleLine}
+The user has just chosen this strategic pathway. BEFORE any simulations are generated, derive the key ASSUMPTIONS this pathway depends on. These assumptions will be stored and later used to calculate Expected and Observed State, and the simulations will be generated from the pathway PLUS these assumptions.
+
+Return a SINGLE valid JSON object (no markdown, no code fences, no commentary) with EXACTLY this shape:
+
+{
+  "assumptions": [
+    "A concise, testable assumption this pathway relies on",
+    "Another concise, testable assumption"
+  ]
+}
+
+Rules:
+- Provide between 3 and 5 assumptions.
+- Each assumption MUST be specific to THIS pathway and the user's company context (grounded in the provided documents where possible).
+- Each assumption is ONE concise sentence, phrased as a condition that can later be measured as true/false (e.g. budget, capacity, adoption, timeline, dependency).
+- Do NOT include scenarios, role goals, or outcomes — only assumptions.
+- Output VALID JSON only: double-quoted keys/strings, no trailing commas, no comments, no markdown.
+EOT;
+
+        try {
+            $aiResponse = $this->ai->generate($systemMessage, $prompt, 1200, 0.7, true);
+
+            if (! $aiResponse->successful()) {
+                return response()->json(['error' => 'Failed to derive pathway assumptions.', 'details' => $aiResponse->body()], 500);
+            }
+
+            $text = $this->ai->extractText($aiResponse);
+            $chatTotalTokens = $this->ai->recordChatTokens($chatId, $aiResponse);
+            $parsed = $this->ai->parseJson($text);
+            $assumptions = $this->normalizeAssumptions($parsed['assumptions'] ?? null);
+
+            if (empty($assumptions)) {
+                Log::warning('Pathway assumptions JSON parse failed', ['user_id' => $user->id, 'chat_id' => $chatId, 'preview' => substr((string) $text, 0, 300)]);
+
+                return response()->json(['error' => 'Could not derive pathway assumptions.'], 502);
+            }
+
+            // Persist the assumptions onto the stored contract alongside the pathway.
+            if ($strategyId !== '') {
+                $this->persistContractMutation($chatId, $user->id, function (array &$data) use ($strategyId, $assumptions) {
+                    $data['pathwayAssumptions'] = $data['pathwayAssumptions'] ?? [];
+                    $data['pathwayAssumptions'][$strategyId] = $assumptions;
+                    $data['selectedStrategyId'] = $strategyId;
+                });
+            }
+
+            return response()->json(['success' => true, 'assumptions' => $assumptions, 'chat_total_tokens' => $chatTotalTokens]);
+        } catch (\Throwable $e) {
+            return $this->ai->handleException($e, 'Generate Pathway Assumptions', $user->id, $chatId);
         }
     }
 
@@ -1540,6 +1613,63 @@ EOT;
         }
 
         return $chat->additionalContextBlock();
+    }
+
+    /**
+     * Coerce an assumptions payload (array or JSON string) into a clean list of
+     * non-empty, trimmed assumption strings.
+     */
+    private function normalizeAssumptions($value): array
+    {
+        if (is_string($value)) {
+            $decoded = json_decode($value, true);
+            $value = is_array($decoded) ? $decoded : [];
+        }
+
+        if (! is_array($value)) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map(function ($a) {
+            return is_string($a) ? trim($a) : (is_scalar($a) ? trim((string) $a) : '');
+        }, $value), fn ($a) => $a !== ''));
+    }
+
+    /**
+     * Load the stored GoalSync JSON contract for a chat, apply a mutation to the
+     * decoded array, and save it back to the row that holds the contract (and to
+     * SearchUserChat.response when it still holds the contract). Used to persist
+     * per-pathway assumptions and simulations into the existing response JSON.
+     */
+    private function persistContractMutation($chatId, $userId, callable $mutate): void
+    {
+        $row = SearchUserChatData::where('search_user_chat_id', $chatId)
+            ->where('user_id', $userId)
+            ->orderBy('id')
+            ->get()
+            ->first(fn ($r) => str_starts_with(ltrim((string) $r->response), '{'));
+
+        if (! $row) {
+            return;
+        }
+
+        $data = json_decode((string) $row->response, true);
+
+        if (! is_array($data)) {
+            return;
+        }
+
+        $mutate($data);
+        $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+        $row->response = $json;
+        $row->save();
+
+        $chat = SearchUserChat::find($chatId);
+        if ($chat && str_starts_with(ltrim((string) $chat->response), '{')) {
+            $chat->response = $json;
+            $chat->save();
+        }
     }
 
     private function resolveSelectionFromContract($chatId): array

@@ -291,6 +291,7 @@ Route::group(
                 Route::post('/users-new-chat-ask', [AiChatController::class, 'users_new_chat_ask'])->name('users-new-chat-ask.index');
                 Route::post('/users-new-chat-update-strategy', [AiChatController::class, 'users_new_chat_update_strategy'])->name('users-new-chat-update-strategy.index');
                 Route::post('/users-new-chat-generate-strategy-variant', [AiChatController::class, 'generate_strategy_variant'])->name('users-new-chat-generate-strategy-variant.index');
+                Route::post('/users-new-chat-generate-assumptions', [AiChatController::class, 'generate_pathway_assumptions'])->name('users-new-chat-generate-assumptions.index');
                 Route::post('/users-new-chat-update-scenario', [AiChatController::class, 'users_new_chat_update_scenario'])->name('users-new-chat-update-scenario.index');
                 Route::post('/users-new-chat-add-context', [AiChatController::class, 'users_new_chat_add_context'])->name('users-new-chat-add-context.index');
                 Route::post('/users-new-chat-generate-alignment-brief', [AiChatController::class, 'generate_leadership_alignment_brief'])->name('users-new-chat-generate-alignment-brief.index');

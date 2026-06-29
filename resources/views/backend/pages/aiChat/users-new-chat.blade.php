@@ -554,6 +554,16 @@
         background: #1f1b2a;
         border-left-color: #a07cf0;
     }
+    .gs-assumptions {
+        border-left: 3px solid #0EA5E9;
+        background: #f0f9ff;
+        padding: 8px 12px;
+        border-radius: 4px;
+    }
+    [data-bs-theme="dark"] .gs-assumptions {
+        background: #102733;
+        border-left-color: #0EA5E9;
+    }
 
     /* Recommended Action Table suggestion */
     .action-table-suggestion-box {
@@ -586,6 +596,22 @@
     }
     [data-bs-theme="dark"] .action-table-suggestion-box .ats-title {
         color: #cdd8f0;
+    }
+
+    /* Primary action buttons inside the chat flow (Continue, Complete
+       Intelligence Cycle, etc.) use teal to match the Document badge up top,
+       instead of the theme's default purple/burgundy primary. */
+    #chat-messages .btn-primary {
+        background-color: #0EA5E9;
+        border-color: #0EA5E9;
+        color: #fff;
+    }
+    #chat-messages .btn-primary:hover,
+    #chat-messages .btn-primary:focus,
+    #chat-messages .btn-primary:active {
+        background-color: #0c8fce;
+        border-color: #0c8fce;
+        color: #fff;
     }
 </style>
 
@@ -724,9 +750,9 @@
                         style="{{ $chatTotalTokens > 0 ? '' : 'display:none;' }}background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;font-weight:600;"
                         data-chat-total="{{ $chatTotalTokens }}"
                         data-bs-toggle="tooltip" data-bs-placement="top"
-                        title="{{ localize('Total tokens used in this chat across all sections.') }}">
+                        title="{{ localize('Total intelligence effort used in this chat across all sections.') }}">
                         <i data-feather="activity" class="icon-14 me-1"></i>
-                        <span id="token-usage-text">{{ number_format($chatTotalTokens) }} {{ localize('tokens') }}</span>
+                        <span id="token-usage-text">{{ localize('Intelligence Effort') }} - {{ number_format($chatTotalTokens) }}</span>
                     </span>
                     </div>
                 </div>
@@ -1143,6 +1169,19 @@
             </div>`;
         }
 
+        // Assumptions derived for the chosen pathway. Shown right after the
+        // pathway is picked and BEFORE the simulations, which are generated from
+        // the pathway + these assumptions.
+        function sectionAssumptions(d) {
+            const list = cleanList(d.assumptions);
+            if (!list.length) return '';
+            const items = list.map(a => `<li>${esc(a)}</li>`).join('');
+            return `<div class="gs-section gs-assumptions">
+                <h5>🧭 Assumptions for this Pathway</h5>
+                <ul>${items}</ul>
+            </div>`;
+        }
+
         function sectionScenarios(d, opts) {
             if (!Array.isArray(d.scenarios) || !d.scenarios.length) return '';
             const interactive = opts && opts.interactive;
@@ -1240,6 +1279,8 @@
                 scoring: data.scoring,
                 strategyMap: data.strategyMap,
                 selectedStrategyId: sid,
+                assumptions: (data.pathwayAssumptions && data.pathwayAssumptions[sid])
+                    || v.assumptions || [],
                 scenarios: v.scenarios || [],
                 selectedScenarioId: scid,
                 rolesGoals: sv.rolesGoals || dsv.rolesGoals || v.rolesGoals || data.rolesGoals || [],
@@ -1262,6 +1303,7 @@
                 sectionGoalAssessment(data),
                 sectionScoring(data),
                 sectionStrategyMap(data, opts),
+                sectionAssumptions(data),
                 sectionScenarios(data, opts),
                 sectionRolesGoals(data),
                 sectionComplementary(data),
@@ -1303,24 +1345,51 @@
                 return window.flattenContract(data, selStrategy, selScenario);
             }
 
-            const allStepFns = [
-                d => sectionAcknowledgement(d),
-                d => sectionDocInsights(d),
-                d => sectionGoalAssessment(d),
-                d => sectionScoring(d),
-                d => sectionStrategyMap(d, { interactive: true }),
-                d => sectionScenarios(d, { interactive: true }),
-                d => sectionRolesGoals(d),
-                d => sectionComplementary(d),
-                d => sectionFinalOutcome(d),
-            ];
+            // Named step renderers so navigation can identify the current step
+            // (the Pathway and Assumptions steps drive on-demand generation).
+            const STEP_ACK = d => sectionAcknowledgement(d);
+            const STEP_DOCS = d => sectionDocInsights(d);
+            // Goal summary + scoring share one step so Scoring shows right under
+            // the Studio Assessed Goal Summary without a Continue click.
+            const STEP_GOAL = d => sectionGoalAssessment(d) + sectionScoring(d);
+            const STEP_STRATEGY = d => sectionStrategyMap(d, { interactive: true });
+            // Falls back to an informational note if assumptions couldn't be
+            // derived, so this step is never blank once the user reaches it.
+            const STEP_ASSUMPTIONS = d => sectionAssumptions(d)
+                || `<div class="gs-section gs-assumptions">
+                        <h5>🧭 Assumptions for this Pathway</h5>
+                        <p class="text-muted mb-0">Assumptions could not be derived automatically. Continue to generate the simulations.</p>
+                    </div>`;
+            const STEP_SCENARIOS = d => sectionScenarios(d, { interactive: true });
+            const STEP_ROLES = d => sectionRolesGoals(d);
+            const STEP_COMPLEMENTARY = d => sectionComplementary(d);
+            const STEP_FINAL = d => sectionFinalOutcome(d);
 
-            // Recompute visible (non-empty) steps each render, so switching
-            // strategy/scenario re-evaluates which sections have content
-            // (e.g. a scenario that does have a Final Outcome).
+            function hasAssumptions(sid) {
+                const a = data.pathwayAssumptions && data.pathwayAssumptions[sid];
+                return !!(a && a.length);
+            }
+            function hasVariant(sid) {
+                const v = data.strategyVariants && data.strategyVariants[sid];
+                return !!(v && Array.isArray(v.scenarios) && v.scenarios.length);
+            }
+
+            // Visible steps for the current pathway. The upfront sections appear
+            // when they have content; Pathway + Assumptions are always present;
+            // the simulation/role/outcome steps appear only after the chosen
+            // pathway's variant has been generated (from pathway + assumptions).
             function visibleSteps() {
                 const d = viewData();
-                return allStepFns.filter(fn => fn(d).trim() !== '');
+                const steps = [];
+                [STEP_ACK, STEP_DOCS, STEP_GOAL].forEach(fn => { if (fn(d).trim() !== '') steps.push(fn); });
+                steps.push(STEP_STRATEGY);
+                steps.push(STEP_ASSUMPTIONS);
+                if (hasVariant(selStrategy)) {
+                    [STEP_SCENARIOS, STEP_ROLES, STEP_COMPLEMENTARY, STEP_FINAL].forEach(fn => {
+                        if (fn(d).trim() !== '') steps.push(fn);
+                    });
+                }
+                return steps;
             }
 
             let step = 0;
@@ -1343,17 +1412,47 @@
                     ${esc(msg || 'Generating…')}</div>`;
             }
 
-            // Only the selected strategy is generated up front; other strategies
-            // are produced on demand here. Fetches the variant, merges it into
-            // `data`, and caches it so re-selecting is instant. On failure the
-            // wizard still works (flattenContract falls back to the first strategy).
+            // Step 1 of the two-step pathway flow: derive the assumptions for the
+            // chosen pathway. Cached per pathway so re-visiting is instant. These
+            // are persisted server-side into the stored contract.
+            async function ensureAssumptions(sid) {
+                if (hasAssumptions(sid)) return; // already derived
+                const strat = (data.strategyMap || []).find(s => s.id === sid) || {};
+                showWizardLoading(`Deriving assumptions for “${strat.name || 'this pathway'}”…`);
+                try {
+                    const res = await fetch('/dashboard/users-new-chat-generate-assumptions', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+                        body: JSON.stringify({
+                            chat_id: window.chatChatId || (document.getElementById('chat_id') || {}).value,
+                            original_question: window.chatQuestion || '',
+                            strategy_id: sid,
+                            strategy_name: strat.name || '',
+                            strategy_rationale: strat.rationale || ''
+                        })
+                    });
+                    const d = await res.json();
+                    if (d && d.chat_total_tokens !== undefined) window.setChatTokenTotal(d.chat_total_tokens);
+                    if (d && d.success && Array.isArray(d.assumptions)) {
+                        data.pathwayAssumptions = data.pathwayAssumptions || {};
+                        data.pathwayAssumptions[sid] = d.assumptions;
+                    }
+                } catch (e) {
+                }
+            }
+
+            // Step 2 of the two-step pathway flow: generate the simulations for
+            // the chosen pathway from TWO inputs — the pathway and its derived
+            // assumptions. Cached per pathway and persisted server-side. On
+            // failure the wizard still works (flattenContract falls back).
             async function ensureStrategyVariant(sid) {
                 const existing = data.strategyVariants && data.strategyVariants[sid];
                 if (existing && existing.scenarioVariants && Object.keys(existing.scenarioVariants).length) {
                     return; // already have it
                 }
                 const strat = (data.strategyMap || []).find(s => s.id === sid) || {};
-                showWizardLoading(`Generating “${strat.name || 'strategy'}” analysis…`);
+                const assumptions = (data.pathwayAssumptions && data.pathwayAssumptions[sid]) || [];
+                showWizardLoading(`Generating simulations for “${strat.name || 'this pathway'}”…`);
                 try {
                     const res = await fetch('/dashboard/users-new-chat-generate-strategy-variant', {
                         method: 'POST',
@@ -1361,14 +1460,17 @@
                         body: JSON.stringify({
                             chat_id: window.chatChatId || (document.getElementById('chat_id') || {}).value,
                             original_question: window.chatQuestion || '',
+                            strategy_id: sid,
                             strategy_name: strat.name || '',
-                            strategy_rationale: strat.rationale || ''
+                            strategy_rationale: strat.rationale || '',
+                            assumptions: assumptions
                         })
                     });
                     const d = await res.json();
                     if (d && d.chat_total_tokens !== undefined) window.setChatTokenTotal(d.chat_total_tokens);
                     if (d && d.success && d.variant) {
                         data.strategyVariants = data.strategyVariants || {};
+                        d.variant.assumptions = assumptions;
                         data.strategyVariants[sid] = d.variant;
                     } else {
                     }
@@ -1380,7 +1482,15 @@
                 loadingDiv.querySelectorAll('input[name="gs-strategy"]').forEach(r => {
                     r.addEventListener('change', async function () {
                         selStrategy = this.value;
-                        await ensureStrategyVariant(selStrategy);
+                        // During the step flow a pathway choice only updates the
+                        // selection — its assumptions, then simulations, are
+                        // generated when the user clicks Continue (two-step flow).
+                        // On the final screen we generate immediately so switching
+                        // pathways shows that pathway's assumptions + simulations.
+                        if (inFinal) {
+                            await ensureAssumptions(selStrategy);
+                            await ensureStrategyVariant(selStrategy);
+                        }
                         selScenario = variant().selectedScenarioId || (scenarioList()[0] || {}).id;
                         inFinal ? renderFinal() : renderStep();
                     });
@@ -1399,7 +1509,12 @@
                 const s = visibleSteps();
                 if (step > s.length - 1) step = s.length - 1;
                 if (step < 0) step = 0;
-                const isLast = step === s.length - 1;
+                const curFn = s[step];
+                // Pathway and Assumptions are always followed by more content
+                // (assumptions, then on-demand simulations), so they're never the
+                // last step even if nothing after them has been generated yet.
+                const isLast = curFn !== STEP_STRATEGY && curFn !== STEP_ASSUMPTIONS
+                    && step === s.length - 1;
                 loadingDiv.innerHTML = `
                     <div class="response-text">${s[step](d)}</div>
                     <div class="mt-2 gs-wizard-nav">
@@ -1443,7 +1558,7 @@
                 }, 300);
             }
 
-            loadingDiv.addEventListener('click', function (e) {
+            loadingDiv.addEventListener('click', async function (e) {
                 const next = e.target.closest('.gs-next');
                 const prev = e.target.closest('.gs-prev');
                 if (next) {
@@ -1453,6 +1568,30 @@
                     // so renderFinal doesn't rebuild the DOM and lose the
                     // in-progress brief (the button is also visually disabled).
                     if (window.briefGenerationInProgress) return;
+
+                    const curFn = visibleSteps()[step];
+
+                    // Pathway chosen → derive its assumptions, then show them.
+                    if (curFn === STEP_STRATEGY) {
+                        await ensureAssumptions(selStrategy);
+                        const idx = visibleSteps().indexOf(STEP_ASSUMPTIONS);
+                        if (idx >= 0) step = idx;
+                        renderStep();
+                        return;
+                    }
+
+                    // Assumptions reviewed → generate simulations from the
+                    // pathway + its assumptions, then show them.
+                    if (curFn === STEP_ASSUMPTIONS) {
+                        await ensureStrategyVariant(selStrategy);
+                        selScenario = variant().selectedScenarioId || (scenarioList()[0] || {}).id;
+                        const ns = visibleSteps();
+                        const idx = ns.indexOf(STEP_SCENARIOS);
+                        step = idx >= 0 ? idx : ns.indexOf(STEP_ASSUMPTIONS);
+                        renderStep();
+                        return;
+                    }
+
                     if (step >= visibleSteps().length - 1) renderFinal();
                     else { step++; renderStep(); }
                 } else if (prev) {
@@ -1670,10 +1809,10 @@ window.setChatTokenTotal = function (total, lastUsage) {
     if (!isNaN(parsed)) window.chatTokenTotal = parsed;
 
     const fmt = (n) => (parseInt(n, 10) || 0).toLocaleString();
-    text.textContent = `${fmt(window.chatTokenTotal)} tokens`;
+    text.textContent = `Intelligence Effort - ${fmt(window.chatTokenTotal)}`;
     badge.style.display = '';
 
-    let title = `Total tokens used in this chat (all sections): ${fmt(window.chatTokenTotal)}.`;
+    let title = `Total intelligence effort used in this chat (all sections): ${fmt(window.chatTokenTotal)}.`;
     if (lastUsage) {
         title += ` Last request: ${fmt(lastUsage.prompt_tokens)} prompt + `
             + `${fmt(lastUsage.completion_tokens)} response = ${fmt(lastUsage.total_tokens)} tokens.`;
