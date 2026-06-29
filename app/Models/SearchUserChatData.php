@@ -3,7 +3,16 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property int $id
+ * @property int|null $search_user_chat_id
+ * @property int|null $user_id
+ * @property string|null $search
+ * @property string|null $response
+ * @property Carbon|null $created_at
+ */
 class SearchUserChatData extends Model
 {
     protected $table = 'search_user_chat_data';
