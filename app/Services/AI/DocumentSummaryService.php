@@ -38,7 +38,7 @@ class DocumentSummaryService
         $source = mb_substr($parsedText, 0, self::MAX_SOURCE_CHARS);
 
         $system = 'You compress company documents into a dense factual brief for an '
-            . 'executive strategy assistant. Preserve concrete facts; never invent.';
+            .'executive strategy assistant. Preserve concrete facts; never invent.';
 
         $prompt = <<<EOT
 Summarize the company document below into a compact brief (max ~400 words).
@@ -65,8 +65,9 @@ EOT;
         } catch (\Throwable $e) {
             Log::warning('Document summarization failed', [
                 'document' => $documentName,
-                'error'    => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
+
             return null;
         }
 
@@ -99,13 +100,13 @@ EOT;
         $response = Http::withToken(config('custom.openai_api_key'))
             ->timeout(90)->connectTimeout(10)->retry(2, 1000)
             ->post('https://api.openai.com/v1/chat/completions', [
-                'model'       => config('custom.openai_model'),
-                'messages'    => [
+                'model' => config('custom.openai_model'),
+                'messages' => [
                     ['role' => 'system', 'content' => $system],
                     ['role' => 'user',   'content' => $prompt],
                 ],
                 'temperature' => 0.2,
-                'max_tokens'  => min(2000, (int) config('custom.openai_max_tokens')),
+                'max_tokens' => min(2000, (int) config('custom.openai_max_tokens')),
             ]);
 
         return $response->successful() ? (string) $response->json('choices.0.message.content', '') : '';
@@ -113,18 +114,18 @@ EOT;
 
     private function vertex(string $system, string $prompt): string
     {
-        $project  = config('custom.google_cloud_project');
+        $project = $this->vertexProjectId();
         $location = config('custom.vertex_location');
-        $models   = array_filter(array_map('trim', explode(',', (string) config('custom.vertex_models'))));
-        $host     = $location === 'global' ? 'aiplatform.googleapis.com' : "{$location}-aiplatform.googleapis.com";
+        $models = array_filter(array_map('trim', explode(',', (string) config('custom.vertex_models'))));
+        $host = $location === 'global' ? 'aiplatform.googleapis.com' : "{$location}-aiplatform.googleapis.com";
 
         $payload = [
             'systemInstruction' => ['parts' => [['text' => $system]]],
-            'contents'          => [['role' => 'user', 'parts' => [['text' => $prompt]]]],
-            'generationConfig'  => [
-                'temperature'     => 0.2,
+            'contents' => [['role' => 'user', 'parts' => [['text' => $prompt]]]],
+            'generationConfig' => [
+                'temperature' => 0.2,
                 'maxOutputTokens' => 2000,
-                'thinkingConfig'  => ['thinkingBudget' => 0],
+                'thinkingConfig' => ['thinkingBudget' => 0],
             ],
         ];
 
@@ -147,17 +148,36 @@ EOT;
 
     private function gemini(string $system, string $prompt): string
     {
-        $model  = config('custom.gemini_model', 'gemini-2.5-flash');
+        $model = config('custom.gemini_model', 'gemini-2.5-flash');
         $apiKey = config('custom.gemini_api_key');
-        $url    = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
+        $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
 
         $response = Http::timeout(90)->connectTimeout(10)->retry(2, 1000)->post($url, [
             'systemInstruction' => ['parts' => [['text' => $system]]],
-            'contents'          => [['role' => 'user', 'parts' => [['text' => $prompt]]]],
-            'generationConfig'  => ['temperature' => 0.2, 'maxOutputTokens' => 2000],
+            'contents' => [['role' => 'user', 'parts' => [['text' => $prompt]]]],
+            'generationConfig' => ['temperature' => 0.2, 'maxOutputTokens' => 2000],
         ]);
 
         return $response->successful() ? $this->extractGeminiText($response->json()) : '';
+    }
+
+    /**
+     * Vertex AI project id — prefers the project owning the active
+     * service-account key so a stray GOOGLE_CLOUD_PROJECT can't override it.
+     */
+    private function vertexProjectId(): ?string
+    {
+        $path = getenv('GOOGLE_APPLICATION_CREDENTIALS') ?: '';
+
+        if ($path !== '' && is_file($path)) {
+            $json = json_decode((string) file_get_contents($path), true);
+
+            if (! empty($json['project_id'])) {
+                return $json['project_id'];
+            }
+        }
+
+        return config('custom.google_cloud_project');
     }
 
     private function vertexAccessToken(): ?string
@@ -176,7 +196,7 @@ EOT;
         $parts = $json['candidates'][0]['content']['parts'] ?? [];
         $out = '';
         foreach ($parts as $part) {
-            if (!empty($part['thought'])) {
+            if (! empty($part['thought'])) {
                 continue;
             }
             $out .= $part['text'] ?? '';

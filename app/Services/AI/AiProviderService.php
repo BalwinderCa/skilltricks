@@ -4,8 +4,10 @@ namespace App\Services\AI;
 
 use App\Models\SearchUserChat;
 use Google\Auth\ApplicationDefaultCredentials;
+use GuzzleHttp\Psr7\Response;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -35,9 +37,9 @@ class AiProviderService
     public function generate(
         string $systemMessage,
         string $userText,
-        int    $maxOutputTokens = 3000,
-        float  $temperature     = 0.7,
-        bool   $jsonMode        = false
+        int $maxOutputTokens = 3000,
+        float $temperature = 0.7,
+        bool $jsonMode = false
     ) {
         $provider = $this->providerKey();
 
@@ -60,7 +62,7 @@ class AiProviderService
     {
         $parts = $response->json('candidates.0.content.parts', []);
 
-        if (!is_array($parts) || empty($parts)) {
+        if (! is_array($parts) || empty($parts)) {
             return (string) $response->json('candidates.0.content.parts.0.text', '');
         }
 
@@ -72,14 +74,14 @@ class AiProviderService
                 continue;
             }
 
-            if (!empty($part['thought'])) {
+            if (! empty($part['thought'])) {
                 $thought[] = $part['text'];
             } else {
                 $visible[] = $part['text'];
             }
         }
 
-        return !empty($visible) ? implode("\n", $visible) : implode("\n", $thought);
+        return ! empty($visible) ? implode("\n", $visible) : implode("\n", $thought);
     }
 
     /**
@@ -91,14 +93,14 @@ class AiProviderService
     {
         $meta = $response->json('usageMetadata', []);
 
-        $prompt     = (int) ($meta['promptTokenCount'] ?? 0);
+        $prompt = (int) ($meta['promptTokenCount'] ?? 0);
         $completion = (int) ($meta['candidatesTokenCount'] ?? 0);
-        $total      = (int) ($meta['totalTokenCount'] ?? ($prompt + $completion));
+        $total = (int) ($meta['totalTokenCount'] ?? ($prompt + $completion));
 
         return [
-            'prompt_tokens'     => $prompt,
+            'prompt_tokens' => $prompt,
             'completion_tokens' => $completion,
-            'total_tokens'      => $total,
+            'total_tokens' => $total,
         ];
     }
 
@@ -109,14 +111,14 @@ class AiProviderService
     {
         $total = (int) ($this->extractUsage($response)['total_tokens'] ?? 0);
 
-        if (!$chatId) {
+        if (! $chatId) {
             return 0;
         }
 
         try {
             $chat = SearchUserChat::find($chatId);
 
-            if (!$chat) {
+            if (! $chat) {
                 return 0;
             }
 
@@ -134,7 +136,7 @@ class AiProviderService
      * Build a JsonResponse for any AI API exception.
      * Call inside a catch block and return the result immediately.
      */
-    public function handleException(\Throwable $e, string $context, $userId = null, $chatId = null): \Illuminate\Http\JsonResponse
+    public function handleException(\Throwable $e, string $context, $userId = null, $chatId = null): JsonResponse
     {
         $provider = $this->providerLabel();
 
@@ -142,15 +144,15 @@ class AiProviderService
             Log::error("{$provider} Connection Exception - {$context}", [
                 'user_id' => $userId,
                 'chat_id' => $chatId,
-                'error'   => $e->getMessage(),
-                'code'    => $e->getCode(),
+                'error' => $e->getMessage(),
+                'code' => $e->getCode(),
             ]);
 
             return response()->json([
-                'error'   => "{$provider} connection timeout. The request took too long to complete.",
+                'error' => "{$provider} connection timeout. The request took too long to complete.",
                 'details' => [
-                    'message'    => $e->getMessage(),
-                    'type'       => 'ConnectionException',
+                    'message' => $e->getMessage(),
+                    'type' => 'ConnectionException',
                     'suggestion' => "Please try again. If the issue persists, {$provider} may be experiencing high load.",
                 ],
             ], 504);
@@ -158,18 +160,18 @@ class AiProviderService
 
         if ($e instanceof RequestException) {
             Log::error("{$provider} Request Exception - {$context}", [
-                'user_id'         => $userId,
-                'chat_id'         => $chatId,
-                'error'           => $e->getMessage(),
+                'user_id' => $userId,
+                'chat_id' => $chatId,
+                'error' => $e->getMessage(),
                 'response_status' => $e->response?->status(),
-                'response_body'   => $e->response?->body(),
+                'response_body' => $e->response?->body(),
             ]);
 
             return response()->json([
-                'error'   => "{$provider} API request failed.",
+                'error' => "{$provider} API request failed.",
                 'details' => [
-                    'message'  => $e->getMessage(),
-                    'type'     => 'RequestException',
+                    'message' => $e->getMessage(),
+                    'type' => 'RequestException',
                     'response' => $e->response?->body(),
                 ],
             ], 500);
@@ -178,12 +180,12 @@ class AiProviderService
         Log::error("{$provider} General Exception - {$context}", [
             'user_id' => $userId,
             'chat_id' => $chatId,
-            'error'   => $e->getMessage(),
-            'class'   => get_class($e),
+            'error' => $e->getMessage(),
+            'class' => get_class($e),
         ]);
 
         return response()->json([
-            'error'   => 'An unexpected error occurred while processing your request.',
+            'error' => 'An unexpected error occurred while processing your request.',
             'details' => ['message' => $e->getMessage(), 'type' => get_class($e)],
         ], 500);
     }
@@ -192,9 +194,9 @@ class AiProviderService
     public function providerLabel(): string
     {
         return match ($this->providerKey()) {
-            'openai', 'chatgpt'               => 'OpenAI',
+            'openai', 'chatgpt' => 'OpenAI',
             'vertex', 'vertexai', 'vertex-ai' => 'Vertex AI',
-            default                           => 'Gemini',
+            default => 'Gemini',
         };
     }
 
@@ -205,14 +207,14 @@ class AiProviderService
      */
     public function parseJson($text): ?array
     {
-        if (!$text) {
+        if (! $text) {
             return null;
         }
 
         $clean = trim(preg_replace(['/^```(?:json)?/i', '/```$/'], '', trim($text)));
 
         $start = strpos($clean, '{');
-        $end   = strrpos($clean, '}');
+        $end = strrpos($clean, '}');
 
         if ($start !== false && $end !== false && $end > $start) {
             $clean = substr($clean, $start, $end - $start + 1);
@@ -238,7 +240,7 @@ class AiProviderService
      */
     private function geminiGenerate(string $systemMessage, string $userText, int $maxOutputTokens, float $temperature, bool $jsonMode)
     {
-        $models  = ['gemini-3.1-pro-preview', 'gemini-3.5-flash-lite'];
+        $models = ['gemini-3.1-pro-preview', 'gemini-3.5-flash-lite'];
         $payload = $this->buildGeminiPayload($systemMessage, $userText, $maxOutputTokens, $temperature, $jsonMode);
 
         $response = null;
@@ -266,12 +268,12 @@ class AiProviderService
      */
     private function vertexGenerate(string $systemMessage, string $userText, int $maxOutputTokens, float $temperature, bool $jsonMode)
     {
-        $project  = config('custom.google_cloud_project');
+        $project = $this->vertexProjectId();
         $location = config('custom.vertex_location');
-        $models   = array_filter(array_map('trim', explode(',', config('custom.vertex_models'))));
-        $host     = $location === 'global' ? 'aiplatform.googleapis.com' : "{$location}-aiplatform.googleapis.com";
-        $payload  = $this->buildGeminiPayload($systemMessage, $userText, $maxOutputTokens, $temperature, $jsonMode);
-        $token    = $this->vertexAccessToken();
+        $models = array_filter(array_map('trim', explode(',', config('custom.vertex_models'))));
+        $host = $location === 'global' ? 'aiplatform.googleapis.com' : "{$location}-aiplatform.googleapis.com";
+        $payload = $this->buildGeminiPayload($systemMessage, $userText, $maxOutputTokens, $temperature, $jsonMode);
+        $token = $this->vertexAccessToken();
 
         if (empty($token)) {
             Log::error('Vertex AI auth failed: no access token (check GOOGLE_APPLICATION_CREDENTIALS / ADC)');
@@ -293,8 +295,8 @@ class AiProviderService
             }
 
             Log::warning('Vertex AI model failed or returned empty text, trying fallback', [
-                'model'         => $model,
-                'status'        => $response->status(),
+                'model' => $model,
+                'status' => $response->status(),
                 'finish_reason' => $response->json('candidates.0.finishReason'),
             ]);
         }
@@ -315,13 +317,13 @@ class AiProviderService
         $maxOutputTokens = min($maxOutputTokens, (int) config('custom.openai_max_tokens'));
 
         $payload = [
-            'model'       => $model,
-            'messages'    => [
+            'model' => $model,
+            'messages' => [
                 ['role' => 'system', 'content' => $systemMessage],
                 ['role' => 'user',   'content' => $userText],
             ],
             'temperature' => $temperature,
-            'max_tokens'  => $maxOutputTokens,
+            'max_tokens' => $maxOutputTokens,
         ];
 
         if ($jsonMode) {
@@ -335,15 +337,15 @@ class AiProviderService
             ->post('https://api.openai.com/v1/chat/completions', $payload);
 
         if ($response->successful()) {
-            $text  = $response->json('choices.0.message.content', '');
+            $text = $response->json('choices.0.message.content', '');
             $usage = $response->json('usage', []);
 
             return $this->fakeGeminiResponse([
-                'candidates'    => [['content' => ['parts' => [['text' => $text]]]]],
+                'candidates' => [['content' => ['parts' => [['text' => $text]]]]],
                 'usageMetadata' => [
-                    'promptTokenCount'     => (int) ($usage['prompt_tokens'] ?? 0),
+                    'promptTokenCount' => (int) ($usage['prompt_tokens'] ?? 0),
                     'candidatesTokenCount' => (int) ($usage['completion_tokens'] ?? 0),
-                    'totalTokenCount'      => (int) ($usage['total_tokens'] ?? 0),
+                    'totalTokenCount' => (int) ($usage['total_tokens'] ?? 0),
                 ],
             ]);
         }
@@ -360,10 +362,10 @@ class AiProviderService
     private function buildGeminiPayload(string $systemMessage, string $userText, int $maxOutputTokens, float $temperature, bool $jsonMode): array
     {
         $generationConfig = [
-            'temperature'     => $temperature,
+            'temperature' => $temperature,
             'maxOutputTokens' => $maxOutputTokens,
             // thinkingBudget=0 prevents thinking tokens from truncating visible JSON.
-            'thinkingConfig'  => ['thinkingBudget' => 0],
+            'thinkingConfig' => ['thinkingBudget' => 0],
         ];
 
         if ($jsonMode) {
@@ -372,9 +374,31 @@ class AiProviderService
 
         return [
             'systemInstruction' => ['parts' => [['text' => $systemMessage]]],
-            'contents'          => [['role' => 'user', 'parts' => [['text' => $userText]]]],
-            'generationConfig'  => $generationConfig,
+            'contents' => [['role' => 'user', 'parts' => [['text' => $userText]]]],
+            'generationConfig' => $generationConfig,
         ];
+    }
+
+    /**
+     * Vertex AI project id. Prefers the project that owns the active
+     * service-account key (GOOGLE_APPLICATION_CREDENTIALS) because Vertex calls
+     * must target the credential's own project; falls back to config. This also
+     * stops a stray GOOGLE_CLOUD_PROJECT shell variable from overriding the
+     * intended project and causing 403s.
+     */
+    private function vertexProjectId(): ?string
+    {
+        $path = getenv('GOOGLE_APPLICATION_CREDENTIALS') ?: '';
+
+        if ($path !== '' && is_file($path)) {
+            $json = json_decode((string) file_get_contents($path), true);
+
+            if (! empty($json['project_id'])) {
+                return $json['project_id'];
+            }
+        }
+
+        return config('custom.google_cloud_project');
     }
 
     /** OAuth token for Vertex AI, cached just under the 1h token lifetime. */
@@ -392,7 +416,7 @@ class AiProviderService
     private function fakeGeminiResponse(array $data)
     {
         return new \Illuminate\Http\Client\Response(
-            new \GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/json'], json_encode($data))
+            new Response(200, ['Content-Type' => 'application/json'], json_encode($data))
         );
     }
 }
