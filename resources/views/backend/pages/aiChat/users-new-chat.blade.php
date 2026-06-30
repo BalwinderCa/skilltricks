@@ -4004,12 +4004,24 @@ document.addEventListener('click', function (e) {
                                         </thead>
                                         <tbody>`;
 
+                    // Format a stored calendar date (which may arrive as "YYYY-MM-DD" or as a
+                    // UTC-midnight ISO string like "YYYY-MM-DDT00:00:00Z") in the browser's
+                    // local timezone WITHOUT shifting the day. Building a Date from the Y/M/D
+                    // parts keeps it local; `new Date(isoString)` parses as UTC and rolls back
+                    // a day in negative-offset timezones.
+                    const formatCalendarDate = (val) => {
+                        if (!val) return '';
+                        const m = String(val).match(/^(\d{4})-(\d{2})-(\d{2})/);
+                        if (!m) return new Date(val).toLocaleDateString();
+                        return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString();
+                    };
+
                     data.states.forEach(state => {
                         const obs = state.latest_observation || {};
                         const status = obs.status || 'Scheduled';
                         const actual = obs.actual_value || 'No data logged yet';
-                        const targetDate = state.target_date ? new Date(state.target_date).toLocaleDateString() : 'No date set';
-                        const obsDate = obs.observation_date ? new Date(obs.observation_date).toLocaleDateString() : '';
+                        const targetDate = state.target_date ? formatCalendarDate(state.target_date) : 'No date set';
+                        const obsDate = obs.observation_date ? formatCalendarDate(obs.observation_date) : '';
                         
                         let badgeClass = 'bg-secondary';
                         let displayStatus = status;
@@ -4250,8 +4262,10 @@ document.addEventListener('click', function (e) {
                             document.getElementById('progress-value').value = obs.actual_value || '';
                             document.getElementById('progress-notes').value = obs.status_notes || '';
                             
-                            // Set current date by default
-                            const today = new Date().toISOString().split('T')[0];
+                            // Set current date by default (local date, not UTC — toISOString()
+                            // would roll forward a day in negative-offset timezones late in the day).
+                            const now = new Date();
+                            const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
                             document.getElementById('progress-date').value = today;
 
                             const modalEl = document.getElementById('logProgressModal');
