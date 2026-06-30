@@ -1428,10 +1428,18 @@ EOT;
         }
 
         try {
-            // Find ExpectedState and verify ownership via the relationship
-            $expectedState = ExpectedState::with('searchUserChat')->find($expectedStateId);
+            // Verify ownership via a direct, type-safe query on the owning chat (mirrors
+            // save_expected_state / get_progress_data). Relying on the Eloquent relationship
+            // plus a strict `!==` comparison is fragile on MySQL, where numeric columns can
+            // be returned as strings and fail a strict comparison against an integer user id.
+            $expectedState = ExpectedState::find($expectedStateId);
 
-            if (! $expectedState instanceof ExpectedState || ! $expectedState->searchUserChat || $expectedState->searchUserChat->user_id !== $user->id) {
+            $ownsChat = $expectedState instanceof ExpectedState
+                && SearchUserChat::where('id', $expectedState->search_user_chat_id)
+                    ->where('user_id', $user->id)
+                    ->exists();
+
+            if (! $ownsChat) {
                 return response()->json(['error' => 'Expected state not found or access denied.'], 403);
             }
 
@@ -1462,15 +1470,20 @@ EOT;
         }
 
         try {
-            // Find ExpectedState and verify ownership via relationships
-            $expectedState = ExpectedState::with(['searchUserChat', 'latestObservation', 'dependsOn'])
+            // Verify ownership via a direct, type-safe query on the owning chat (see
+            // save_observed_state for why the relationship-based strict check is avoided).
+            $expectedState = ExpectedState::with(['latestObservation', 'dependsOn'])
                 ->find($expectedStateId);
 
-            if (! $expectedState instanceof ExpectedState || ! $expectedState->searchUserChat || $expectedState->searchUserChat->user_id !== $user->id) {
+            $chat = $expectedState instanceof ExpectedState
+                ? SearchUserChat::where('id', $expectedState->search_user_chat_id)
+                    ->where('user_id', $user->id)
+                    ->first()
+                : null;
+
+            if (! $chat) {
                 return response()->json(['error' => 'Expected state not found or access denied.'], 403);
             }
-
-            $chat = $expectedState->searchUserChat;
             $obs = $expectedState->latestObservation;
             $status = $obs ? $obs->status : 'Scheduled';
 
@@ -1544,9 +1557,17 @@ EOT;
         }
 
         try {
-            $intervention = Intervention::with('expectedState.searchUserChat')->find($interventionId);
+            // Verify ownership via a direct, type-safe query on the owning chat (see
+            // save_observed_state for why the relationship-based strict check is avoided).
+            $intervention = Intervention::with('expectedState')->find($interventionId);
 
-            if (! $intervention instanceof Intervention || ! $intervention->expectedState instanceof ExpectedState || ! $intervention->expectedState->searchUserChat || $intervention->expectedState->searchUserChat->user_id !== $user->id) {
+            $ownsChat = $intervention instanceof Intervention
+                && $intervention->expectedState instanceof ExpectedState
+                && SearchUserChat::where('id', $intervention->expectedState->search_user_chat_id)
+                    ->where('user_id', $user->id)
+                    ->exists();
+
+            if (! $ownsChat) {
                 return response()->json(['error' => 'Intervention not found or access denied.'], 403);
             }
 

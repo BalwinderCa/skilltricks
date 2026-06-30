@@ -139,4 +139,55 @@ class AlignmentInterventionTest extends TestCase
 
         $this->assertNotNull(Intervention::find($intervention->id)->activated_at);
     }
+
+    public function test_intervention_actions_blocked_if_unauthorized(): void
+    {
+        $owner = User::factory()->create();
+        $otherUser = User::factory()->create();
+
+        $chat = SearchUserChat::create([
+            'user_id' => $owner->id,
+            'answers' => '{}',
+            'response' => 'Goal Sync output',
+            'status1' => 1,
+            'status2' => 1,
+        ]);
+
+        $expectedState = ExpectedState::create([
+            'search_user_chat_id' => $chat->id,
+            'role' => 'Marketing',
+            'recommended_action' => 'Launch ad campaign',
+            'decision' => 'act_on_it',
+            'success_metric' => 'CTR > 5%',
+        ]);
+
+        $intervention = Intervention::create([
+            'expected_state_id' => $expectedState->id,
+            'ai_recommendation' => 'Mock Recommendation',
+            'status' => 'proposed',
+        ]);
+
+        // A different user must not be able to generate an intervention for someone
+        // else's expected state. The AI engine must never be reached.
+        $aiMock = $this->mock(AiProviderService::class);
+        $aiMock->shouldNotReceive('generate');
+
+        $generateResponse = $this->actingAs($otherUser)->postJson(
+            route('users-new-chat-generate-intervention.index'),
+            ['expected_state_id' => $expectedState->id]
+        );
+        $generateResponse->assertStatus(403);
+
+        // ...nor activate an existing intervention they do not own.
+        $activateResponse = $this->actingAs($otherUser)->postJson(
+            route('users-new-chat-activate-intervention.index'),
+            ['intervention_id' => $intervention->id]
+        );
+        $activateResponse->assertStatus(403);
+
+        $this->assertDatabaseHas('interventions', [
+            'id' => $intervention->id,
+            'status' => 'proposed',
+        ]);
+    }
 }
