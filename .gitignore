@@ -33,3 +33,4 @@ Thumbs.db
 /.env.testing
 /yesterday_db.gz
 /staging.sql
+/notion.txt
