@@ -637,36 +637,42 @@
        want anywhere in the chat UI — this covers buttons (Continue, modal
        Confirm/Save), "Selected" badges, the tracker header, outline buttons
        (Log Progress), and text-primary icons in one place. */
-    .btn-primary {
-        background-color: #36839b;
-        border-color: #36839b;
-        color: #fff;
+    /* The theme stylesheet loads after this block, so plain selectors lose
+       the cascade even with !important — the `body` prefix wins on
+       specificity regardless of load order. */
+    body {
+        --bs-primary: #36839b;
+        --bs-primary-rgb: 54, 131, 155;
     }
-    .btn-primary:hover,
-    .btn-primary:focus,
-    .btn-primary:active {
-        background-color: #2c6d82;
-        border-color: #2c6d82;
-        color: #fff;
+    body .btn-primary {
+        background-color: #36839b !important;
+        border-color: #36839b !important;
+        color: #fff !important;
     }
-    .btn-outline-primary {
-        color: #36839b;
-        border-color: #36839b;
+    body .btn-primary:hover,
+    body .btn-primary:focus,
+    body .btn-primary:active {
+        background-color: #2c6d82 !important;
+        border-color: #2c6d82 !important;
     }
-    .btn-outline-primary:hover,
-    .btn-outline-primary:focus,
-    .btn-outline-primary:active {
-        background-color: #36839b;
-        border-color: #36839b;
-        color: #fff;
+    body .btn-outline-primary {
+        color: #36839b !important;
+        border-color: #36839b !important;
+        background-color: transparent !important;
     }
-    .bg-primary {
+    body .btn-outline-primary:hover,
+    body .btn-outline-primary:focus,
+    body .btn-outline-primary:active {
+        background-color: #36839b !important;
+        color: #fff !important;
+    }
+    body .bg-primary {
         background-color: #36839b !important;
     }
-    .border-primary {
+    body .border-primary {
         border-color: #36839b !important;
     }
-    .text-primary {
+    body .text-primary {
         color: #36839b !important;
     }
 </style>
