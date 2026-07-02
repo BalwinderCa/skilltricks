@@ -12,6 +12,7 @@ use App\Models\AiChatPrompt;
 use App\Models\AiChatPromptGroup;
 use App\Models\ChatCategory;
 use App\Models\ChatRoleCategory;
+use App\Models\DriftEvent;
 use App\Models\ExpectedState;
 use App\Models\Intervention;
 use App\Models\ObservedState;
@@ -26,6 +27,7 @@ use App\Services\Integration\IntegrationService;
 use App\Services\WriteBotService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Maatwebsite\Excel\Facades\Excel;
@@ -1375,32 +1377,62 @@ EOT;
                 ->get();
 
             $today = Carbon::now()->toDateString();
+            $threshold = (float) config('oi.drift_threshold', 0.8);
             $alerts = [];
 
             foreach ($states as $state) {
                 $obs = $state->latestObservation;
                 $status = $obs ? $obs->status : 'Scheduled';
-                $driftStatus = 'None';
 
-                if ($status === 'Complete') {
-                    $driftStatus = 'None';
-                } elseif ($state->target_date && Carbon::parse($state->target_date)->toDateString() < $today) {
-                    $driftStatus = 'Timeline Drift'; // Overdue
-                } elseif ($state->depends_on_id && $state->dependsOn) {
-                    $dep = $state->dependsOn;
-                    $depObs = $dep->latestObservation;
-                    $depStatus = $depObs ? $depObs->status : 'Scheduled';
+                // Quantitative achievement rate: actual vs target (e.g. 4 of
+                // 10 partnerships = 0.4). Values are free text, so we compare
+                // the first number found in each.
+                $rate = null;
+                $target = $this->extractNumeric($state->target_value);
+                $actual = $obs ? $this->extractNumeric($obs->actual_value) : null;
+                if ($target !== null && $target > 0 && $actual !== null) {
+                    $rate = $actual / $target;
+                }
 
-                    $depIsOverdue = $dep->target_date && Carbon::parse($dep->target_date)->toDateString() < $today;
+                $isOverdue = $state->target_date && Carbon::parse($state->target_date)->toDateString() < $today;
 
-                    if ($depStatus === 'Blocked' || ($depStatus !== 'Complete' && $depIsOverdue)) {
-                        $driftStatus = 'Dependency Blocked';
-                        $alerts[] = "🔔 Alert: <strong>{$state->role}</strong> is blocked because <strong>{$dep->role}</strong> has not completed their task '<em>{$dep->recommended_action}</em>'.";
+                // ponytail: midpoint between commitment and deadline is the
+                // point where "no progress yet" stops being normal.
+                $pastMidpoint = false;
+                if ($state->target_date && $state->created_at) {
+                    $start = Carbon::parse($state->created_at);
+                    $end = Carbon::parse($state->target_date)->endOfDay();
+                    if ($end->greaterThan($start)) {
+                        $pastMidpoint = Carbon::now()->getTimestamp() > ($start->getTimestamp() + $end->getTimestamp()) / 2;
                     }
                 }
 
+                $driftStatus = 'None';
+
+                if ($status === 'Complete') {
+                    if ($rate !== null && $rate < $threshold) {
+                        $driftStatus = 'Capacity Drift'; // Delivered below committed target
+                    }
+                } elseif ($isOverdue) {
+                    $driftStatus = 'Timeline Drift'; // Overdue
+                } elseif ($state->depends_on_id && $state->dependsOn && $this->dependencyIsBlocked($state->dependsOn, $today)) {
+                    $dep = $state->dependsOn;
+                    $driftStatus = 'Dependency Blocked';
+                    $alerts[] = "🔔 Alert: <strong>{$state->role}</strong> is blocked because <strong>{$dep->role}</strong> has not completed their task '<em>{$dep->recommended_action}</em>'.";
+                } elseif (! $state->resources_committed) {
+                    $driftStatus = 'Capacity Drift'; // Committed to work without budget/personnel
+                } elseif ($pastMidpoint && ! $obs) {
+                    $driftStatus = 'Priority Drift'; // No progress reported at all
+                } elseif ($pastMidpoint && $rate !== null && $rate < $threshold) {
+                    $driftStatus = 'Timeline Drift'; // Behind pace vs target
+                }
+
                 $state->drift_status = $driftStatus;
+                $state->achievement_rate = $rate !== null ? round($rate, 2) : null;
+                $state->drift_magnitude = $rate !== null ? round(max(0, 1 - $rate), 2) : null;
             }
+
+            $this->recordDriftEvents($states);
 
             return response()->json([
                 'success' => true,
@@ -1411,6 +1443,83 @@ EOT;
             Log::error('Failed to fetch progress data', ['user_id' => $user->id, 'chat_id' => $chatId, 'error' => $e->getMessage()]);
 
             return response()->json(['error' => 'An error occurred while fetching progress data.', 'details' => $e->getMessage()], 500);
+        }
+    }
+
+    private function extractNumeric($value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if (is_numeric($value)) {
+            return (float) $value;
+        }
+        if (preg_match('/-?\d+(?:\.\d+)?/', str_replace(',', '', (string) $value), $m)) {
+            return (float) $m[0];
+        }
+
+        return null;
+    }
+
+    private function dependencyIsBlocked(ExpectedState $dep, string $today): bool
+    {
+        $depObs = $dep->latestObservation;
+        $depStatus = $depObs ? $depObs->status : 'Scheduled';
+        $depIsOverdue = $dep->target_date && Carbon::parse($dep->target_date)->toDateString() < $today;
+
+        return $depStatus === 'Blocked' || ($depStatus !== 'Complete' && $depIsOverdue);
+    }
+
+    /**
+     * Persist drift transitions so there is an audit history of when each
+     * commitment entered or recovered from drift. One row per state change.
+     *
+     * @param  Collection<int, ExpectedState>  $states
+     */
+    private function recordDriftEvents($states): void
+    {
+        if ($states->isEmpty()) {
+            return;
+        }
+
+        // Ascending order + keyBy leaves the latest event per state.
+        $lastEvents = DriftEvent::whereIn('expected_state_id', $states->pluck('id'))
+            ->orderBy('id')
+            ->get()
+            ->keyBy('expected_state_id');
+
+        foreach ($states as $state) {
+            $prev = $lastEvents->get($state->id);
+            $prevType = $prev ? $prev->drift_type : 'None';
+
+            if ($state->drift_status === $prevType) {
+                continue;
+            }
+            if ($state->drift_status === 'None' && ! $prev) {
+                continue; // Nothing to record until first drift occurs
+            }
+
+            $magnitude = $state->drift_magnitude;
+            $severity = null;
+            if ($state->drift_status !== 'None') {
+                if ($magnitude === null) {
+                    $severity = 'Medium';
+                } elseif ($magnitude >= 0.5) {
+                    $severity = 'High';
+                } elseif ($magnitude >= 0.2) {
+                    $severity = 'Medium';
+                } else {
+                    $severity = 'Low';
+                }
+            }
+
+            DriftEvent::create([
+                'expected_state_id' => $state->id,
+                'drift_type' => $state->drift_status,
+                'magnitude' => $magnitude,
+                'severity' => $severity,
+                'detected_at' => Carbon::now(),
+            ]);
         }
     }
 
@@ -1498,12 +1607,17 @@ EOT;
             $actualValue = $obs && $obs->actual_value ? $obs->actual_value : 'None logged';
 
             // Determine specific blocker type
+            $driftType = (string) $request->input('drift_type', '');
             $blockerDetail = 'Overdue/Delayed';
             if ($status === 'Blocked') {
                 $blockerDetail = "Explicitly blocked with notes: {$statusNotes}";
             } elseif ($expectedState->depends_on_id && $expectedState->dependsOn) {
                 $dep = $expectedState->dependsOn;
                 $blockerDetail = "Blocked on the preceding role '{$dep->role}' completing their task '{$dep->recommended_action}'";
+            } elseif ($driftType === 'Capacity Drift') {
+                $blockerDetail = 'Capacity Drift: the team committed to this action without the budget/personnel to execute it, or delivered below the committed target.';
+            } elseif ($driftType === 'Priority Drift') {
+                $blockerDetail = 'Priority Drift: no progress has been logged on this commitment despite significant elapsed time, suggesting competing priorities.';
             }
 
             $systemMessage = 'You are an executive strategy intervention consultant. Given the context of a stalled organizational objective, recommend exactly one concrete, high-impact corrective action (2-3 sentences max) to resolve the bottleneck and get the team back on track.';

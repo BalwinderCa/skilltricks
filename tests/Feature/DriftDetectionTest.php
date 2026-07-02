@@ -152,4 +152,143 @@ class DriftDetectionTest extends TestCase
         $this->assertEquals('Dependency Blocked', $marketingState['drift_status']);
         $this->assertCount(1, $data['leadership_alerts']);
     }
+
+    public function test_capacity_drift_when_completed_below_achievement_threshold(): void
+    {
+        $user = User::factory()->create();
+        $chat = SearchUserChat::create([
+            'user_id' => $user->id,
+            'answers' => '{}',
+            'response' => 'Goal Sync output',
+            'status1' => 1,
+            'status2' => 1,
+        ]);
+
+        $state = ExpectedState::create([
+            'search_user_chat_id' => $chat->id,
+            'role' => 'VP Sales',
+            'recommended_action' => 'Engage distributors',
+            'decision' => 'act_on_it',
+            'success_metric' => 'Qualified partners identified',
+            'target_value' => '10 partnerships',
+            'resources_committed' => true,
+            'target_date' => Carbon::now()->addDays(30)->toDateString(),
+        ]);
+
+        ObservedState::create([
+            'expected_state_id' => $state->id,
+            'status' => 'Complete',
+            'actual_value' => '4 partnerships',
+            'observation_date' => Carbon::now()->toDateString(),
+        ]);
+
+        $response = $this->actingAs($user)->getJson(route('users-new-chat-progress-data.index', ['chat_id' => $chat->id]));
+
+        $response->assertOk();
+        $result = $response->json('states.0');
+
+        $this->assertEquals('Capacity Drift', $result['drift_status']);
+        $this->assertEquals(0.4, $result['achievement_rate']);
+        $this->assertEquals(0.6, $result['drift_magnitude']);
+
+        // Drift transition is persisted for audit history
+        $this->assertDatabaseHas('drift_events', [
+            'expected_state_id' => $state->id,
+            'drift_type' => 'Capacity Drift',
+            'severity' => 'High',
+        ]);
+    }
+
+    public function test_no_drift_when_completed_at_target(): void
+    {
+        $user = User::factory()->create();
+        $chat = SearchUserChat::create([
+            'user_id' => $user->id,
+            'answers' => '{}',
+            'response' => 'Goal Sync output',
+            'status1' => 1,
+            'status2' => 1,
+        ]);
+
+        $state = ExpectedState::create([
+            'search_user_chat_id' => $chat->id,
+            'role' => 'VP Sales',
+            'recommended_action' => 'Engage distributors',
+            'decision' => 'act_on_it',
+            'success_metric' => 'Qualified partners identified',
+            'target_value' => '10',
+            'resources_committed' => true,
+        ]);
+
+        ObservedState::create([
+            'expected_state_id' => $state->id,
+            'status' => 'Complete',
+            'actual_value' => '10',
+            'observation_date' => Carbon::now()->toDateString(),
+        ]);
+
+        $response = $this->actingAs($user)->getJson(route('users-new-chat-progress-data.index', ['chat_id' => $chat->id]));
+
+        $response->assertOk();
+        $this->assertEquals('None', $response->json('states.0.drift_status'));
+        $this->assertEquals(1.0, $response->json('states.0.achievement_rate'));
+        $this->assertDatabaseMissing('drift_events', ['expected_state_id' => $state->id]);
+    }
+
+    public function test_capacity_drift_when_resources_not_committed(): void
+    {
+        $user = User::factory()->create();
+        $chat = SearchUserChat::create([
+            'user_id' => $user->id,
+            'answers' => '{}',
+            'response' => 'Goal Sync output',
+            'status1' => 1,
+            'status2' => 1,
+        ]);
+
+        ExpectedState::create([
+            'search_user_chat_id' => $chat->id,
+            'role' => 'Marketing',
+            'recommended_action' => 'Launch localized campaigns',
+            'decision' => 'act_on_it',
+            'success_metric' => 'CTR > 5%',
+            'resources_committed' => false,
+        ]);
+
+        $response = $this->actingAs($user)->getJson(route('users-new-chat-progress-data.index', ['chat_id' => $chat->id]));
+
+        $response->assertOk();
+        $this->assertEquals('Capacity Drift', $response->json('states.0.drift_status'));
+    }
+
+    public function test_priority_drift_when_no_progress_logged_past_midpoint(): void
+    {
+        $user = User::factory()->create();
+        $chat = SearchUserChat::create([
+            'user_id' => $user->id,
+            'answers' => '{}',
+            'response' => 'Goal Sync output',
+            'status1' => 1,
+            'status2' => 1,
+        ]);
+
+        $state = ExpectedState::create([
+            'search_user_chat_id' => $chat->id,
+            'role' => 'Head of L&D',
+            'recommended_action' => 'Run competitive workshop',
+            'decision' => 'act_on_it',
+            'success_metric' => 'Workshop completed',
+            'resources_committed' => true,
+            'target_date' => Carbon::now()->addDays(2)->toDateString(),
+        ]);
+
+        // Backdate the commitment so we are past the midpoint with no observation
+        $state->created_at = Carbon::now()->subDays(10);
+        $state->save();
+
+        $response = $this->actingAs($user)->getJson(route('users-new-chat-progress-data.index', ['chat_id' => $chat->id]));
+
+        $response->assertOk();
+        $this->assertEquals('Priority Drift', $response->json('states.0.drift_status'));
+    }
 }

@@ -387,16 +387,17 @@
         opacity: 0.8;
     }
 
-    /* Selected strategy in the final answer — match the selected scenario look */
+    /* Selected strategy in the final answer — match the selected scenario look.
+       Brand teal (#36839b) from the marketing site, not the theme purple. */
     .strategy-option.strategy-selected {
-        border-color: #6f42c1;
-        background-color: #f1e8ff;
-        box-shadow: 0 2px 6px rgba(111, 66, 193, 0.2);
+        border-color: #36839b;
+        background-color: #e7f3f7;
+        box-shadow: 0 2px 6px rgba(54, 131, 155, 0.2);
     }
 
     [data-bs-theme="dark"] .strategy-option.strategy-selected {
-        border-color: #a07cf0;
-        background-color: #1e1b2a;
+        border-color: #6cb7cc;
+        background-color: #13262d;
     }
 
     /* Spinning animation for loading */
@@ -416,7 +417,7 @@
         padding: 15px;
         background-color: #f8f9fa;
         border-radius: 8px;
-        border-left: 4px solid #6f42c1;
+        border-left: 4px solid #36839b;
     }
 
     .scenario-options {
@@ -439,14 +440,14 @@
     }
 
     .scenario-option:hover {
-        border-color: #6f42c1;
-        background-color: #f6f0ff;
+        border-color: #36839b;
+        background-color: #f0f8fa;
     }
 
     .scenario-option.scenario-selected {
-        border-color: #6f42c1;
-        background-color: #f1e8ff;
-        box-shadow: 0 2px 6px rgba(111, 66, 193, 0.2);
+        border-color: #36839b;
+        background-color: #e7f3f7;
+        box-shadow: 0 2px 6px rgba(54, 131, 155, 0.2);
     }
 
     .scenario-radio {
@@ -465,7 +466,7 @@
 
     [data-bs-theme="dark"] .scenario-section {
         background-color: #1a1a1a;
-        border-left-color: #a07cf0;
+        border-left-color: #6cb7cc;
     }
 
     [data-bs-theme="dark"] .scenario-option {
@@ -475,8 +476,8 @@
 
     [data-bs-theme="dark"] .scenario-option:hover,
     [data-bs-theme="dark"] .scenario-option.scenario-selected {
-        border-color: #a07cf0;
-        background-color: #1e1b2a;
+        border-color: #6cb7cc;
+        background-color: #13262d;
     }
 
     /* Add Context Form Styles */
@@ -545,24 +546,24 @@
     .gs-section ul { margin-bottom: 0; padding-left: 1.2rem; }
     .gs-role-block {
         padding: 8px 10px;
-        border-left: 3px solid #6f42c1;
-        background: #faf8ff;
+        border-left: 3px solid #36839b;
+        background: #f4fafb;
         border-radius: 4px;
     }
     .gs-role-block .gs-role-title { margin-bottom: 2px; }
     [data-bs-theme="dark"] .gs-role-block {
-        background: #1f1b2a;
-        border-left-color: #a07cf0;
+        background: #13262d;
+        border-left-color: #6cb7cc;
     }
     .gs-assumptions {
-        border-left: 3px solid #0EA5E9;
-        background: #f0f9ff;
+        border-left: 3px solid #ec883f;
+        background: #fbf2ea;
         padding: 8px 12px;
         border-radius: 4px;
     }
     [data-bs-theme="dark"] .gs-assumptions {
-        background: #102733;
-        border-left-color: #0EA5E9;
+        background: #2d2016;
+        border-left-color: #ec883f;
     }
 
     /* Recommended Action Table suggestion */
@@ -598,19 +599,52 @@
         color: #cdd8f0;
     }
 
+    /* Micro-transition cards shown between wizard phases (per OI UX spec) */
+    .gs-transition-card {
+        max-width: 520px;
+        margin: 24px auto;
+        padding: 22px 26px;
+        border-radius: 10px;
+        border-left: 4px solid #36839b;
+        background: #f0f8fa;
+        box-shadow: 0 4px 14px rgba(54, 131, 155, 0.15);
+        animation: gsFadeInUp 0.35s ease-out;
+    }
+    .gs-transition-card .gs-transition-title {
+        font-weight: 700;
+        color: #2c6d82;
+        margin-bottom: 4px;
+    }
+    .gs-transition-card .gs-transition-sub {
+        font-size: 0.85rem;
+        color: #6c757d;
+        font-style: italic;
+    }
+    @keyframes gsFadeInUp {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    [data-bs-theme="dark"] .gs-transition-card {
+        background: #13262d;
+        border-left-color: #6cb7cc;
+    }
+    [data-bs-theme="dark"] .gs-transition-card .gs-transition-title {
+        color: #6cb7cc;
+    }
+
     /* Primary action buttons inside the chat flow (Continue, Complete
-       Intelligence Cycle, etc.) use teal to match the Document badge up top,
+       Intelligence Cycle, etc.) use the brand teal from the marketing site,
        instead of the theme's default purple/burgundy primary. */
     #chat-messages .btn-primary {
-        background-color: #0EA5E9;
-        border-color: #0EA5E9;
+        background-color: #36839b;
+        border-color: #36839b;
         color: #fff;
     }
     #chat-messages .btn-primary:hover,
     #chat-messages .btn-primary:focus,
     #chat-messages .btn-primary:active {
-        background-color: #0c8fce;
-        border-color: #0c8fce;
+        background-color: #2c6d82;
+        border-color: #2c6d82;
         color: #fff;
     }
 </style>
@@ -1412,6 +1446,18 @@
                     ${esc(msg || 'Generating…')}</div>`;
             }
 
+            // Micro-transition card between wizard phases (per OI UX spec).
+            function showTransitionCard(icon, title, subtitle) {
+                loadingDiv.innerHTML = `
+                    <div class="gs-transition-card">
+                        <div class="d-flex align-items-center">
+                            <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true" style="color:#36839b"></div>
+                            <div class="gs-transition-title">${icon} ${esc(title)}</div>
+                        </div>
+                        <div class="gs-transition-sub mt-1">${esc(subtitle)}</div>
+                    </div>`;
+            }
+
             // Step 1 of the two-step pathway flow: derive the assumptions for the
             // chosen pathway. Cached per pathway so re-visiting is instant. These
             // are persisted server-side into the stored contract.
@@ -1452,7 +1498,8 @@
                 }
                 const strat = (data.strategyMap || []).find(s => s.id === sid) || {};
                 const assumptions = (data.pathwayAssumptions && data.pathwayAssumptions[sid]) || [];
-                showWizardLoading(`Generating simulations for “${strat.name || 'this pathway'}”…`);
+                showTransitionCard('⚡', 'Studio is Applying Intelligence...',
+                    'Mapping selected scenario constraints • Injecting operational assumptions into the business logic');
                 try {
                     const res = await fetch('/dashboard/users-new-chat-generate-strategy-variant', {
                         method: 'POST',
@@ -1593,6 +1640,14 @@
                     }
 
                     if (step >= visibleSteps().length - 1) renderFinal();
+                    else if (curFn === STEP_SCENARIOS) {
+                        // Scenario chosen → brief "aligning organization" transition
+                        // before landing on Contextualized Goals by Role (UX spec).
+                        showTransitionCard('👥', 'Studio is Now Aligning Organization...',
+                            'Generating role-specific actions, ownership, and success targets across the leadership structure');
+                        step++;
+                        setTimeout(renderStep, 1100);
+                    }
                     else { step++; renderStep(); }
                 } else if (prev) {
                     e.preventDefault();
@@ -1917,19 +1972,19 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
         const loadingDiv = document.createElement('div');
         loadingDiv.className = 'bot-message';
         loadingDiv.innerHTML = `
-            <div class="bot-message-progress-wrapper p-4 bg-light rounded shadow-sm" style="max-width: 500px; margin: 0 auto;">
+            <div class="gs-transition-card">
                 <div class="d-flex align-items-center mb-2">
-                    <div class="spinner-border spinner-border-sm text-primary me-2" role="status" aria-hidden="true"></div>
-                    <strong class="text-primary small">StrategiStudio is analyzing your goal...</strong>
+                    <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true" style="color:#36839b"></div>
+                    <div class="gs-transition-title">⚙️ Studio Gathering Intelligence...</div>
                 </div>
-                <div class="progress" style="height: 10px;">
-                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" 
-                         role="progressbar" 
-                         style="width: 100%">
+                <div class="progress" style="height: 8px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated"
+                         role="progressbar"
+                         style="width: 100%; background-color: #36839b;">
                     </div>
                 </div>
-                <div class="mt-2 text-muted small text-start" style="font-size: 0.8rem; line-height: 1.4;">
-                    Generating strategic pathways, department roles, and scenario simulations. Please hold on...
+                <div class="gs-transition-sub mt-2">
+                    Interpreting strategic intent • Mapping organizational capabilities • Building decision pathways
                 </div>
             </div>`;
         if (currentUserCard) {
@@ -4028,10 +4083,16 @@ document.addEventListener('click', function (e) {
 
                         if (state.drift_status === 'Timeline Drift') {
                             badgeClass = 'bg-danger';
-                            displayStatus = 'Overdue';
+                            displayStatus = status === 'Complete' ? 'Timeline Drift' : 'Overdue / Behind Pace';
                         } else if (state.drift_status === 'Dependency Blocked') {
                             badgeClass = 'bg-danger';
                             displayStatus = 'Dependency Blocked';
+                        } else if (state.drift_status === 'Capacity Drift') {
+                            badgeClass = 'bg-warning text-dark';
+                            displayStatus = status === 'Complete' ? 'Capacity Drift (Below Target)' : 'Capacity Drift (No Resources)';
+                        } else if (state.drift_status === 'Priority Drift') {
+                            badgeClass = 'bg-warning text-dark';
+                            displayStatus = 'Priority Drift (No Progress Logged)';
                         } else if (status === 'In Progress') {
                             badgeClass = 'bg-warning text-dark';
                         } else if (status === 'Complete') {
@@ -4050,8 +4111,8 @@ document.addEventListener('click', function (e) {
                         }
 
                         let resolveBtn = '';
-                        if (state.drift_status === 'Timeline Drift' || state.drift_status === 'Dependency Blocked') {
-                            resolveBtn = `<button class="btn btn-outline-warning btn-sm resolve-drift-btn me-1" type="button" data-state-id="${state.id}">
+                        if (state.drift_status && state.drift_status !== 'None') {
+                            resolveBtn = `<button class="btn btn-outline-warning btn-sm resolve-drift-btn me-1" type="button" data-state-id="${state.id}" data-drift="${escapeActionHtml(state.drift_status)}">
                                 <i class="bi bi-lightbulb"></i> Resolve Drift
                             </button>`;
                         }
@@ -4110,6 +4171,7 @@ document.addEventListener('click', function (e) {
                                 <td>
                                     <div><i class="bi bi-activity text-primary me-1"></i>${escapeActionHtml(actual)}</div>
                                     ${obsDate ? `<div class="text-muted small mt-1"><i class="bi bi-calendar-check me-1"></i>As of: ${obsDate}</div>` : ''}
+                                    ${state.achievement_rate !== null && state.achievement_rate !== undefined ? `<div class="small mt-1 ${state.achievement_rate < 0.8 ? 'text-warning' : 'text-success'}"><i class="bi bi-speedometer2 me-1"></i>Achievement: ${Math.round(state.achievement_rate * 100)}%</div>` : ''}
                                 </td>
                                 <td>
                                     <span class="badge ${badgeClass}">${displayStatus}</span>
@@ -4203,7 +4265,7 @@ document.addEventListener('click', function (e) {
                             fetch('{{ route("users-new-chat-generate-intervention.index") }}', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
-                                body: JSON.stringify({ expected_state_id: stateId })
+                                body: JSON.stringify({ expected_state_id: stateId, drift_type: this.dataset.drift || '' })
                             })
                             .then(r => r.json())
                             .then(data => {

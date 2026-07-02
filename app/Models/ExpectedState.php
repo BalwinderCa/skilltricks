@@ -19,6 +19,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property bool $resources_committed
  * @property int|null $depends_on_id
  * @property string|null $drift_status
+ * @property float|null $achievement_rate
+ * @property float|null $drift_magnitude
  * @property-read SearchUserChat $searchUserChat
  * @property-read ExpectedState|null $dependsOn
  * @property-read ObservedState|null $latestObservation
