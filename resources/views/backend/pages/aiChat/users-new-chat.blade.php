@@ -1409,11 +1409,11 @@
 
             // Named step renderers so navigation can identify the current step
             // (the Pathway and Assumptions steps drive on-demand generation).
-            const STEP_ACK = d => sectionAcknowledgement(d);
-            const STEP_DOCS = d => sectionDocInsights(d);
-            // Goal summary + scoring share one step so Scoring shows right under
-            // the Studio Assessed Goal Summary without a Continue click.
-            const STEP_GOAL = d => sectionGoalAssessment(d) + sectionScoring(d);
+            // Acknowledgement, document insights, and goal assessment/scoring
+            // all render as ONE intro screen — a single Continue leads to the
+            // pathways instead of three separate clicks.
+            const STEP_INTRO = d => sectionAcknowledgement(d) + sectionDocInsights(d)
+                + sectionGoalAssessment(d) + sectionScoring(d);
             const STEP_STRATEGY = d => sectionStrategyMap(d, { interactive: true });
             // Falls back to an informational note if assumptions couldn't be
             // derived, so this step is never blank once the user reaches it.
@@ -1443,7 +1443,7 @@
             function visibleSteps() {
                 const d = viewData();
                 const steps = [];
-                [STEP_ACK, STEP_DOCS, STEP_GOAL].forEach(fn => { if (fn(d).trim() !== '') steps.push(fn); });
+                if (STEP_INTRO(d).trim() !== '') steps.push(STEP_INTRO);
                 steps.push(STEP_STRATEGY);
                 steps.push(STEP_ASSUMPTIONS);
                 if (hasVariant(selStrategy)) {
