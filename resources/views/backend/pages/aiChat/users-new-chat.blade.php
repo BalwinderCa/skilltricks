@@ -632,20 +632,42 @@
         color: #6cb7cc;
     }
 
-    /* Primary action buttons inside the chat flow (Continue, Complete
-       Intelligence Cycle, etc.) use the brand teal from the marketing site,
-       instead of the theme's default purple/burgundy primary. */
-    #chat-messages .btn-primary {
+    /* Map Bootstrap's "primary" palette to the marketing-site teal on this
+       page. The backend theme's primary is purple, which the client does not
+       want anywhere in the chat UI — this covers buttons (Continue, modal
+       Confirm/Save), "Selected" badges, the tracker header, outline buttons
+       (Log Progress), and text-primary icons in one place. */
+    .btn-primary {
         background-color: #36839b;
         border-color: #36839b;
         color: #fff;
     }
-    #chat-messages .btn-primary:hover,
-    #chat-messages .btn-primary:focus,
-    #chat-messages .btn-primary:active {
+    .btn-primary:hover,
+    .btn-primary:focus,
+    .btn-primary:active {
         background-color: #2c6d82;
         border-color: #2c6d82;
         color: #fff;
+    }
+    .btn-outline-primary {
+        color: #36839b;
+        border-color: #36839b;
+    }
+    .btn-outline-primary:hover,
+    .btn-outline-primary:focus,
+    .btn-outline-primary:active {
+        background-color: #36839b;
+        border-color: #36839b;
+        color: #fff;
+    }
+    .bg-primary {
+        background-color: #36839b !important;
+    }
+    .border-primary {
+        border-color: #36839b !important;
+    }
+    .text-primary {
+        color: #36839b !important;
     }
 </style>
 
