@@ -646,6 +646,18 @@
         background-color: #36839b !important;
         color: #fff !important;
     }
+    body .form-check-input:checked {
+        background-color: #36839b !important;
+        border-color: #36839b !important;
+    }
+    body .form-check-input:focus {
+        border-color: #36839b;
+        box-shadow: 0 0 0 0.25rem rgba(54, 131, 155, 0.25);
+    }
+    body input[type="radio"],
+    body input[type="checkbox"] {
+        accent-color: #36839b;
+    }
     body .bg-primary {
         background-color: #36839b !important;
     }
