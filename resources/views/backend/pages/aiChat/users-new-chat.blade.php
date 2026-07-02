@@ -566,18 +566,6 @@
         border-left-color: #ec883f;
     }
 
-    /* Recommended Action Table suggestion */
-    .action-table-suggestion-box {
-        border: 1px dashed #b9c6e0;
-        background: #f5f8ff;
-        border-radius: 8px;
-        padding: 12px 14px;
-    }
-    .action-table-suggestion-box .ats-title {
-        font-weight: 600;
-        font-size: 0.95rem;
-        color: #2c3e66;
-    }
     .recommended-action-table th,
     .recommended-action-table td {
         vertical-align: top;
@@ -591,14 +579,6 @@
     .recommended-action-table .form-check {
         margin-bottom: 2px;
     }
-    [data-bs-theme="dark"] .action-table-suggestion-box {
-        background: #1f2633;
-        border-color: #3a455c;
-    }
-    [data-bs-theme="dark"] .action-table-suggestion-box .ats-title {
-        color: #cdd8f0;
-    }
-
     /* Micro-transition cards shown between wizard phases (per OI UX spec) */
     .gs-transition-card {
         max-width: 520px;
@@ -4381,7 +4361,7 @@ document.addEventListener('click', function (e) {
 
     // Call backend to generate the table from existing chat/scenario/role data
     function generateRecommendedActionTable(roleGoalsSection, genBtn, resultDiv, suggestionBox) {
-        genBtn.disabled = true;
+        if (genBtn) genBtn.disabled = true;
         resultDiv.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split me-2"></i>Generating studio actions...</div>';
 
         // Role goals text from this card (already collapsed to one-line actions)
@@ -4407,7 +4387,7 @@ document.addEventListener('click', function (e) {
         })
         .then(r => r.json())
         .then(data => {
-            genBtn.disabled = false;
+            if (genBtn) genBtn.disabled = false;
             if (data.chat_total_tokens !== undefined) window.setChatTokenTotal(data.chat_total_tokens);
             if (data.success && Array.isArray(data.rows) && data.rows.length) {
                 if (suggestionBox) {
@@ -4419,14 +4399,14 @@ document.addEventListener('click', function (e) {
             }
         })
         .catch(err => {
-            genBtn.disabled = false;
+            if (genBtn) genBtn.disabled = false;
             resultDiv.innerHTML = '<div class="alert alert-danger">Error generating table: ' + err.message + '</div>';
         });
     }
 
     // Check if the recommended action table already exists in the database on load,
     // and if so, render it and hide the Suggestion Box.
-    function checkAndLoadExistingTable(roleGoalsSection, resultDiv, suggestionBox) {
+    function checkAndLoadExistingTable(roleGoalsSection, resultDiv, suggestionBox, onMissing) {
         const chatId = window.chatChatId || (document.getElementById('chat_id') ? document.getElementById('chat_id').value : '');
         if (!chatId) return;
 
@@ -4449,13 +4429,15 @@ document.addEventListener('click', function (e) {
                     suggestionBox.style.display = 'none';
                 }
                 window.renderRecommendedActionTable(data.rows, resultDiv);
+            } else if (typeof onMissing === 'function') {
+                onMissing();
             }
         })
         .catch(err => console.error('Error auto-loading action table:', err));
     }
 
-    // Inject the "Refining the Workflow Output" suggestion + button into every
-    // card that has a Role Goals section (but only once per card).
+    // Auto-attach the Recommended Action Table to every card that has a Role
+    // Goals section (once per card): load the saved table, or generate it.
     function addActionTableSuggestion() {
         const roleGoalsSections = Array.from(document.querySelectorAll('.response-text')).filter(el =>
             el.textContent.includes('👥') &&
@@ -4481,29 +4463,19 @@ document.addEventListener('click', function (e) {
             const wrap = document.createElement('div');
             wrap.className = 'action-table-suggestion';
             wrap.innerHTML = `
-                <div class="action-table-suggestion-box mt-3 mb-3">
-                    <div class="ats-title"><i class="bi bi-lightbulb me-1"></i>Refining the Workflow Output</div>
-                    <button type="button" class="btn btn-primary btn-sm generate-action-table-btn mt-2">
-                        <i class="bi bi-table me-1"></i>Generate Studio Actions
-                    </button>
-                </div>
                 <div class="action-table-result mt-3"></div>
                 <div class="progress-tile-container mt-4" style="display: none;"></div>
             `;
 
             targetCard.appendChild(wrap);
 
-            const genBtn = wrap.querySelector('.generate-action-table-btn');
             const resultDiv = wrap.querySelector('.action-table-result');
-            const suggestionBox = wrap.querySelector('.action-table-suggestion-box');
-            genBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                generateRecommendedActionTable(roleGoalsSection, genBtn, resultDiv, suggestionBox);
-            });
 
-            // Automatically check if a pre-saved table exists on load
-            checkAndLoadExistingTable(roleGoalsSection, resultDiv, suggestionBox);
+            // Load the saved table if one exists; otherwise generate it
+            // automatically — no "Generate Studio Actions" click required.
+            checkAndLoadExistingTable(roleGoalsSection, resultDiv, null, function () {
+                generateRecommendedActionTable(roleGoalsSection, null, resultDiv, null);
+            });
         });
     }
 
