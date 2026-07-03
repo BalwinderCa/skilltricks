@@ -1259,9 +1259,8 @@ Output a JSON object with EXACTLY this shape:
 {"rows":[{"role":"<role title>","action":"<one concrete recommended action sentence>"}]}
 
 Rules:
-- 5 to 8 rows. Use only roles that appear in the role goals / documents above.
-- "action" = exactly ONE specific, decision-ready sentence (no bullets, no line breaks, no numbering).
-- Tailor each action to the chosen scenario and strategy.
+- Create EXACTLY one row per role listed in the role goals above — same roles, same order. Do NOT add any other roles.
+- "action" = that role's "Actions" sentence copied word-for-word — do not reword, shorten, or embellish it (no bullets, no line breaks, no numbering).
 - Return ONLY the JSON object, nothing else.
 EOT;
 
