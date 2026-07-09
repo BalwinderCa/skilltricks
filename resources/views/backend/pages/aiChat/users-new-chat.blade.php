@@ -4057,6 +4057,37 @@ document.addEventListener('click', function (e) {
                         alertHtml += '</ul></div>';
                     }
 
+                    // Execution assumptions for the selected pathway, with the
+                    // Studio-derived Holding / At Risk status (Assumption Drift).
+                    let assumptionsHtml = '';
+                    if (Array.isArray(data.assumptions) && data.assumptions.length > 0) {
+                        const anyAtRisk = data.assumptions.some(a => a.status === 'At Risk');
+                        assumptionsHtml = `<div class="card mb-3 shadow-sm ${anyAtRisk ? 'border-warning' : 'border-success'}">
+                            <div class="card-body py-2">
+                                <h6 class="mb-2"><i class="bi bi-diagram-3 me-2"></i>Execution Assumptions (Selected Pathway)</h6>
+                                <ul class="mb-0 small" style="padding-left: 1.2rem;">
+                                    ${data.assumptions.map(a => `<li>${escapeActionHtml(a.text)} <span class="badge ${a.status === 'At Risk' ? 'bg-warning text-dark' : 'bg-success'} ms-1">${escapeActionHtml(a.status)}</span></li>`).join('')}
+                                </ul>
+                            </div>
+                        </div>`;
+                    }
+
+                    // Studio-ranked interventions table + spec meta (type / priority / owner)
+                    // rendered inside an intervention panel above the GPT narrative.
+                    const rankedInterventionsHtml = (int) => {
+                        let list = int.ranked_interventions;
+                        if (typeof list === 'string') { try { list = JSON.parse(list); } catch (e) { list = null; } }
+                        const meta = [int.intervention_type, int.priority ? `Priority: ${int.priority}` : '', int.owner ? `Owner: ${int.owner}` : ''].filter(Boolean).join(' · ');
+                        let out = meta ? `<div class="small text-muted mb-2">${escapeActionHtml(meta)}</div>` : '';
+                        if (Array.isArray(list) && list.length) {
+                            out += `<div class="table-responsive"><table class="table table-sm table-bordered bg-white mb-2" style="font-size:0.8rem;">
+                                <thead><tr><th style="width:90px;">Priority</th><th>Studio-Ranked Intervention</th></tr></thead>
+                                <tbody>${list.map(r => `<tr><td><span class="badge ${r.priority === 'High' ? 'bg-danger' : 'bg-warning text-dark'}">${escapeActionHtml(r.priority)}</span></td><td>${escapeActionHtml(r.action)}</td></tr>`).join('')}</tbody>
+                            </table></div>`;
+                        }
+                        return out;
+                    };
+
                     let html = `
                         <div class="card shadow-sm border-primary">
                             <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
@@ -4065,6 +4096,7 @@ document.addEventListener('click', function (e) {
                             </div>
                             <div class="card-body">
                                 ${alertHtml}
+                                ${assumptionsHtml}
                                 <div class="table-responsive">
                                     <table class="table table-hover align-middle mb-0">
                                         <thead class="table-light">
@@ -4159,6 +4191,7 @@ document.addEventListener('click', function (e) {
                                                 <div>${intBadge}</div>
                                                 ${intButton}
                                             </div>
+                                            ${rankedInterventionsHtml(activeInt)}
                                             <p class="mb-0 text-dark small" style="line-height: 1.5; font-style: italic;">"${escapeActionHtml(activeInt.ai_recommendation)}"</p>
                                         </div>
                                     </td>
@@ -4195,6 +4228,7 @@ document.addEventListener('click', function (e) {
                                 </td>
                                 <td>
                                     <span class="badge ${badgeClass}">${displayStatus}</span>
+                                    ${state.drift_checks ? `<div class="mt-1" style="white-space: nowrap;">${[['Schedule','schedule'],['Performance','performance'],['Assumption','assumption'],['Dependency','dependency']].map(([label, key]) => `<span class="badge ${state.drift_checks[key] ? 'bg-warning text-dark' : 'bg-light text-muted border'} me-1" style="font-size:0.62rem;">${state.drift_checks[key] ? '⚠' : '✓'} ${label}</span>`).join('')}</div>` : ''}
                                 </td>
                                 <td class="text-end">
                                     ${resolveBtn}
@@ -4301,6 +4335,7 @@ document.addEventListener('click', function (e) {
                                                         <i class="bi bi-play-circle me-1"></i> Activate Intervention
                                                     </button>
                                                 </div>
+                                                ${rankedInterventionsHtml(int)}
                                                 <p class="mb-0 text-dark small" style="line-height: 1.5; font-style: italic;">"${escapeActionHtml(int.ai_recommendation)}"</p>
                                             </div>
                                         </td>`;

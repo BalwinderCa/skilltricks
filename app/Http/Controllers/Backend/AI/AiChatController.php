@@ -34,6 +34,32 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class AiChatController extends Controller
 {
+    /**
+     * Studio-owned intervention ranking by drift type (OI spec Step 14:
+     * "Studio ranks interventions… GPT then writes the narrative").
+     * Actions come from the spec's own examples.
+     */
+    private const INTERVENTION_RULES = [
+        'Timeline Drift' => [
+            ['priority' => 'High', 'action' => 'Escalate to leadership'],
+            ['priority' => 'High', 'action' => 'Reassess milestone dates'],
+            ['priority' => 'Medium', 'action' => 'Increase execution cadence'],
+        ],
+        'Capacity Drift' => [
+            ['priority' => 'High', 'action' => 'Reallocate resources'],
+            ['priority' => 'Medium', 'action' => 'Increase staffing'],
+            ['priority' => 'Medium', 'action' => 'Reduce competing priorities'],
+        ],
+        'Priority Drift' => [
+            ['priority' => 'High', 'action' => 'Escalate to leadership'],
+            ['priority' => 'Medium', 'action' => 'Reduce competing priorities'],
+        ],
+        'Dependency Blocked' => [
+            ['priority' => 'High', 'action' => 'Escalate the blocking task to leadership'],
+            ['priority' => 'Medium', 'action' => 'Re-sequence dependent work to reduce idle time'],
+        ],
+    ];
+
     public function __construct(
         protected AiProviderService $ai,
         protected DocumentContextService $docs,
@@ -1379,6 +1405,19 @@ EOT;
             $threshold = (float) config('oi.drift_threshold', 0.8);
             $alerts = [];
 
+            // Execution assumptions stored for the selected pathway — Studio
+            // checks these against observed reality (Assumption Drift).
+            $assumptions = $this->assumptionsForChat($chatId);
+
+            // Roles that depend on each commitment, so Studio can derive the
+            // affected roles of a drifting KPI without GPT.
+            $dependentsByStateId = [];
+            foreach ($states as $s) {
+                if ($s->depends_on_id) {
+                    $dependentsByStateId[$s->depends_on_id][] = $s->role;
+                }
+            }
+
             foreach ($states as $state) {
                 $obs = $state->latestObservation;
                 $status = $obs ? $obs->status : 'Scheduled';
@@ -1429,14 +1468,44 @@ EOT;
                 $state->drift_status = $driftStatus;
                 $state->achievement_rate = $rate !== null ? round($rate, 2) : null;
                 $state->drift_magnitude = $rate !== null ? round(max(0, 1 - $rate), 2) : null;
+
+                // Multi-dimensional drift checks per KPI (Schedule / Performance /
+                // Assumption / Dependency) — Studio-calculated, GPT never decides.
+                $scheduleDrift = $isOverdue && $status !== 'Complete';
+                $performanceDrift = $rate !== null && $rate < $threshold;
+                $dependencyDrift = (bool) ($state->depends_on_id && $state->dependsOn && $this->dependencyIsBlocked($state->dependsOn, $today));
+                // ponytail: assumptions aren't mapped to individual KPIs; any
+                // schedule/performance drift puts the pathway assumptions At Risk.
+                // Add per-KPI assumption links if the client needs finer grain.
+                $assumptionDrift = ! empty($assumptions) && ($scheduleDrift || $performanceDrift);
+
+                $state->drift_checks = [
+                    'schedule' => $scheduleDrift,
+                    'performance' => $performanceDrift,
+                    'assumption' => $assumptionDrift,
+                    'dependency' => $dependencyDrift,
+                ];
+                $state->gap = ($target !== null && $actual !== null) ? round($target - $actual, 2) : null;
+                $state->oi_status = $scheduleDrift ? 'Overdue' : ($driftStatus !== 'None' ? 'At Risk' : 'On Track');
+                $state->assumption_status = $assumptionDrift ? 'At Risk' : 'Holding';
+                $state->affected_roles = array_values(array_unique(array_merge(
+                    [$state->role],
+                    $dependentsByStateId[$state->id] ?? []
+                )));
             }
 
             $this->recordDriftEvents($states);
+
+            $assumptionAtRisk = $states->contains(fn ($s) => ! empty($s->drift_checks['assumption']));
 
             return response()->json([
                 'success' => true,
                 'states' => $states,
                 'leadership_alerts' => $alerts,
+                'assumptions' => array_map(
+                    fn ($a) => ['text' => $a, 'status' => $assumptionAtRisk ? 'At Risk' : 'Holding'],
+                    $assumptions
+                ),
             ]);
         } catch (\Exception $e) {
             Log::error('Failed to fetch progress data', ['user_id' => $user->id, 'chat_id' => $chatId, 'error' => $e->getMessage()]);
@@ -1514,9 +1583,15 @@ EOT;
 
             DriftEvent::create([
                 'expected_state_id' => $state->id,
+                'observed_state_id' => $state->latestObservation ? $state->latestObservation->id : null,
                 'drift_type' => $state->drift_status,
                 'magnitude' => $magnitude,
+                'gap' => $state->gap,
+                'progress' => $state->achievement_rate,
                 'severity' => $severity,
+                'status' => $state->oi_status,
+                'assumption_status' => $state->assumption_status,
+                'roles_impacted' => $state->affected_roles,
                 'detected_at' => Carbon::now(),
             ]);
         }
@@ -1619,21 +1694,45 @@ EOT;
                 $blockerDetail = 'Priority Drift: no progress has been logged on this commitment despite significant elapsed time, suggesting competing priorities.';
             }
 
-            $systemMessage = 'You are an executive strategy intervention consultant. Given the context of a stalled organizational objective, recommend exactly one concrete, high-impact corrective action (2-3 sentences max) to resolve the bottleneck and get the team back on track.';
+            // Studio-calculated facts (GPT explains, it never calculates).
+            $target = $this->extractNumeric($expectedState->target_value);
+            $actual = $obs ? $this->extractNumeric($obs->actual_value) : null;
+            $gap = ($target !== null && $actual !== null) ? round($target - $actual, 2) : null;
+            $progress = ($target !== null && $target > 0 && $actual !== null) ? round($actual / $target, 2) : null;
 
-            $prompt = "STRATEGIC CONTEXT:\n"
-                ."- Overall Business Goal: \"{$goal}\"\n"
+            $dependentRoles = ExpectedState::where('depends_on_id', $expectedState->id)->pluck('role')->all();
+            $affectedRoles = array_values(array_unique(array_merge([$role], $dependentRoles)));
+
+            $assumptions = $this->assumptionsForChat($chat->id);
+            $assumptionAtRisk = ! empty($assumptions) ? implode('; ', $assumptions) : 'None recorded';
+
+            // Studio ranks the interventions from the drift type; GPT writes the narrative.
+            $ranked = self::INTERVENTION_RULES[$driftType] ?? self::INTERVENTION_RULES['Timeline Drift'];
+            $rankedLines = implode("\n", array_map(
+                fn ($i, $r) => ($i + 1).". [{$r['priority']}] {$r['action']}",
+                array_keys($ranked),
+                $ranked
+            ));
+
+            $systemMessage = 'You are an executive strategy intervention consultant. Studio has already calculated the drift facts and ranked the candidate interventions — do NOT recalculate or contradict them. Write ONE concrete, contextually specific corrective recommendation (2-3 sentences max) that explains the drift and turns the top-ranked interventions into an executive-ready action.';
+
+            $prompt = "STUDIO-CALCULATED FACTS:\n"
+                ."- Initiative / Business Goal: \"{$goal}\"\n"
                 ."- Accountable Department/Role: {$role}\n"
                 ."- Strategic Commitment / Objective Action: \"{$action}\"\n"
                 ."- Target Success KPI: \"{$metric}\"\n"
-                ."- Planned Target Date: {$targetDate}\n\n"
-                ."CURRENT EXECUTION STATUS:\n"
-                ."- Current Status of Task: {$status}\n"
-                ."- Current Progress / Actual Logged Value: \"{$actualValue}\"\n"
+                ."- Expected: \"{$expectedState->target_value}\" by {$targetDate}\n"
+                ."- Observed: \"{$actualValue}\" (status: {$status})\n"
+                .'- Gap: '.($gap !== null ? $gap : 'n/a')."\n"
+                .'- Progress: '.($progress !== null ? round($progress * 100).'%' : 'n/a')."\n"
+                ."- Drift Type: ".($driftType !== '' ? $driftType : $blockerDetail)."\n"
                 ."- Roadblock/Blocker Details: \"{$blockerDetail}\"\n"
+                ."- Execution Assumptions at Risk: \"{$assumptionAtRisk}\"\n"
+                .'- Affected Roles: '.implode(', ', $affectedRoles)."\n"
                 ."- Notes from the field: \"{$statusNotes}\"\n\n"
+                ."STUDIO-RANKED INTERVENTIONS:\n{$rankedLines}\n\n"
                 ."TASK:\n"
-                ."Recommend exactly one highly practical, tactical, and contextually specific intervention (2-3 sentences max) that the leadership can activate to unblock {$role} and accelerate delivery. Speak directly, confidently, and professionally.";
+                ."Write the executive narrative (2-3 sentences max) recommending how leadership should activate the top-ranked interventions to unblock {$role} and accelerate delivery. Speak directly, confidently, and professionally.";
 
             // Call the application's configured AI Engine (Gemini / Vertex AI or OpenAI)
             $aiResponse = $this->ai->generate($systemMessage, $prompt, 1000);
@@ -1645,10 +1744,15 @@ EOT;
             $recommendationText = $this->ai->extractText($aiResponse);
             $this->ai->recordChatTokens($chat->id, $aiResponse);
 
-            // Store the intervention
+            // Store the intervention (type/priority/owner/due date per the OI spec's data model)
             $intervention = Intervention::create([
                 'expected_state_id' => $expectedStateId,
                 'ai_recommendation' => trim($recommendationText),
+                'intervention_type' => $driftType !== '' ? $driftType : 'Timeline Drift',
+                'priority' => $ranked[0]['priority'],
+                'owner' => $role,
+                'due_date' => $expectedState->target_date,
+                'ranked_interventions' => $ranked,
                 'status' => 'proposed',
             ]);
 
@@ -1804,6 +1908,46 @@ EOT;
             $chat->response = $json;
             $chat->save();
         }
+    }
+
+    /**
+     * Pull the stored execution assumptions for the chat's selected pathway
+     * out of the GoalSync contract JSON. Studio checks these during drift
+     * detection ("Studio now checks assumptions" — OI spec).
+     */
+    private function assumptionsForChat($chatId): array
+    {
+        try {
+            $candidates = SearchUserChatData::where('search_user_chat_id', $chatId)
+                ->orderBy('id')
+                ->pluck('response')
+                ->all();
+        } catch (\Throwable $e) {
+            // Legacy table may not exist in every environment (e.g. test DB)
+            $candidates = [];
+        }
+
+        $main = SearchUserChat::where('id', $chatId)->value('response');
+        if ($main) {
+            $candidates[] = $main;
+        }
+
+        foreach ($candidates as $resp) {
+            // Contracts are stored as raw JSON (see persistContractMutation),
+            // so plain json_decode is enough — no AI-response fence stripping.
+            $data = json_decode((string) $resp, true);
+
+            if (! is_array($data) || empty($data['pathwayAssumptions'])) {
+                continue;
+            }
+
+            $selStratId = $data['selectedStrategyId'] ?? ($data['strategyMap'][0]['id'] ?? null);
+            $assumptions = $data['pathwayAssumptions'][$selStratId] ?? (reset($data['pathwayAssumptions']) ?: []);
+
+            return array_values(array_filter(array_map('strval', (array) $assumptions)));
+        }
+
+        return [];
     }
 
     private function resolveSelectionFromContract($chatId): array

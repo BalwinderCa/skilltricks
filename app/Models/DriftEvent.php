@@ -21,14 +21,23 @@ class DriftEvent extends Model
 
     protected $fillable = [
         'expected_state_id',
+        'observed_state_id',
         'drift_type',
         'magnitude',
+        'gap',
+        'progress',
         'severity',
+        'status',
+        'assumption_status',
+        'roles_impacted',
         'detected_at',
     ];
 
     protected $casts = [
         'magnitude' => 'float',
+        'gap' => 'float',
+        'progress' => 'float',
+        'roles_impacted' => 'array',
         'detected_at' => 'datetime',
     ];
 

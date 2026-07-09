@@ -19,11 +19,18 @@ class Intervention extends Model
     protected $fillable = [
         'expected_state_id',
         'ai_recommendation',
+        'intervention_type',
+        'priority',
+        'owner',
+        'due_date',
+        'ranked_interventions',
         'status',
         'activated_at',
     ];
 
     protected $casts = [
+        'due_date' => 'date',
+        'ranked_interventions' => 'array',
         'activated_at' => 'datetime',
     ];
 

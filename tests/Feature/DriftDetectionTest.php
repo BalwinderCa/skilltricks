@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\DriftEvent;
 use App\Models\ExpectedState;
 use App\Models\ObservedState;
 use App\Models\SearchUserChat;
@@ -290,5 +291,78 @@ class DriftDetectionTest extends TestCase
 
         $response->assertOk();
         $this->assertEquals('Priority Drift', $response->json('states.0.drift_status'));
+    }
+
+    public function test_multi_dimensional_checks_assumptions_and_assessment_recorded(): void
+    {
+        $user = User::factory()->create();
+
+        // Contract JSON carrying the selected pathway's execution assumptions
+        $chat = SearchUserChat::create([
+            'user_id' => $user->id,
+            'answers' => '{}',
+            'response' => json_encode([
+                'strategyMap' => [['id' => 's1', 'name' => 'Market-Specific Campaigns']],
+                'selectedStrategyId' => 's1',
+                'pathwayAssumptions' => ['s1' => ['Suitable partners can be recruited within 60 days.']],
+            ]),
+            'status1' => 1,
+            'status2' => 1,
+        ]);
+
+        // Spec example: expected 10, observed 4, target date passed
+        $state = ExpectedState::create([
+            'search_user_chat_id' => $chat->id,
+            'role' => 'VP Business Development',
+            'recommended_action' => 'Onboard partner merchants',
+            'decision' => 'act_on_it',
+            'success_metric' => 'Partner merchants onboarded',
+            'target_value' => '10',
+            'target_date' => Carbon::now()->subDay()->toDateString(),
+            'resources_committed' => true,
+        ]);
+
+        ObservedState::create([
+            'expected_state_id' => $state->id,
+            'actual_value' => '4',
+            'status' => 'In Progress',
+            'observation_date' => Carbon::now()->toDateString(),
+            'source' => 'Manual',
+        ]);
+
+        // Downstream commitment depending on the drifting one → affected role
+        ExpectedState::create([
+            'search_user_chat_id' => $chat->id,
+            'role' => 'Marketing',
+            'recommended_action' => 'Launch enrollment campaign',
+            'decision' => 'act_on_it',
+            'success_metric' => 'Customer enrollment',
+            'target_date' => Carbon::now()->addDays(30)->toDateString(),
+            'resources_committed' => true,
+            'depends_on_id' => $state->id,
+        ]);
+
+        $response = $this->actingAs($user)->getJson(route('users-new-chat-progress-data.index', ['chat_id' => $chat->id]));
+
+        $response->assertOk();
+        $data = $response->json();
+        $first = collect($data['states'])->firstWhere('role', 'VP Business Development');
+
+        $this->assertTrue($first['drift_checks']['schedule']);
+        $this->assertTrue($first['drift_checks']['performance']);
+        $this->assertTrue($first['drift_checks']['assumption']);
+        $this->assertFalse($first['drift_checks']['dependency']);
+        $this->assertEquals(6, $first['gap']);
+        $this->assertEquals('Overdue', $first['oi_status']);
+        $this->assertContains('Marketing', $first['affected_roles']);
+        $this->assertEquals('At Risk', $data['assumptions'][0]['status']);
+
+        // Studio stores the assessment on the drift event
+        $event = DriftEvent::where('expected_state_id', $state->id)->orderByDesc('id')->first();
+        $this->assertEquals('Overdue', $event->status);
+        $this->assertEquals('At Risk', $event->assumption_status);
+        $this->assertEquals(6.0, $event->gap);
+        $this->assertEquals(0.4, $event->progress);
+        $this->assertContains('Marketing', $event->roles_impacted);
     }
 }
