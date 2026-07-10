@@ -21,6 +21,11 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property string|null $drift_status
  * @property float|null $achievement_rate
  * @property float|null $drift_magnitude
+ * @property array|null $drift_checks
+ * @property float|null $gap
+ * @property string|null $oi_status
+ * @property string|null $assumption_status
+ * @property array|null $affected_roles
  * @property-read SearchUserChat $searchUserChat
  * @property-read ExpectedState|null $dependsOn
  * @property-read ObservedState|null $latestObservation
