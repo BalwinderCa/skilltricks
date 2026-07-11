@@ -968,6 +968,47 @@
         </div>
     </div>
 
+    <!-- Decision Rationale Modal (Decision Audit Trail) -->
+    <div class="modal fade" id="decisionRationaleModal" tabindex="-1" aria-labelledby="decisionRationaleModalLabel" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="decisionRationaleModalLabel">
+                        <i class="bi bi-journal-text me-2"></i>Decision Audit Trail
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="decisionRationaleForm">
+                        <div class="mb-3">
+                            <label class="form-label font-weight-bold">Accountable Role</label>
+                            <input type="text" class="form-control text-dark font-weight-bold" id="rationale-role" readonly style="background-color: #f8f9fa;">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label font-weight-bold">Studio Action</label>
+                            <textarea class="form-control text-dark" id="rationale-action" rows="2" readonly style="background-color: #f8f9fa;"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label font-weight-bold">Decision</label>
+                            <input type="text" class="form-control text-dark font-weight-bold" id="rationale-decision" readonly style="background-color: #f8f9fa;">
+                        </div>
+                        <div class="mb-3">
+                            <label for="rationale-reason" class="form-label font-weight-bold" id="rationale-reason-label">Why is this not viable for us? <span class="text-danger">*</span></label>
+                            <textarea class="form-control" id="rationale-reason" rows="3" required placeholder="e.g. No budget allocated this quarter; competing with the Q3 platform migration."></textarea>
+                            <small class="text-muted">Recorded in the decision log so leadership can review what was green-lit versus what was shelved, and so the next strategy iteration can account for it.</small>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="confirmRationaleBtn">
+                        <i class="bi bi-check2-circle me-1"></i> Record Decision
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Log Progress Modal -->
     <div class="modal fade" id="logProgressModal" tabindex="-1" aria-labelledby="logProgressModalLabel" aria-hidden="true" data-bs-backdrop="static">
         <div class="modal-dialog modal-dialog-centered">
@@ -3717,10 +3758,31 @@ document.addEventListener('click', function (e) {
             .replace(/"/g, '&quot;');
     }
 
+    // Show (or clear) the recorded "why" beneath a shelved action.
+    window.renderDecisionRationale = function(row, reason) {
+        const cell = row.cells[1];
+        if (!cell) return;
+
+        const existing = cell.querySelector('.decision-rationale-note');
+        if (existing) existing.remove();
+        if (!reason) return;
+
+        const note = document.createElement('div');
+        note.className = 'decision-rationale-note mt-2 small text-danger';
+        note.innerHTML = '<i class="bi bi-journal-text me-1"></i><strong>Not viable — reason logged:</strong> '
+            + escapeActionHtml(reason);
+        cell.appendChild(note);
+    };
+
     // Helper to dynamically update row classes and background colors based on chosen decision
     window.updateRowStyle = function(row, decision) {
         row.classList.remove('table-success', 'table-warning', 'table-danger');
         row.style.backgroundColor = '';
+
+        // A reason only belongs to a "Not viable" row; drop it when the choice changes.
+        if (decision !== 'Not viable for us' && decision !== 'not_viable') {
+            window.renderDecisionRationale(row, null);
+        }
 
         if (decision === 'Act on it' || decision === 'act_on_it') {
             row.classList.add('table-success');
@@ -3781,9 +3843,16 @@ document.addEventListener('click', function (e) {
                 rowStyle = 'style="background-color: rgba(220, 53, 69, 0.1);"';
             }
 
+            let rationaleNote = '';
+            if (r.decision === 'not_viable' && r.decision_rationale) {
+                rationaleNote = '<div class="decision-rationale-note mt-2 small text-danger">'
+                    + '<i class="bi bi-journal-text me-1"></i><strong>Not viable — reason logged:</strong> '
+                    + escapeActionHtml(r.decision_rationale) + '</div>';
+            }
+
             html += `<tr class="${rowClass}" ${rowStyle}>
                 <td><strong>${role}</strong></td>
-                <td>${action}</td>
+                <td>${action}${rationaleNote}</td>
                 <td>${opts}</td>
             </tr>`;
         });
@@ -3834,9 +3903,18 @@ document.addEventListener('click', function (e) {
                     
                     // Track which input triggered the modal
                     window.activeCommitmentInput = this;
+                } else if (val === 'Not viable for us') {
+                    // Ask why before shelving the action — the Decision Audit Trail.
+                    const modalEl = document.getElementById('decisionRationaleModal');
+                    document.getElementById('rationale-role').value = role;
+                    document.getElementById('rationale-action').value = action;
+                    document.getElementById('rationale-decision').value = val;
+                    document.getElementById('rationale-reason').value = '';
+                    window.activeRationaleInput = this;
+                    new bootstrap.Modal(modalEl).show();
                 } else {
-                    // Instantly save "Review in detail" or "Not viable for us"
-                    saveActionChoice(role, action, val, null, null, null, false, null, function(success) {
+                    // Instantly save "Review in detail"
+                    saveActionChoice(role, action, val, null, null, null, false, null, null, function(success) {
                         if (success && row) {
                             window.updateRowStyle(row, val);
                         }
@@ -3852,7 +3930,7 @@ document.addEventListener('click', function (e) {
     };
 
     // Helper to send the decision choice to the backend
-    function saveActionChoice(role, action, decision, metric, targetVal, date, resources, dependsOnId, callback) {
+    function saveActionChoice(role, action, decision, metric, targetVal, date, resources, dependsOnId, rationale, callback) {
         const chatId = window.chatChatId || (document.getElementById('chat_id') ? document.getElementById('chat_id').value : '');
         
         let decisionKey = 'review_in_detail';
@@ -3870,6 +3948,7 @@ document.addEventListener('click', function (e) {
                 role: role,
                 recommended_action: action,
                 decision: decisionKey,
+                decision_rationale: rationale || null,
                 success_metric: metric || null,
                 target_value: targetVal || null,
                 target_date: date || null,
@@ -3943,7 +4022,7 @@ document.addEventListener('click', function (e) {
                     confirmBtn.disabled = true;
                     confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Activating...';
                     
-                    saveActionChoice(role, action, 'act_on_it', metric, val, date, resources, dependsOnId, function(success) {
+                    saveActionChoice(role, action, 'act_on_it', metric, val, date, resources, dependsOnId, null, function(success) {
                         confirmBtn.disabled = false;
                         confirmBtn.innerHTML = '<i class="bi bi-shield-check me-1"></i> Confirm & Activate Commitment';
                         
@@ -3966,6 +4045,65 @@ document.addEventListener('click', function (e) {
                     });
                 });
             }
+        }
+
+        // Decision Audit Trail: capture *why* an action was ruled out.
+        const rationaleModalEl = document.getElementById('decisionRationaleModal');
+        if (rationaleModalEl) {
+            rationaleModalEl.addEventListener('hidden.bs.modal', function () {
+                // Dismissed without a reason — undo the radio selection.
+                if (window.activeRationaleInput && !window.rationaleConfirmed) {
+                    const input = window.activeRationaleInput;
+                    input.checked = false;
+                    input.dataset.wasChecked = 'false';
+
+                    const table = input.closest('table');
+                    if (table) {
+                        table.querySelectorAll(`input[name="${input.name}"]`).forEach(sibling => {
+                            if (sibling !== input && sibling.dataset.wasChecked === 'true') {
+                                sibling.checked = true;
+                            }
+                        });
+                    }
+                    window.activeRationaleInput = null;
+                }
+                window.rationaleConfirmed = false;
+            });
+
+            const confirmRationaleBtn = document.getElementById('confirmRationaleBtn');
+            confirmRationaleBtn.addEventListener('click', function() {
+                const form = document.getElementById('decisionRationaleForm');
+                if (!form.checkValidity()) {
+                    form.reportValidity();
+                    return;
+                }
+
+                const role = document.getElementById('rationale-role').value;
+                const action = document.getElementById('rationale-action').value;
+                const decision = document.getElementById('rationale-decision').value;
+                const reason = document.getElementById('rationale-reason').value;
+
+                confirmRationaleBtn.disabled = true;
+                confirmRationaleBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Recording...';
+
+                saveActionChoice(role, action, decision, null, null, null, false, null, reason, function(success) {
+                    confirmRationaleBtn.disabled = false;
+                    confirmRationaleBtn.innerHTML = '<i class="bi bi-check2-circle me-1"></i> Record Decision';
+
+                    if (success) {
+                        window.rationaleConfirmed = true;
+                        if (window.activeRationaleInput) {
+                            const row = window.activeRationaleInput.closest('tr');
+                            if (row) {
+                                window.updateRowStyle(row, decision);
+                                window.renderDecisionRationale(row, reason);
+                            }
+                        }
+                        const modal = bootstrap.Modal.getInstance(rationaleModalEl) || new bootstrap.Modal(rationaleModalEl);
+                        modal.hide();
+                    }
+                });
+            });
         }
 
         // Wire up save progress confirmation button

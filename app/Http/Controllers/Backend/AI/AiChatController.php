@@ -1246,6 +1246,7 @@ EOT;
                     'role' => $state->role,
                     'action' => $state->recommended_action,
                     'decision' => $state->decision,
+                    'decision_rationale' => $state->decision_rationale,
                     'success_metric' => $state->success_metric,
                     'target_value' => $state->target_value,
                     'target_date' => $state->target_date ? Carbon::parse($state->target_date)->toDateString() : null,
@@ -1318,6 +1319,7 @@ EOT;
                 );
                 $row['id'] = $state->id;
                 $row['decision'] = $state->decision;
+                $row['decision_rationale'] = $state->decision_rationale;
                 $row['success_metric'] = $state->success_metric;
                 $row['target_value'] = $state->target_value;
                 $row['target_date'] = $state->target_date ? Carbon::parse($state->target_date)->toDateString() : null;
@@ -1340,6 +1342,7 @@ EOT;
         $role = $request->input('role');
         $recommendedAction = $request->input('recommended_action');
         $decision = $request->input('decision');
+        $decisionRationale = $request->input('decision_rationale');
         $successMetric = $request->input('success_metric');
         $targetValue = $request->input('target_value');
         $targetDate = $request->input('target_date');
@@ -1364,6 +1367,8 @@ EOT;
                 [
                     'recommended_action' => $recommendedAction,
                     'decision' => $decision,
+                    'decision_rationale' => $decisionRationale ?: null,
+                    'decided_at' => Carbon::now(),
                     'success_metric' => $successMetric,
                     'target_value' => $targetValue,
                     'target_date' => $targetDate ? Carbon::parse($targetDate)->toDateString() : null,
@@ -1725,7 +1730,7 @@ EOT;
                 ."- Observed: \"{$actualValue}\" (status: {$status})\n"
                 .'- Gap: '.($gap !== null ? $gap : 'n/a')."\n"
                 .'- Progress: '.($progress !== null ? round($progress * 100).'%' : 'n/a')."\n"
-                ."- Drift Type: ".($driftType !== '' ? $driftType : $blockerDetail)."\n"
+                .'- Drift Type: '.($driftType !== '' ? $driftType : $blockerDetail)."\n"
                 ."- Roadblock/Blocker Details: \"{$blockerDetail}\"\n"
                 ."- Execution Assumptions at Risk: \"{$assumptionAtRisk}\"\n"
                 .'- Affected Roles: '.implode(', ', $affectedRoles)."\n"

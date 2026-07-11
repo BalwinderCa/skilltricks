@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ExpectedState;
 use App\Models\SearchUserChat;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -107,6 +108,45 @@ class ExpectedStateTest extends TestCase
             'target_date' => null,
             'resources_committed' => 0,
         ]);
+    }
+
+    public function test_save_expected_state_not_viable_records_rationale(): void
+    {
+        $user = User::factory()->create([
+            'email_verified_at' => now(),
+            'user_type' => 'customer',
+        ]);
+
+        $chat = SearchUserChat::create([
+            'user_id' => $user->id,
+            'answers' => '{}',
+            'response' => 'Goal Sync output',
+            'status1' => 1,
+            'status2' => 1,
+        ]);
+
+        $postData = [
+            'chat_id' => $chat->id,
+            'role' => 'Regional Sales',
+            'recommended_action' => 'Spearhead localized go-to-market strategies.',
+            'decision' => 'not_viable',
+            'decision_rationale' => 'No budget allocated this quarter; competing with the platform migration.',
+        ];
+
+        $response = $this->actingAs($user)->postJson(route('users-new-chat-save-expected-state.index'), $postData);
+
+        $response->assertOk();
+        $response->assertJson(['success' => true]);
+
+        $this->assertDatabaseHas('expected_states', [
+            'search_user_chat_id' => $chat->id,
+            'role' => 'Regional Sales',
+            'decision' => 'not_viable',
+            'decision_rationale' => 'No budget allocated this quarter; competing with the platform migration.',
+        ]);
+
+        $state = ExpectedState::where('search_user_chat_id', $chat->id)->first();
+        $this->assertNotNull($state->decided_at);
     }
 
     public function test_save_expected_state_fails_if_unauthorized(): void

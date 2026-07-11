@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Carbon;
 
 /**
  * @property int $id
@@ -13,6 +14,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property string $role
  * @property string $recommended_action
  * @property string|null $decision
+ * @property string|null $decision_rationale
+ * @property Carbon|null $decided_at
  * @property string|null $success_metric
  * @property string|null $target_value
  * @property string|null $target_date
@@ -40,6 +43,8 @@ class ExpectedState extends Model
         'role',
         'recommended_action',
         'decision',
+        'decision_rationale',
+        'decided_at',
         'success_metric',
         'target_value',
         'target_date',
@@ -50,6 +55,7 @@ class ExpectedState extends Model
     protected $casts = [
         'resources_committed' => 'boolean',
         'target_date' => 'date',
+        'decided_at' => 'datetime',
     ];
 
     public function searchUserChat(): BelongsTo
