@@ -1252,6 +1252,7 @@ EOT;
                     'target_date' => $state->target_date ? Carbon::parse($state->target_date)->toDateString() : null,
                     'resources_committed' => $state->resources_committed,
                     'depends_on_id' => $state->depends_on_id,
+                    'assumption_ref' => $state->assumption_ref,
                 ];
             })->all();
 
@@ -1325,6 +1326,7 @@ EOT;
                 $row['target_date'] = $state->target_date ? Carbon::parse($state->target_date)->toDateString() : null;
                 $row['resources_committed'] = $state->resources_committed;
                 $row['depends_on_id'] = $state->depends_on_id;
+                $row['assumption_ref'] = $state->assumption_ref;
             }
 
             return response()->json(['success' => true, 'rows' => $rows, 'chat_total_tokens' => $chatTotalTokens]);
@@ -1348,6 +1350,7 @@ EOT;
         $targetDate = $request->input('target_date');
         $resourcesCommitted = $request->input('resources_committed', false);
         $dependsOnId = $request->input('depends_on_id');
+        $assumptionRef = $request->input('assumption_ref');
 
         if (! $chatId || ! $role || ! $recommendedAction || ! $decision) {
             return response()->json(['error' => 'Chat ID, role, action, and decision are required.'], 400);
@@ -1374,6 +1377,7 @@ EOT;
                     'target_date' => $targetDate ? Carbon::parse($targetDate)->toDateString() : null,
                     'resources_committed' => filter_var($resourcesCommitted, FILTER_VALIDATE_BOOLEAN),
                     'depends_on_id' => $dependsOnId ?: null,
+                    'assumption_ref' => $assumptionRef ?: null,
                 ]
             );
 
@@ -1479,10 +1483,10 @@ EOT;
                 $scheduleDrift = $isOverdue && $status !== 'Complete';
                 $performanceDrift = $rate !== null && $rate < $threshold;
                 $dependencyDrift = (bool) ($state->depends_on_id && $state->dependsOn && $this->dependencyIsBlocked($state->dependsOn, $today));
-                // ponytail: assumptions aren't mapped to individual KPIs; any
-                // schedule/performance drift puts the pathway assumptions At Risk.
-                // Add per-KPI assumption links if the client needs finer grain.
-                $assumptionDrift = ! empty($assumptions) && ($scheduleDrift || $performanceDrift);
+                // A KPI's Assumption Drift is on when it is behind schedule or
+                // below target — that is the signal the assumption it tests (if
+                // linked) or the pathway assumptions (if not) are no longer holding.
+                $assumptionDrift = ($state->assumption_ref || ! empty($assumptions)) && ($scheduleDrift || $performanceDrift);
 
                 $state->drift_checks = [
                     'schedule' => $scheduleDrift,
@@ -1501,14 +1505,38 @@ EOT;
 
             $this->recordDriftEvents($states);
 
-            $assumptionAtRisk = $states->contains(fn ($s) => ! empty($s->drift_checks['assumption']));
+            // Per-KPI Assumption Drift: an assumption linked to a specific KPI
+            // goes At Risk only when THAT KPI drifts (schedule/performance).
+            // Unlinked assumptions fall back to the chat-wide signal so legacy
+            // chats (no links) behave exactly as before.
+            $linkedRiskByAssumption = [];   // assumption text => bool (its KPI drifting)
+            $roleByAssumption = [];         // assumption text => linked role label
+            foreach ($states as $s) {
+                if (! $s->assumption_ref) {
+                    continue;
+                }
+                $kpiDrifting = ! empty($s->drift_checks['schedule']) || ! empty($s->drift_checks['performance']);
+                $linkedRiskByAssumption[$s->assumption_ref] = ($linkedRiskByAssumption[$s->assumption_ref] ?? false) || $kpiDrifting;
+                $roleByAssumption[$s->assumption_ref] = $roleByAssumption[$s->assumption_ref] ?? $s->role;
+            }
+
+            $anyDrift = $states->contains(fn ($s) => ! empty($s->drift_checks['assumption']));
 
             return response()->json([
                 'success' => true,
                 'states' => $states,
                 'leadership_alerts' => $alerts,
                 'assumptions' => array_map(
-                    fn ($a) => ['text' => $a, 'status' => $assumptionAtRisk ? 'At Risk' : 'Holding'],
+                    function ($a) use ($linkedRiskByAssumption, $roleByAssumption, $anyDrift) {
+                        $linked = array_key_exists($a, $linkedRiskByAssumption);
+                        $atRisk = $linked ? $linkedRiskByAssumption[$a] : $anyDrift;
+
+                        return [
+                            'text' => $a,
+                            'status' => $atRisk ? 'At Risk' : 'Holding',
+                            'linked_role' => $linked ? $roleByAssumption[$a] : null,
+                        ];
+                    },
                     $assumptions
                 ),
             ]);

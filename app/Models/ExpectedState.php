@@ -21,6 +21,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $target_date
  * @property bool $resources_committed
  * @property int|null $depends_on_id
+ * @property string|null $assumption_ref
  * @property string|null $drift_status
  * @property float|null $achievement_rate
  * @property float|null $drift_magnitude
@@ -50,6 +51,7 @@ class ExpectedState extends Model
         'target_date',
         'resources_committed',
         'depends_on_id',
+        'assumption_ref',
     ];
 
     protected $casts = [

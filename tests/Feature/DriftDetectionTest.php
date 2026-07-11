@@ -365,4 +365,75 @@ class DriftDetectionTest extends TestCase
         $this->assertEquals(0.4, $event->progress);
         $this->assertContains('Marketing', $event->roles_impacted);
     }
+
+    public function test_assumption_drift_is_per_kpi_when_assumptions_are_linked(): void
+    {
+        $user = User::factory()->create();
+
+        $assumptionA = 'Suitable partners can be recruited within 60 days.';
+        $assumptionB = 'The mobile app integration completes on schedule.';
+
+        $chat = SearchUserChat::create([
+            'user_id' => $user->id,
+            'answers' => '{}',
+            'response' => json_encode([
+                'strategyMap' => [['id' => 's1', 'name' => 'Rewards Program']],
+                'selectedStrategyId' => 's1',
+                'pathwayAssumptions' => ['s1' => [$assumptionA, $assumptionB]],
+            ]),
+            'status1' => 1,
+            'status2' => 1,
+        ]);
+
+        // KPI 1 drifts (overdue + below target) and tests assumption A.
+        $drifting = ExpectedState::create([
+            'search_user_chat_id' => $chat->id,
+            'role' => 'VP Business Development',
+            'recommended_action' => 'Onboard partner merchants',
+            'decision' => 'act_on_it',
+            'success_metric' => 'Partner merchants onboarded',
+            'target_value' => '10',
+            'target_date' => Carbon::now()->subDay()->toDateString(),
+            'resources_committed' => true,
+            'assumption_ref' => $assumptionA,
+        ]);
+        ObservedState::create([
+            'expected_state_id' => $drifting->id,
+            'actual_value' => '4',
+            'status' => 'In Progress',
+            'observation_date' => Carbon::now()->toDateString(),
+            'source' => 'Manual',
+        ]);
+
+        // KPI 2 is healthy (complete at target) and tests assumption B.
+        $healthy = ExpectedState::create([
+            'search_user_chat_id' => $chat->id,
+            'role' => 'IT Director',
+            'recommended_action' => 'Integrate mobile app',
+            'decision' => 'act_on_it',
+            'success_metric' => 'Mobile app integration',
+            'target_value' => '1',
+            'target_date' => Carbon::now()->addDays(10)->toDateString(),
+            'resources_committed' => true,
+            'assumption_ref' => $assumptionB,
+        ]);
+        ObservedState::create([
+            'expected_state_id' => $healthy->id,
+            'actual_value' => '1',
+            'status' => 'Complete',
+            'observation_date' => Carbon::now()->toDateString(),
+            'source' => 'Manual',
+        ]);
+
+        $response = $this->actingAs($user)->getJson(route('users-new-chat-progress-data.index', ['chat_id' => $chat->id]));
+
+        $response->assertOk();
+        $assumptions = collect($response->json('assumptions'))->keyBy('text');
+
+        // The linked, drifting KPI flags ONLY its own assumption — not the other.
+        $this->assertEquals('At Risk', $assumptions[$assumptionA]['status']);
+        $this->assertEquals('VP Business Development', $assumptions[$assumptionA]['linked_role']);
+        $this->assertEquals('Holding', $assumptions[$assumptionB]['status']);
+        $this->assertEquals('IT Director', $assumptions[$assumptionB]['linked_role']);
+    }
 }

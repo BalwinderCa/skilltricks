@@ -950,6 +950,13 @@
                             </select>
                             <small class="text-muted">If this task requires another department's commitment to be completed first, select it here.</small>
                         </div>
+                        <div class="mb-3">
+                            <label for="commitment-assumption" class="form-label font-weight-bold"><i class="bi bi-diagram-3 text-primary me-1"></i>Execution Assumption Tested</label>
+                            <select class="form-select" id="commitment-assumption">
+                                <option value="">-- Not tied to a specific assumption --</option>
+                            </select>
+                            <small class="text-muted">Link this KPI to the pathway assumption it validates, so Studio can flag that assumption At Risk when this KPI drifts.</small>
+                        </div>
                         <div class="form-check mb-3">
                             <input class="form-check-input" type="checkbox" id="commitment-resources" required>
                             <label class="form-check-label text-warning font-weight-bold" for="commitment-resources">
@@ -1447,7 +1454,10 @@
             // pathways instead of three separate clicks.
             const STEP_INTRO = d => sectionAcknowledgement(d) + sectionDocInsights(d)
                 + sectionGoalAssessment(d) + sectionScoring(d);
-            const STEP_STRATEGY = d => sectionStrategyMap(d, { interactive: true });
+            // Intake lands DIRECTLY on the Strategic Pathways (UX spec): the intro
+            // sections render on the same first screen, above the pathways, so the
+            // user sees and can pick an option instantly — no extra Continue click.
+            const STEP_STRATEGY = d => STEP_INTRO(d) + sectionStrategyMap(d, { interactive: true });
             // Falls back to an informational note if assumptions couldn't be
             // derived, so this step is never blank once the user reaches it.
             const STEP_ASSUMPTIONS = d => sectionAssumptions(d)
@@ -1476,7 +1486,6 @@
             function visibleSteps() {
                 const d = viewData();
                 const steps = [];
-                if (STEP_INTRO(d).trim() !== '') steps.push(STEP_INTRO);
                 steps.push(STEP_STRATEGY);
                 steps.push(STEP_ASSUMPTIONS);
                 if (hasVariant(selStrategy)) {
@@ -1543,6 +1552,8 @@
                     if (d && d.success && Array.isArray(d.assumptions)) {
                         data.pathwayAssumptions = data.pathwayAssumptions || {};
                         data.pathwayAssumptions[sid] = d.assumptions;
+                        // Make them available to the commitment modal's link dropdown.
+                        window.pathwayAssumptions = d.assumptions.map(String);
                     }
                 } catch (e) {
                 }
@@ -3897,6 +3908,19 @@ document.addEventListener('click', function (e) {
                             }
                         });
                     }
+
+                    // Populate the pathway-assumption dropdown so the KPI can be
+                    // linked to the assumption it tests (per-KPI Assumption Drift).
+                    const assumptionSelect = document.getElementById('commitment-assumption');
+                    assumptionSelect.innerHTML = '<option value="">-- Not tied to a specific assumption --</option>';
+                    if (Array.isArray(window.pathwayAssumptions)) {
+                        window.pathwayAssumptions.forEach(text => {
+                            const opt = document.createElement('option');
+                            opt.value = text;
+                            opt.textContent = text.length > 90 ? text.substring(0, 90) + '…' : text;
+                            assumptionSelect.appendChild(opt);
+                        });
+                    }
                     
                     // Show modal
                     modal.show();
@@ -3914,7 +3938,7 @@ document.addEventListener('click', function (e) {
                     new bootstrap.Modal(modalEl).show();
                 } else {
                     // Instantly save "Review in detail"
-                    saveActionChoice(role, action, val, null, null, null, false, null, null, function(success) {
+                    saveActionChoice(role, action, val, null, null, null, false, null, null, null, function(success) {
                         if (success && row) {
                             window.updateRowStyle(row, val);
                         }
@@ -3930,7 +3954,7 @@ document.addEventListener('click', function (e) {
     };
 
     // Helper to send the decision choice to the backend
-    function saveActionChoice(role, action, decision, metric, targetVal, date, resources, dependsOnId, rationale, callback) {
+    function saveActionChoice(role, action, decision, metric, targetVal, date, resources, dependsOnId, rationale, assumptionRef, callback) {
         const chatId = window.chatChatId || (document.getElementById('chat_id') ? document.getElementById('chat_id').value : '');
         
         let decisionKey = 'review_in_detail';
@@ -3953,7 +3977,8 @@ document.addEventListener('click', function (e) {
                 target_value: targetVal || null,
                 target_date: date || null,
                 resources_committed: resources || false,
-                depends_on_id: dependsOnId || null
+                depends_on_id: dependsOnId || null,
+                assumption_ref: assumptionRef || null
             })
         })
         .then(r => r.json())
@@ -4018,11 +4043,12 @@ document.addEventListener('click', function (e) {
                     const date = document.getElementById('commitment-date').value;
                     const resources = document.getElementById('commitment-resources').checked;
                     const dependsOnId = document.getElementById('commitment-depends-on').value;
-                    
+                    const assumptionRef = document.getElementById('commitment-assumption').value;
+
                     confirmBtn.disabled = true;
                     confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Activating...';
-                    
-                    saveActionChoice(role, action, 'act_on_it', metric, val, date, resources, dependsOnId, null, function(success) {
+
+                    saveActionChoice(role, action, 'act_on_it', metric, val, date, resources, dependsOnId, null, assumptionRef, function(success) {
                         confirmBtn.disabled = false;
                         confirmBtn.innerHTML = '<i class="bi bi-shield-check me-1"></i> Confirm & Activate Commitment';
                         
@@ -4086,7 +4112,7 @@ document.addEventListener('click', function (e) {
                 confirmRationaleBtn.disabled = true;
                 confirmRationaleBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Recording...';
 
-                saveActionChoice(role, action, decision, null, null, null, false, null, reason, function(success) {
+                saveActionChoice(role, action, decision, null, null, null, false, null, reason, null, function(success) {
                     confirmRationaleBtn.disabled = false;
                     confirmRationaleBtn.innerHTML = '<i class="bi bi-check2-circle me-1"></i> Record Decision';
 
@@ -4177,6 +4203,11 @@ document.addEventListener('click', function (e) {
         fetch(`{{ route("users-new-chat-progress-data.index") }}?chat_id=${chatId}`)
         .then(r => r.json())
         .then(data => {
+            // Expose pathway assumptions for the commitment modal's link dropdown,
+            // even before any KPI is committed (states may still be empty here).
+            if (data.success && Array.isArray(data.assumptions)) {
+                window.pathwayAssumptions = data.assumptions.map(a => a.text);
+            }
             if (data.success && Array.isArray(data.states) && data.states.length > 0) {
                 // Populate window global commitments list so modal dropdowns can link them
                 window.activeCommitments = data.states;
@@ -4204,7 +4235,7 @@ document.addEventListener('click', function (e) {
                             <div class="card-body py-2">
                                 <h6 class="mb-2"><i class="bi bi-diagram-3 me-2"></i>Execution Assumptions (Selected Pathway)</h6>
                                 <ul class="mb-0 small" style="padding-left: 1.2rem;">
-                                    ${data.assumptions.map(a => `<li>${escapeActionHtml(a.text)} <span class="badge ${a.status === 'At Risk' ? 'bg-warning text-dark' : 'bg-success'} ms-1">${escapeActionHtml(a.status)}</span></li>`).join('')}
+                                    ${data.assumptions.map(a => `<li>${escapeActionHtml(a.text)} <span class="badge ${a.status === 'At Risk' ? 'bg-warning text-dark' : 'bg-success'} ms-1">${escapeActionHtml(a.status)}</span>${a.linked_role ? ` <span class="text-muted">(tests: ${escapeActionHtml(a.linked_role)})</span>` : ''}</li>`).join('')}
                                 </ul>
                             </div>
                         </div>`;
