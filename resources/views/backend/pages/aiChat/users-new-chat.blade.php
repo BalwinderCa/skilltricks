@@ -958,7 +958,7 @@
                             <small class="text-muted">Link this KPI to the pathway assumption it validates, so Studio can flag that assumption At Risk when this KPI drifts.</small>
                         </div>
                         <div class="form-check mb-3">
-                            <input class="form-check-input" type="checkbox" id="commitment-resources" required>
+                            <input class="form-check-input" type="checkbox" id="commitment-resources">
                             <label class="form-check-label text-warning font-weight-bold" for="commitment-resources">
                                 Resource Checklist: Do you have the budget/personnel to execute this now?
                             </label>
