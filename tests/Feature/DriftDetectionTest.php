@@ -293,6 +293,86 @@ class DriftDetectionTest extends TestCase
         $this->assertEquals('Priority Drift', $response->json('states.0.drift_status'));
     }
 
+    public function test_pace_drift_when_in_progress_and_behind_elapsed_timeline(): void
+    {
+        $user = User::factory()->create();
+        $chat = SearchUserChat::create([
+            'user_id' => $user->id,
+            'answers' => '{}',
+            'response' => 'Goal Sync output',
+            'status1' => 1,
+            'status2' => 1,
+        ]);
+
+        // 40% of the timeline elapsed (before midpoint), only 10% of target done
+        $state = ExpectedState::create([
+            'search_user_chat_id' => $chat->id,
+            'role' => 'Sales',
+            'recommended_action' => 'Sign partner merchants',
+            'decision' => 'act_on_it',
+            'success_metric' => 'Partners signed',
+            'target_value' => '10',
+            'target_date' => Carbon::now()->addDays(6)->toDateString(),
+            'resources_committed' => true,
+        ]);
+        $state->created_at = Carbon::now()->subDays(4);
+        $state->save();
+
+        ObservedState::create([
+            'expected_state_id' => $state->id,
+            'actual_value' => '1',
+            'status' => 'In Progress',
+            'observation_date' => Carbon::now()->toDateString(),
+            'source' => 'Manual',
+        ]);
+
+        $response = $this->actingAs($user)->getJson(route('users-new-chat-progress-data.index', ['chat_id' => $chat->id]));
+
+        $response->assertOk();
+        $this->assertEquals('Timeline Drift', $response->json('states.0.drift_status'));
+        $this->assertTrue($response->json('states.0.drift_checks.performance'));
+    }
+
+    public function test_no_drift_when_in_progress_and_on_pace(): void
+    {
+        $user = User::factory()->create();
+        $chat = SearchUserChat::create([
+            'user_id' => $user->id,
+            'answers' => '{}',
+            'response' => 'Goal Sync output',
+            'status1' => 1,
+            'status2' => 1,
+        ]);
+
+        // 40% elapsed, 50% of target done — ahead of pace, no drift
+        $state = ExpectedState::create([
+            'search_user_chat_id' => $chat->id,
+            'role' => 'Sales',
+            'recommended_action' => 'Sign partner merchants',
+            'decision' => 'act_on_it',
+            'success_metric' => 'Partners signed',
+            'target_value' => '10',
+            'target_date' => Carbon::now()->addDays(6)->toDateString(),
+            'resources_committed' => true,
+        ]);
+        $state->created_at = Carbon::now()->subDays(4);
+        $state->save();
+
+        ObservedState::create([
+            'expected_state_id' => $state->id,
+            'actual_value' => '5',
+            'status' => 'In Progress',
+            'observation_date' => Carbon::now()->toDateString(),
+            'source' => 'Manual',
+        ]);
+
+        $response = $this->actingAs($user)->getJson(route('users-new-chat-progress-data.index', ['chat_id' => $chat->id]));
+
+        $response->assertOk();
+        $this->assertEquals('None', $response->json('states.0.drift_status'));
+        $this->assertFalse($response->json('states.0.drift_checks.performance'));
+    }
+
     public function test_multi_dimensional_checks_assumptions_and_assessment_recorded(): void
     {
         $user = User::factory()->create();
