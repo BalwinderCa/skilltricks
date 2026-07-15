@@ -4308,6 +4308,9 @@ document.addEventListener('click', function (e) {
                         } else if (state.drift_status === 'Dependency Blocked') {
                             badgeClass = 'bg-danger';
                             displayStatus = 'Dependency Blocked';
+                        } else if (state.drift_status === 'Execution Blocked') {
+                            badgeClass = 'bg-danger';
+                            displayStatus = 'Blocked (Reported)';
                         } else if (state.drift_status === 'Capacity Drift') {
                             badgeClass = 'bg-warning text-dark';
                             displayStatus = status === 'Complete' ? 'Capacity Drift (Below Target)' : 'Capacity Drift (No Resources)';

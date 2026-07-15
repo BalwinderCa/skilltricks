@@ -58,6 +58,10 @@ class AiChatController extends Controller
             ['priority' => 'High', 'action' => 'Escalate the blocking task to leadership'],
             ['priority' => 'Medium', 'action' => 'Re-sequence dependent work to reduce idle time'],
         ],
+        'Execution Blocked' => [
+            ['priority' => 'High', 'action' => 'Escalate the reported blocker to leadership'],
+            ['priority' => 'Medium', 'action' => 'Re-plan the commitment around the blocker'],
+        ],
     ];
 
     public function __construct(
@@ -1468,6 +1472,8 @@ EOT;
                     if ($rate !== null && $rate < $threshold) {
                         $driftStatus = 'Capacity Drift'; // Delivered below committed target
                     }
+                } elseif ($status === 'Blocked') {
+                    $driftStatus = 'Execution Blocked'; // Owner explicitly reported a blocker
                 } elseif ($isOverdue) {
                     $driftStatus = 'Timeline Drift'; // Overdue
                 } elseif ($state->depends_on_id && $state->dependsOn && $this->dependencyIsBlocked($state->dependsOn, $today)) {
@@ -1732,13 +1738,16 @@ EOT;
             $blockerDetail = 'Overdue/Delayed';
             if ($status === 'Blocked') {
                 $blockerDetail = "Explicitly blocked with notes: {$statusNotes}";
-            } elseif ($expectedState->depends_on_id && $expectedState->dependsOn) {
+            } elseif ($driftType === 'Dependency Blocked' && $expectedState->depends_on_id && $expectedState->dependsOn) {
                 $dep = $expectedState->dependsOn;
                 $blockerDetail = "Blocked on the preceding role '{$dep->role}' completing their task '{$dep->recommended_action}'";
             } elseif ($driftType === 'Capacity Drift') {
                 $blockerDetail = 'Capacity Drift: the team committed to this action without the budget/personnel to execute it, or delivered below the committed target.';
             } elseif ($driftType === 'Priority Drift') {
                 $blockerDetail = 'Priority Drift: no progress has been logged on this commitment despite significant elapsed time, suggesting competing priorities.';
+            } elseif ($expectedState->depends_on_id && $expectedState->dependsOn) {
+                $dep = $expectedState->dependsOn;
+                $blockerDetail = "Blocked on the preceding role '{$dep->role}' completing their task '{$dep->recommended_action}'";
             }
 
             // Studio-calculated facts (GPT explains, it never calculates).

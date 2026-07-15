@@ -293,6 +293,41 @@ class DriftDetectionTest extends TestCase
         $this->assertEquals('Priority Drift', $response->json('states.0.drift_status'));
     }
 
+    public function test_execution_blocked_when_own_observation_is_blocked(): void
+    {
+        $user = User::factory()->create();
+        $chat = SearchUserChat::create([
+            'user_id' => $user->id,
+            'answers' => '{}',
+            'response' => 'Goal Sync output',
+            'status1' => 1,
+            'status2' => 1,
+        ]);
+
+        $state = ExpectedState::create([
+            'search_user_chat_id' => $chat->id,
+            'role' => 'IT',
+            'recommended_action' => 'Upgrade CRM integration',
+            'decision' => 'act_on_it',
+            'success_metric' => 'Integration live',
+            'target_date' => Carbon::now()->addDays(10)->toDateString(),
+            'resources_committed' => true,
+        ]);
+
+        ObservedState::create([
+            'expected_state_id' => $state->id,
+            'actual_value' => '0',
+            'status' => 'Blocked',
+            'observation_date' => Carbon::now()->toDateString(),
+            'source' => 'Manual',
+        ]);
+
+        $response = $this->actingAs($user)->getJson(route('users-new-chat-progress-data.index', ['chat_id' => $chat->id]));
+
+        $response->assertOk();
+        $this->assertEquals('Execution Blocked', $response->json('states.0.drift_status'));
+    }
+
     public function test_pace_drift_when_in_progress_and_behind_elapsed_timeline(): void
     {
         $user = User::factory()->create();
