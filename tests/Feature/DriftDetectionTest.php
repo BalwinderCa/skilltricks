@@ -328,7 +328,7 @@ class DriftDetectionTest extends TestCase
         $this->assertEquals('Execution Blocked', $response->json('states.0.drift_status'));
     }
 
-    public function test_pace_drift_when_in_progress_and_behind_elapsed_timeline(): void
+    public function test_drift_when_in_progress_reading_is_below_target(): void
     {
         $user = User::factory()->create();
         $chat = SearchUserChat::create([
@@ -339,7 +339,8 @@ class DriftDetectionTest extends TestCase
             'status2' => 1,
         ]);
 
-        // 40% of the timeline elapsed (before midpoint), only 10% of target done
+        // Fresh commitment, future deadline — a logged reading below the
+        // threshold flags immediately, no waiting for elapsed time.
         $state = ExpectedState::create([
             'search_user_chat_id' => $chat->id,
             'role' => 'Sales',
@@ -347,15 +348,13 @@ class DriftDetectionTest extends TestCase
             'decision' => 'act_on_it',
             'success_metric' => 'Partners signed',
             'target_value' => '10',
-            'target_date' => Carbon::now()->addDays(6)->toDateString(),
+            'target_date' => Carbon::now()->addDays(10)->toDateString(),
             'resources_committed' => true,
         ]);
-        $state->created_at = Carbon::now()->subDays(4);
-        $state->save();
 
         ObservedState::create([
             'expected_state_id' => $state->id,
-            'actual_value' => '1',
+            'actual_value' => '2',
             'status' => 'In Progress',
             'observation_date' => Carbon::now()->toDateString(),
             'source' => 'Manual',
@@ -368,7 +367,7 @@ class DriftDetectionTest extends TestCase
         $this->assertTrue($response->json('states.0.drift_checks.performance'));
     }
 
-    public function test_no_drift_when_in_progress_and_on_pace(): void
+    public function test_no_drift_when_in_progress_reading_is_on_target(): void
     {
         $user = User::factory()->create();
         $chat = SearchUserChat::create([
@@ -379,7 +378,7 @@ class DriftDetectionTest extends TestCase
             'status2' => 1,
         ]);
 
-        // 40% elapsed, 50% of target done — ahead of pace, no drift
+        // 9 of 10 (90%) is above the 0.8 threshold — no drift
         $state = ExpectedState::create([
             'search_user_chat_id' => $chat->id,
             'role' => 'Sales',
@@ -387,15 +386,13 @@ class DriftDetectionTest extends TestCase
             'decision' => 'act_on_it',
             'success_metric' => 'Partners signed',
             'target_value' => '10',
-            'target_date' => Carbon::now()->addDays(6)->toDateString(),
+            'target_date' => Carbon::now()->addDays(10)->toDateString(),
             'resources_committed' => true,
         ]);
-        $state->created_at = Carbon::now()->subDays(4);
-        $state->save();
 
         ObservedState::create([
             'expected_state_id' => $state->id,
-            'actual_value' => '5',
+            'actual_value' => '9',
             'status' => 'In Progress',
             'observation_date' => Carbon::now()->toDateString(),
             'source' => 'Manual',

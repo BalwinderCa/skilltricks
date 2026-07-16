@@ -4304,7 +4304,7 @@ document.addEventListener('click', function (e) {
 
                         if (state.drift_status === 'Timeline Drift') {
                             badgeClass = 'bg-danger';
-                            displayStatus = status === 'Complete' ? 'Timeline Drift' : 'Overdue / Behind Pace';
+                            displayStatus = (state.drift_checks && state.drift_checks.schedule) ? 'Overdue' : 'Behind Pace (Below Target)';
                         } else if (state.drift_status === 'Dependency Blocked') {
                             badgeClass = 'bg-danger';
                             displayStatus = 'Dependency Blocked';

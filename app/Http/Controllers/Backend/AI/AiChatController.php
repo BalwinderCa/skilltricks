@@ -1447,24 +1447,20 @@ EOT;
 
                 $isOverdue = $state->target_date && Carbon::parse($state->target_date)->toDateString() < $today;
 
-                // Fraction of the commitment timeline already elapsed (0..1+).
-                // Drift while In Progress is pace-based: achievement is compared
-                // against how far along the timeline we are, so a KPI at 20% of
-                // target with 60% of time gone drifts, but day-1 low numbers don't.
-                $elapsedFraction = null;
+                // ponytail: midpoint between commitment and deadline is the
+                // point where "no report yet" stops being normal (Priority Drift).
+                $pastMidpoint = false;
                 if ($state->target_date && $state->created_at) {
                     $start = Carbon::parse($state->created_at);
                     $end = Carbon::parse($state->target_date)->endOfDay();
                     if ($end->greaterThan($start)) {
-                        $elapsedFraction = (Carbon::now()->getTimestamp() - $start->getTimestamp())
-                            / ($end->getTimestamp() - $start->getTimestamp());
+                        $pastMidpoint = Carbon::now()->getTimestamp() > ($start->getTimestamp() + $end->getTimestamp()) / 2;
                     }
                 }
-                // ponytail: midpoint is still the point where "no report yet"
-                // stops being normal (Priority Drift).
-                $pastMidpoint = $elapsedFraction !== null && $elapsedFraction > 0.5;
-                $behindPace = $elapsedFraction !== null && $rate !== null
-                    && $rate < $elapsedFraction * $threshold;
+                // Client decision (2026-07-15): any logged reading below the
+                // threshold is drift immediately, even while In Progress — no
+                // time-based scaling. The flag only appears once data is logged.
+                $belowTarget = $rate !== null && $rate < $threshold;
 
                 $driftStatus = 'None';
 
@@ -1480,13 +1476,13 @@ EOT;
                     $dep = $state->dependsOn;
                     $driftStatus = 'Dependency Blocked';
                     $alerts[] = "🔔 Alert: <strong>{$state->role}</strong> is blocked because <strong>{$dep->role}</strong> has not completed their task '<em>{$dep->recommended_action}</em>'.";
+                } elseif ($belowTarget) {
+                    $driftStatus = 'Timeline Drift'; // Reported progress below target
                 } elseif (! $state->resources_committed) {
                     $driftStatus = 'Capacity Drift'; // Committed to work without budget/personnel
                 } elseif ($pastMidpoint && (! $obs || ($target !== null && $actual === null))) {
                     // Nothing reported, or a numeric-target KPI reported without a number
                     $driftStatus = 'Priority Drift';
-                } elseif ($behindPace) {
-                    $driftStatus = 'Timeline Drift'; // Behind pace vs elapsed timeline
                 }
 
                 $state->drift_status = $driftStatus;
@@ -1496,12 +1492,7 @@ EOT;
                 // Multi-dimensional drift checks per KPI (Schedule / Performance /
                 // Assumption / Dependency) — Studio-calculated, GPT never decides.
                 $scheduleDrift = $isOverdue && $status !== 'Complete';
-                // Below target counts as performance drift once the work is done
-                // or the deadline has passed; while still in flight it only counts
-                // when behind pace for the elapsed timeline.
-                $performanceDrift = ($status === 'Complete' || $isOverdue)
-                    ? ($rate !== null && $rate < $threshold)
-                    : $behindPace;
+                $performanceDrift = $belowTarget;
                 $dependencyDrift = (bool) ($state->depends_on_id && $state->dependsOn && $this->dependencyIsBlocked($state->dependsOn, $today));
                 // A KPI's Assumption Drift is on when it is behind schedule or
                 // below target — that is the signal the assumption it tests (if
