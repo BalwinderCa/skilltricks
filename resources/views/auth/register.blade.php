@@ -385,7 +385,9 @@ hidden;
 
                             {!! Form::open(['route'=>'register', 'method'=>'POST' , 'id'=>"login-form", 'class'=>"w-100 form-section"]) !!}
                             <input type="hidden" name="login_with" class="login_with" value="email">
-                            {!! RecaptchaV3::field('recaptcha_token') !!}
+                            @if (getSetting('enable_recaptcha') == 1)
+                                {!! RecaptchaV3::field('recaptcha_token') !!}
+                            @endif
                                     <div class="row gx-2">
                                         <div class="col-md-12">
                                             <div class="form-group position-relative">

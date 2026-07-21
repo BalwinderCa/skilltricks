@@ -1,57 +1,22 @@
 <?php
 
-
-
 namespace App\Http\Controllers\Auth;
 
-
-
-use Carbon\Carbon;
-
-use App\Models\User;
-
-use Illuminate\Http\Request;
-
-use App\Jobs\User\WelcomeJob;
-
-use App\Models\EmailTemplate;
-
-use App\Services\UserService;
-
-use App\Models\SubscribedUser;
-
-use App\Models\WrNotification;
-
-use Illuminate\Support\Facades\DB;
-
-use App\Models\SubscriptionHistory;
-
-use App\Models\SubscriptionPackage;
-
-use Illuminate\Support\Facades\Log;
-
 use App\Http\Controllers\Controller;
-
-use Illuminate\Support\Facades\Hash;
-
+use App\Http\Requests\UserRegistration\UserRegistrationStoreReqeust;
 use App\Jobs\User\EmailConfirmationJob;
-
+use App\Models\SubscriptionPackage;
+use App\Models\User;
+use App\Services\UserService;
+use Illuminate\Foundation\Auth\RegistersUsers;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Validator;
 
-use Illuminate\Support\Facades\Notification;
-
-use Illuminate\Foundation\Auth\RegistersUsers;
-
-use App\Notifications\EmailVerificationNotification;
-
-use App\Http\Requests\UserRegistration\UserRegistrationStoreReqeust;
-
-
-
 class RegisterController extends Controller
-
 {
-
     /*
 
     |--------------------------------------------------------------------------
@@ -72,50 +37,34 @@ class RegisterController extends Controller
 
     */
 
-
-
     use RegistersUsers;
 
-
-
     /**
-
      * Where to redirect users after registration.
 
      *
 
      * @var string
-
      */
-
     protected $redirectTo = '/dashboard';
 
-
-
     /**
-
      * Create a new controller instance.
 
      *
 
      * @return void
-
      */
-
     public function __construct()
-
     {
 
         $this->middleware('guest');
 
     }
 
-
-
-    # registration form validation
+    // registration form validation
 
     protected function validator(array $data)
-
     {
 
         return Validator::make($data, [
@@ -128,12 +77,9 @@ class RegisterController extends Controller
 
     }
 
-
-
-    # make new registration here
+    // make new registration here
 
     protected function create(array $data)
-
     {
 
         if (filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
@@ -148,25 +94,20 @@ class RegisterController extends Controller
 
     }
 
-
-
-    # register new customer here
+    // register new customer here
 
     public function register(UserRegistrationStoreReqeust $request, UserService $userService)
-
     {
 
         try {
 
             DB::beginTransaction();
 
-
-
             if (filter_var($request->email, FILTER_VALIDATE_EMAIL)) {
 
-                $isEmailExists = $userService->findByColumnsWithValues(['email', "=", $request->email]);
+                $isEmailExists = $userService->findByColumnsWithValues(['email', '=', $request->email]);
 
-                if (!empty($isEmailExists)) {
+                if (! empty($isEmailExists)) {
 
                     flash(localize('Email or Phone already exists.'))->error();
 
@@ -176,19 +117,13 @@ class RegisterController extends Controller
 
             }
 
-
-
             $phone = $request->phone;
 
+            if (! empty($phone)) {
 
+                $isPhoneExists = $userService->findByColumnsWithValues(['phone', '=', $phone]);
 
-            if (!empty($phone)) {
-
-                $isPhoneExists = $userService->findByColumnsWithValues(['phone', "=", $phone]);
-
-
-
-                if (!empty($isPhoneExists)) {
+                if (! empty($isPhoneExists)) {
 
                     flash(localize('An user already exists with this phone number.'))->error();
 
@@ -198,128 +133,90 @@ class RegisterController extends Controller
 
             }
 
+            $data = $request->validated();
 
+            $data['password'] = bcrypt($request->password);
 
-            $data                = $request->validated();
+            $data['company'] = $request->company;
 
-            $data["password"]    = bcrypt($request->password);
+            $data['referred_by'] = $userService->setReferredBy();
 
-            $data["company"]    = $request->company;
-
-            $data["referred_by"] = $userService->setReferredBy();
-
-            $data['phone']       = validatePhone($request->phone);
-
-
+            $data['phone'] = validatePhone($request->phone);
 
             // Store User
 
             $user = $userService->storeUser($data);
 
-
-
             // Store User as subscriber
 
-            !empty($user->email) ? $userService->storeUserAsSubscriber(["email" => $user->email]) : false;
-
-
+            ! empty($user->email) ? $userService->storeUserAsSubscriber(['email' => $user->email]) : false;
 
             // Make sure login
 
             $this->guard()->login($user);
 
-
-
             // When Registration verifications with settings is disabled means update the registered user as verified with current date time
 
             $registrationVerificationWith = getSetting('registration_verification_with');
 
-
-
             $isRegistrationSettingDisable = $registrationVerificationWith == appStatic()::REGISTRATION_WITH_DISABLE;
 
-            if($isRegistrationSettingDisable){
-
-
+            if ($isRegistrationSettingDisable) {
 
                 $userService->updateUserAsVerified($user);
 
-                flash( localize('Registration successful.'))->success();
+                flash(localize('Registration successful.'))->success();
 
             }
-
-
 
             //  system notification
 
             saveNotification('New User Register', 'dashboard/customers', 'admin');
 
-
-
-
-
             // When registered not with registration with disable means send a verification mail to the user
 
-            if(!$isRegistrationSettingDisable){
+            if (! $isRegistrationSettingDisable) {
 
                 // OLD
 
                 // $user->sendVerificationNotification();
 
-
-
                 commonLog("Email Verification sending for User ID: {$request->user()->id}", []);
 
-
-
-                EmailConfirmationJob::dispatchSync($request->user());
-
-
+                // ponytail: email is best-effort — a mail/SMTP failure must never roll back a valid registration
+                try {
+                    EmailConfirmationJob::dispatchSync($request->user());
+                } catch (\Throwable $mailError) {
+                    Log::warning("Verification email failed for User ID {$user->id}: {$mailError->getMessage()}");
+                }
 
                 flash(localize('Registration successful. Please verify your email.'))->success();
 
             }
 
-
-
             $this->registered($request, $user) ?: redirect($this->redirectPath());
 
             DB::commit();
 
-
-
             return redirect()->route('writebot.dashboard');
 
-        }
-
-        catch (\Throwable $e){
+        } catch (\Throwable $e) {
 
             DB::rollBack();
 
-
-
-            Log::info("Failed to registration & Incoming Payloads are ".json_encode($request->all()));
-
-
+            Log::info('Failed to registration & Incoming Payloads are '.json_encode($request->all()));
 
             flash($e->getMessage())->error();
 
-
-
             return back()->withInput();
-
-
 
         }
 
     }
 
-
-
-    # action after registration
+    // action after registration
 
     protected function registered(Request $request, $user)
-
     {
 
         // subscription
@@ -330,29 +227,9 @@ class RegisterController extends Controller
 
             ->first();
 
+        if (! is_null($starter)) {
 
-
-        if (!is_null($starter)) {
-
-            $user->subscription_package_id      = $starter->id;
-
-            $user->save();
-
-
-
-            $start_date = date('Y-m-d');
-
-            $end_date = null;
-
-            if($starter->duration){
-
-                $end_date = date('Y-m-d', strtotime($start_date.$starter->duration.' days'));
-
-            }
-
-
-
-            $user->subscription_package_id      = $starter->id;
+            $user->subscription_package_id = $starter->id;
 
             $user->save();
 
@@ -360,23 +237,31 @@ class RegisterController extends Controller
 
             $end_date = null;
 
-            if($starter->duration){
+            if ($starter->duration) {
 
                 $end_date = date('Y-m-d', strtotime($start_date.$starter->duration.' days'));
 
             }
 
+            $user->subscription_package_id = $starter->id;
 
+            $user->save();
+
+            $start_date = date('Y-m-d');
+
+            $end_date = null;
+
+            if ($starter->duration) {
+
+                $end_date = date('Y-m-d', strtotime($start_date.$starter->duration.' days'));
+
+            }
 
             // Subscription History Store
 
-            (new UserService())->storeUserSubscription($starter, $user, $start_date, $end_date);
+            (new UserService)->storeUserSubscription($starter, $user, $start_date, $end_date);
 
         }
-
-
-
-
 
         // send welcome email if enabled
 
@@ -388,13 +273,12 @@ class RegisterController extends Controller
 
             } catch (\Throwable $th) {
 
-                throw $th;
+                // ponytail: welcome email is best-effort — don't fail registration if mail is down
+                Log::warning("Welcome email failed for User ID {$user->id}: {$th->getMessage()}");
 
             }
 
         }
-
-
 
         // redirect
 
@@ -425,6 +309,4 @@ class RegisterController extends Controller
         }
 
     }
-
 }
-
