@@ -1544,7 +1544,11 @@ EOT;
                     $alerts[] = "🔔 Alert: <strong>{$state->role}</strong> is blocked because <strong>{$dep->role}</strong> has not completed their task '<em>{$dep->recommended_action}</em>'.";
                 } elseif ($belowTarget) {
                     $driftStatus = 'Timeline Drift'; // Reported progress below target
-                } elseif (! $state->resources_committed) {
+                } elseif ($state->decision === 'act_on_it' && ! $state->resources_committed) {
+                    // Only the "Act on it" handshake asks the Resource Checklist,
+                    // so only that path can be judged on the answer. A calibrated
+                    // "Review in Detail" commitment is never asked, and must not
+                    // be born in drift over a question it never saw.
                     $driftStatus = 'Capacity Drift'; // Committed to work without budget/personnel
                 } elseif ($pastMidpoint && (! $obs || ($target !== null && $actual === null))) {
                     // Nothing reported, or a numeric-target KPI reported without a number

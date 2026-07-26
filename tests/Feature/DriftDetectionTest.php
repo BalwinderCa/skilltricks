@@ -623,6 +623,41 @@ class DriftDetectionTest extends TestCase
         $this->assertEquals(2, $tracked[0]['gap']);
     }
 
+    /**
+     * The Resource Checklist is only asked by the "Act on it" handshake, so a
+     * calibrated commitment must not be flagged Capacity Drift for never
+     * having answered it.
+     */
+    public function test_calibrated_commitment_is_not_capacity_drift_for_unanswered_resource_checklist(): void
+    {
+        $user = User::factory()->create();
+
+        $chat = SearchUserChat::create([
+            'user_id' => $user->id,
+            'answers' => '{}',
+            'response' => 'Goal Sync output',
+            'status1' => 1,
+            'status2' => 1,
+        ]);
+
+        ExpectedState::create([
+            'search_user_chat_id' => $chat->id,
+            'role' => 'Head of Learning & OD',
+            'recommended_action' => 'Run regional enablement workshops',
+            'decision' => 'review_in_detail',
+            'success_metric' => 'Workshops delivered',
+            'target_value' => '6',
+            'target_date' => Carbon::now()->addDays(60)->toDateString(),
+            'resources_committed' => false,
+            'revised_at' => Carbon::now(),
+        ]);
+
+        $response = $this->actingAs($user)->getJson(route('users-new-chat-progress-data.index', ['chat_id' => $chat->id]));
+
+        $response->assertOk();
+        $this->assertEquals('None', $response->json('states.0.drift_status'));
+    }
+
     /** A re-calibration must not overwrite the recorded AI original. */
     public function test_recalibration_keeps_the_first_ai_original_snapshot(): void
     {
