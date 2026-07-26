@@ -548,4 +548,116 @@ class DriftDetectionTest extends TestCase
         $this->assertEquals('Holding', $assumptions[$assumptionB]['status']);
         $this->assertEquals('IT Director', $assumptions[$assumptionB]['linked_role']);
     }
+
+    /**
+     * "Review in Detail": the user's revised target becomes the tracking
+     * baseline, the AI's original is preserved for variance, and the
+     * calibrated row tracks in the Closed-Loop Tracker without "Act on it".
+     */
+    public function test_review_in_detail_calibration_resets_the_drift_baseline(): void
+    {
+        $user = User::factory()->create();
+
+        $chat = SearchUserChat::create([
+            'user_id' => $user->id,
+            'answers' => '{}',
+            'response' => 'Goal Sync output',
+            'status1' => 1,
+            'status2' => 1,
+        ]);
+
+        // Studio's original proposal: target 10, no decision yet.
+        $state = ExpectedState::create([
+            'search_user_chat_id' => $chat->id,
+            'role' => 'VP Operations',
+            'recommended_action' => 'Align teams across 3 business units',
+            'success_metric' => 'Business units aligned',
+            'target_value' => '10',
+            'target_date' => Carbon::now()->addDays(30)->toDateString(),
+        ]);
+
+        // The owner calibrates it down to 6 under a frozen budget.
+        $save = $this->actingAs($user)->postJson(route('users-new-chat-save-expected-state.index'), [
+            'chat_id' => $chat->id,
+            'role' => 'VP Operations',
+            'recommended_action' => 'Align teams across 2 business units',
+            'decision' => 'review_in_detail',
+            'success_metric' => 'Business units aligned',
+            'target_value' => '6',
+            'target_date' => Carbon::now()->addDays(60)->toDateString(),
+            'is_calibration' => true,
+            'constraint_tags' => ['Budget Frozen', 'Headcount Locked'],
+            'revision_notes' => 'Supplier hardware delay; Mexico rollout deferred to Q4.',
+        ]);
+        $save->assertOk();
+
+        $state->refresh();
+        // Revised values overwrite the active baseline...
+        $this->assertSame('6', $state->target_value);
+        $this->assertSame('Align teams across 2 business units', $state->recommended_action);
+        // ...while the AI's original proposal is preserved (Human-AI variance).
+        $this->assertSame('10', $state->ai_original['target_value']);
+        $this->assertSame('Align teams across 3 business units', $state->ai_original['recommended_action']);
+        // ...stamped with who calibrated it.
+        $this->assertSame($user->id, $state->revised_by);
+        $this->assertSame(['Budget Frozen', 'Headcount Locked'], $state->constraint_tags);
+        $this->assertNotNull($state->revised_at);
+
+        // Observed 4 of the revised 6 = 67%, below the 0.8 threshold but no
+        // longer the 40% it would have been against the AI's original 10.
+        ObservedState::create([
+            'expected_state_id' => $state->id,
+            'actual_value' => '4',
+            'status' => 'In Progress',
+            'observation_date' => Carbon::now()->toDateString(),
+            'source' => 'Manual',
+        ]);
+
+        $response = $this->actingAs($user)->getJson(route('users-new-chat-progress-data.index', ['chat_id' => $chat->id]));
+        $response->assertOk();
+
+        // A calibrated row tracks even though its decision is not "act_on_it".
+        $tracked = $response->json('states');
+        $this->assertCount(1, $tracked);
+        $this->assertEquals(0.67, $tracked[0]['achievement_rate']);
+        $this->assertEquals(2, $tracked[0]['gap']);
+    }
+
+    /** A re-calibration must not overwrite the recorded AI original. */
+    public function test_recalibration_keeps_the_first_ai_original_snapshot(): void
+    {
+        $user = User::factory()->create();
+
+        $chat = SearchUserChat::create([
+            'user_id' => $user->id,
+            'answers' => '{}',
+            'response' => 'Goal Sync output',
+            'status1' => 1,
+            'status2' => 1,
+        ]);
+
+        ExpectedState::create([
+            'search_user_chat_id' => $chat->id,
+            'role' => 'VP Operations',
+            'recommended_action' => 'Original AI action',
+            'target_value' => '10',
+        ]);
+
+        foreach (['6', '4'] as $revised) {
+            $this->actingAs($user)->postJson(route('users-new-chat-save-expected-state.index'), [
+                'chat_id' => $chat->id,
+                'role' => 'VP Operations',
+                'recommended_action' => 'Revised action',
+                'decision' => 'review_in_detail',
+                'success_metric' => 'Units',
+                'target_value' => $revised,
+                'is_calibration' => true,
+            ])->assertOk();
+        }
+
+        $state = ExpectedState::where('search_user_chat_id', $chat->id)->first();
+        $this->assertSame('4', $state->target_value);
+        $this->assertSame('10', $state->ai_original['target_value']);
+        $this->assertSame('Original AI action', $state->ai_original['recommended_action']);
+    }
 }

@@ -22,6 +22,13 @@ use Illuminate\Support\Carbon;
  * @property bool $resources_committed
  * @property int|null $depends_on_id
  * @property string|null $assumption_ref
+ * @property array|null $ai_original
+ * @property array|null $constraint_tags
+ * @property string|null $revision_notes
+ * @property int|null $revised_by
+ * @property string|null $revised_by_name
+ * @property string|null $revised_by_role
+ * @property Carbon|null $revised_at
  * @property string|null $drift_status
  * @property float|null $achievement_rate
  * @property float|null $drift_magnitude
@@ -52,13 +59,33 @@ class ExpectedState extends Model
         'resources_committed',
         'depends_on_id',
         'assumption_ref',
+        'ai_original',
+        'constraint_tags',
+        'revision_notes',
+        'revised_by',
+        'revised_by_name',
+        'revised_by_role',
+        'revised_at',
     ];
 
     protected $casts = [
         'resources_committed' => 'boolean',
         'target_date' => 'date',
         'decided_at' => 'datetime',
+        'ai_original' => 'array',
+        'constraint_tags' => 'array',
+        'revised_at' => 'datetime',
     ];
+
+    /**
+     * A calibrated commitment: the user opened "Review in Detail" and saved a
+     * revised baseline, so it tracks in the Closed-Loop Tracker like an
+     * "Act on it" commitment does.
+     */
+    public function isRevised(): bool
+    {
+        return $this->revised_at !== null;
+    }
 
     public function searchUserChat(): BelongsTo
     {

@@ -1257,6 +1257,12 @@ EOT;
                     'resources_committed' => $state->resources_committed,
                     'depends_on_id' => $state->depends_on_id,
                     'assumption_ref' => $state->assumption_ref,
+                    'ai_original' => $state->ai_original,
+                    'constraint_tags' => $state->constraint_tags,
+                    'revision_notes' => $state->revision_notes,
+                    'revised_by_name' => $state->revised_by_name,
+                    'revised_by_role' => $state->revised_by_role,
+                    'revised_at' => $state->revised_at ? $state->revised_at->toIso8601String() : null,
                 ];
             })->all();
 
@@ -1331,6 +1337,12 @@ EOT;
                 $row['resources_committed'] = $state->resources_committed;
                 $row['depends_on_id'] = $state->depends_on_id;
                 $row['assumption_ref'] = $state->assumption_ref;
+                $row['ai_original'] = $state->ai_original;
+                $row['constraint_tags'] = $state->constraint_tags;
+                $row['revision_notes'] = $state->revision_notes;
+                $row['revised_by_name'] = $state->revised_by_name;
+                $row['revised_by_role'] = $state->revised_by_role;
+                $row['revised_at'] = $state->revised_at ? $state->revised_at->toIso8601String() : null;
             }
 
             return response()->json(['success' => true, 'rows' => $rows, 'chat_total_tokens' => $chatTotalTokens]);
@@ -1355,6 +1367,7 @@ EOT;
         $resourcesCommitted = $request->input('resources_committed', false);
         $dependsOnId = $request->input('depends_on_id');
         $assumptionRef = $request->input('assumption_ref');
+        $isCalibration = filter_var($request->input('is_calibration', false), FILTER_VALIDATE_BOOLEAN);
 
         if (! $chatId || ! $role || ! $recommendedAction || ! $decision) {
             return response()->json(['error' => 'Chat ID, role, action, and decision are required.'], 400);
@@ -1366,23 +1379,29 @@ EOT;
         }
 
         try {
+            $attributes = [
+                'recommended_action' => $recommendedAction,
+                'decision' => $decision,
+                'decision_rationale' => $decisionRationale ?: null,
+                'decided_at' => Carbon::now(),
+                'success_metric' => $successMetric,
+                'target_value' => $targetValue,
+                'target_date' => $targetDate ? Carbon::parse($targetDate)->toDateString() : null,
+                'resources_committed' => filter_var($resourcesCommitted, FILTER_VALIDATE_BOOLEAN),
+                'depends_on_id' => $dependsOnId ?: null,
+                'assumption_ref' => $assumptionRef ?: null,
+            ];
+
+            if ($isCalibration) {
+                $attributes += $this->calibrationAttributes($request, $chatId, $role, $user);
+            }
+
             $expectedState = ExpectedState::updateOrCreate(
                 [
                     'search_user_chat_id' => $chatId,
                     'role' => $role,
                 ],
-                [
-                    'recommended_action' => $recommendedAction,
-                    'decision' => $decision,
-                    'decision_rationale' => $decisionRationale ?: null,
-                    'decided_at' => Carbon::now(),
-                    'success_metric' => $successMetric,
-                    'target_value' => $targetValue,
-                    'target_date' => $targetDate ? Carbon::parse($targetDate)->toDateString() : null,
-                    'resources_committed' => filter_var($resourcesCommitted, FILTER_VALIDATE_BOOLEAN),
-                    'depends_on_id' => $dependsOnId ?: null,
-                    'assumption_ref' => $assumptionRef ?: null,
-                ]
+                $attributes
             );
 
             return response()->json(['success' => true, 'expected_state' => $expectedState]);
@@ -1391,6 +1410,50 @@ EOT;
 
             return response()->json(['error' => 'An error occurred while saving expected state.', 'details' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * "Review in Detail" calibration: the user's revised scope / KPI / date
+     * overwrite the active baseline (so every drift calculation downstream
+     * runs against the user's number, not the AI's), while ai_original keeps
+     * the pre-revision values for Human-AI alignment variance. The snapshot is
+     * taken once — re-calibrating never overwrites the AI's own proposal.
+     *
+     * @return array<string, mixed>
+     */
+    private function calibrationAttributes(Request $request, $chatId, string $role, $user): array
+    {
+        $existing = ExpectedState::where('search_user_chat_id', $chatId)
+            ->where('role', $role)
+            ->first();
+
+        $original = $existing && $existing->ai_original
+            ? $existing->ai_original
+            : [
+                'recommended_action' => $existing->recommended_action ?? null,
+                'success_metric' => $existing->success_metric ?? null,
+                'target_value' => $existing->target_value ?? null,
+                'target_date' => $existing && $existing->target_date
+                    ? Carbon::parse($existing->target_date)->toDateString()
+                    : null,
+            ];
+
+        $tags = $request->input('constraint_tags', []);
+        if (is_string($tags)) {
+            $tags = array_filter(array_map('trim', explode(',', $tags)));
+        }
+
+        return [
+            'ai_original' => $original,
+            'constraint_tags' => ! empty($tags) ? array_values($tags) : null,
+            'revision_notes' => $request->input('revision_notes') ?: null,
+            'revised_by' => $user->id,
+            'revised_by_name' => $user->name,
+            // ponytail: platform role from the login session. Swap for an org
+            // role/department field if the profile ever carries one.
+            'revised_by_role' => method_exists($user, 'getRoleNames') ? $user->getRoleNames()->first() : null,
+            'revised_at' => Carbon::now(),
+        ];
     }
 
     public function get_progress_data(Request $request)
@@ -1411,7 +1474,10 @@ EOT;
             // Eager load the latest observation, latest intervention, and dependency info
             $states = ExpectedState::with(['latestObservation', 'latestIntervention', 'dependsOn.latestObservation'])
                 ->where('search_user_chat_id', $chatId)
-                ->where('decision', 'act_on_it') // Only retrieve active commitments
+                // Active commitments, plus "Review in Detail" actions the user
+                // has calibrated — their revised KPI/date is the active
+                // tracking baseline and belongs in the Observed State tracker.
+                ->where(fn ($q) => $q->where('decision', 'act_on_it')->orWhereNotNull('revised_at'))
                 ->get();
 
             $today = Carbon::now()->toDateString();
@@ -1753,6 +1819,23 @@ EOT;
             $assumptions = $this->assumptionsForChat($chat->id);
             $assumptionAtRisk = ! empty($assumptions) ? implode('; ', $assumptions) : 'None recorded';
 
+            // If the owner recalibrated this commitment via "Review in Detail",
+            // the target below is THEIR number, not the AI's. Tell GPT so the
+            // narrative treats the shift as a deliberate choice, not a failure.
+            $calibrationBlock = '';
+            if ($expectedState->isRevised()) {
+                $tags = ! empty($expectedState->constraint_tags) ? implode(', ', $expectedState->constraint_tags) : 'None';
+                $who = trim(($expectedState->revised_by_name ?: 'A platform user').($expectedState->revised_by_role ? " ({$expectedState->revised_by_role})" : ''));
+                $when = $expectedState->revised_at->toFormattedDateString();
+                $originalTarget = $expectedState->ai_original['target_value'] ?? 'not set';
+                $calibrationBlock = "\nDELIBERATE RECALIBRATION ON RECORD (do NOT treat as an execution failure):\n"
+                    ."- On {$when}, {$who} revised this commitment through Review in Detail.\n"
+                    ."- Original AI-proposed target: \"{$originalTarget}\" → user-approved baseline: \"{$expectedState->target_value}\"\n"
+                    ."- Constraints declared: {$tags}\n"
+                    .'- Stated rationale: "'.($expectedState->revision_notes ?: 'None provided')."\"\n"
+                    ."- Respect these constraints: do not recommend actions they rule out (e.g. no hiring under Headcount Locked, no new spend under Budget Frozen).\n";
+            }
+
             // Studio ranks the interventions from the drift type; GPT writes the narrative.
             $ranked = self::INTERVENTION_RULES[$driftType] ?? self::INTERVENTION_RULES['Timeline Drift'];
             $rankedLines = implode("\n", array_map(
@@ -1776,7 +1859,8 @@ EOT;
                 ."- Roadblock/Blocker Details: \"{$blockerDetail}\"\n"
                 ."- Execution Assumptions at Risk: \"{$assumptionAtRisk}\"\n"
                 .'- Affected Roles: '.implode(', ', $affectedRoles)."\n"
-                ."- Notes from the field: \"{$statusNotes}\"\n\n"
+                ."- Notes from the field: \"{$statusNotes}\"\n"
+                .$calibrationBlock."\n"
                 ."STUDIO-RANKED INTERVENTIONS:\n{$rankedLines}\n\n"
                 ."TASK:\n"
                 ."Write the executive narrative (2-3 sentences max) recommending how leadership should activate the top-ranked interventions to unblock {$role} and accelerate delivery. Speak directly, confidently, and professionally.";

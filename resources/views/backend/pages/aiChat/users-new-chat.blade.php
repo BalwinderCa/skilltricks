@@ -975,6 +975,77 @@
         </div>
     </div>
 
+    <!-- Review in Detail Modal (Calibration & Recourse Engine) -->
+    <div class="modal fade" id="reviewDetailModal" tabindex="-1" aria-labelledby="reviewDetailModalLabel" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="reviewDetailModalLabel">
+                        <i class="bi bi-sliders me-2"></i>Review in Detail: Calibrate this Action
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-muted mb-3">
+                        Adjust the Studio recommendation to your team's real constraints before it is committed to the tracker.
+                        Your revised target and date become the baseline Studio measures against — the original AI proposal is kept on record.
+                    </p>
+                    <form id="reviewDetailForm">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label font-weight-bold">Accountable Role</label>
+                                <input type="text" class="form-control text-dark font-weight-bold" id="review-role" readonly style="background-color: #f8f9fa;">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label font-weight-bold">Calibrated By</label>
+                                <input type="text" class="form-control text-dark" id="review-user" readonly style="background-color: #f8f9fa;"
+                                    value="{{ auth()->user()->name }}{{ auth()->user()->getRoleNames()->first() ? ' — ' . auth()->user()->getRoleNames()->first() : '' }}">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="review-action" class="form-label font-weight-bold">1. Refined Action / Scope <span class="text-danger">*</span></label>
+                            <textarea class="form-control" id="review-action" rows="3" required></textarea>
+                            <small class="text-muted">Pre-filled with the Studio recommendation. Reword it to match your internal terminology or scope.</small>
+                        </div>
+                        <div class="mb-3">
+                            <label for="review-metric" class="form-label font-weight-bold">2. Target KPI / Expected State <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="review-metric" required placeholder="e.g. Align teams across 2 business units">
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="review-value" class="form-label font-weight-bold">Target Value</label>
+                                <input type="text" class="form-control" id="review-value" placeholder="e.g. 2">
+                                <small class="text-muted">The number Studio measures the execution gap against.</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="review-date" class="form-label font-weight-bold">3. Target Completion Date</label>
+                                <input type="date" class="form-control" id="review-date">
+                                <small class="text-muted">Deadline threshold for auto-flagging Timeline Drift.</small>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label font-weight-bold">4. Constraint / Revision Notes</label>
+                            <div class="mb-2" id="review-tags">
+                                @foreach (['Budget Frozen', 'Headcount Locked', 'Capacity', 'Scope Shift', 'Resource Shortage', 'Tooling Locked', 'Compliance Hard-Stop', 'Market Volatility'] as $tag)
+                                    <input type="checkbox" class="btn-check review-tag" id="review-tag-{{ $loop->index }}" value="{{ $tag }}" autocomplete="off">
+                                    <label class="btn btn-sm btn-outline-secondary mb-1" for="review-tag-{{ $loop->index }}">{{ $tag }}</label>
+                                @endforeach
+                            </div>
+                            <textarea class="form-control" id="review-notes" rows="3" placeholder="e.g. We are focusing strictly on the Middle East market first; Mexico rollout is deferred to Q4."></textarea>
+                            <small class="text-muted">Why you are adjusting this. Studio keeps it so future drift assessments read this as a deliberate pivot, not a failure — and so the AI does not recommend actions your constraints rule out.</small>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-success" id="confirmReviewBtn">
+                        <i class="bi bi-check2-square me-1"></i> Save Revised Commitment
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Decision Rationale Modal (Decision Audit Trail) -->
     <div class="modal fade" id="decisionRationaleModal" tabindex="-1" aria-labelledby="decisionRationaleModalLabel" aria-hidden="true" data-bs-backdrop="static">
         <div class="modal-dialog modal-dialog-centered">
@@ -3785,8 +3856,31 @@ document.addEventListener('click', function (e) {
         cell.appendChild(note);
     };
 
+    // Show (or clear) the "Committed (Revised)" stamp beneath a calibrated action.
+    window.renderRevisionNote = function(row, state) {
+        const cell = row.cells[1];
+        if (!cell) return;
+
+        const existing = cell.querySelector('.decision-revision-note');
+        if (existing) existing.remove();
+        if (!state || !state.revised_at) return;
+
+        const tags = Array.isArray(state.constraint_tags) ? state.constraint_tags : [];
+        const who = [state.revised_by_name, state.revised_by_role].filter(Boolean).join(' — ');
+
+        const note = document.createElement('div');
+        note.className = 'decision-revision-note mt-2 small text-success';
+        note.innerHTML = '<i class="bi bi-check2-square me-1"></i><strong>Committed (Revised)</strong>'
+            + (who ? ' by ' + escapeActionHtml(who) : '')
+            + (state.target_value ? ' · Target: ' + escapeActionHtml(state.target_value) : '')
+            + (state.target_date ? ' by ' + escapeActionHtml(String(state.target_date).substring(0, 10)) : '')
+            + tags.map(t => ' <span class="badge bg-secondary">' + escapeActionHtml(t) + '</span>').join('')
+            + (state.revision_notes ? '<div class="text-muted mt-1">' + escapeActionHtml(state.revision_notes) + '</div>' : '');
+        cell.appendChild(note);
+    };
+
     // Helper to dynamically update row classes and background colors based on chosen decision
-    window.updateRowStyle = function(row, decision) {
+    window.updateRowStyle = function(row, decision, state) {
         row.classList.remove('table-success', 'table-warning', 'table-danger');
         row.style.backgroundColor = '';
 
@@ -3794,13 +3888,20 @@ document.addEventListener('click', function (e) {
         if (decision !== 'Not viable for us' && decision !== 'not_viable') {
             window.renderDecisionRationale(row, null);
         }
+        // A revision stamp only belongs to a calibrated "Review in detail" row.
+        if (decision !== 'Review in detail' && decision !== 'review_in_detail') {
+            window.renderRevisionNote(row, null);
+        }
 
         if (decision === 'Act on it' || decision === 'act_on_it') {
             row.classList.add('table-success');
             row.style.backgroundColor = 'rgba(25, 135, 84, 0.1)';
         } else if (decision === 'Review in detail' || decision === 'review_in_detail') {
-            row.classList.add('table-warning');
-            row.style.backgroundColor = 'rgba(255, 193, 7, 0.1)';
+            // Calibrated actions are a committed (revised) state, so they read
+            // green like a commitment; uncalibrated ones stay amber.
+            const revised = state && state.revised_at;
+            row.classList.add(revised ? 'table-success' : 'table-warning');
+            row.style.backgroundColor = revised ? 'rgba(25, 135, 84, 0.1)' : 'rgba(255, 193, 7, 0.1)';
         } else if (decision === 'Not viable for us' || decision === 'not_viable') {
             row.classList.add('table-danger');
             row.style.backgroundColor = 'rgba(220, 53, 69, 0.1)';
@@ -3811,6 +3912,8 @@ document.addEventListener('click', function (e) {
     // Restores pre-selected choices from the database and highlights active commitments.
     window.renderRecommendedActionTable = function(rows, container) {
         const choices = ['Act on it', 'Review in detail', 'Not viable for us'];
+        // Kept so the "Review in Detail" modal can pre-fill from stored values.
+        window.actionTableRows = rows;
         let html = '<div class="response-text"><div class="table-responsive">'
             + '<table class="table table-bordered recommended-action-table">'
             + '<thead><tr>'
@@ -3847,8 +3950,11 @@ document.addEventListener('click', function (e) {
                 rowClass = 'table-success';
                 rowStyle = 'style="background-color: rgba(25, 135, 84, 0.1);"';
             } else if (r.decision === 'review_in_detail') {
-                rowClass = 'table-warning';
-                rowStyle = 'style="background-color: rgba(255, 193, 7, 0.1);"';
+                const revised = !!r.revised_at;
+                rowClass = revised ? 'table-success' : 'table-warning';
+                rowStyle = revised
+                    ? 'style="background-color: rgba(25, 135, 84, 0.1);"'
+                    : 'style="background-color: rgba(255, 193, 7, 0.1);"';
             } else if (r.decision === 'not_viable') {
                 rowClass = 'table-danger';
                 rowStyle = 'style="background-color: rgba(220, 53, 69, 0.1);"';
@@ -3870,6 +3976,14 @@ document.addEventListener('click', function (e) {
 
         html += '</tbody></table></div></div>';
         container.innerHTML = html;
+
+        // Re-apply the "Committed (Revised)" stamp on calibrated rows after reload.
+        const bodyRows = container.querySelectorAll('tbody tr');
+        rows.forEach((r, i) => {
+            if (r.decision === 'review_in_detail' && r.revised_at && bodyRows[i]) {
+                window.renderRevisionNote(bodyRows[i], r);
+            }
+        });
 
         // Wire up change listeners on the inputs
         const inputs = container.querySelectorAll('.action-choice-input');
@@ -3937,12 +4051,27 @@ document.addEventListener('click', function (e) {
                     window.activeRationaleInput = this;
                     new bootstrap.Modal(modalEl).show();
                 } else {
-                    // Instantly save "Review in detail"
-                    saveActionChoice(role, action, val, null, null, null, false, null, null, null, function(success) {
-                        if (success && row) {
-                            window.updateRowStyle(row, val);
-                        }
+                    // Calibrate before committing — the "Review in Detail" form.
+                    const existing = (Array.isArray(window.actionTableRows)
+                        ? window.actionTableRows.find(x => x.role === role) : null) || {};
+
+                    document.getElementById('review-role').value = role;
+                    // Pre-fill so the user edits existing context, never a blank form.
+                    document.getElementById('review-action').value = action;
+                    document.getElementById('review-metric').value = existing.success_metric || '';
+                    document.getElementById('review-value').value = existing.target_value || '';
+                    document.getElementById('review-date').value = existing.target_date
+                        ? String(existing.target_date).substring(0, 10) : '';
+                    document.getElementById('review-notes').value = existing.revision_notes || '';
+
+                    const savedTags = Array.isArray(existing.constraint_tags) ? existing.constraint_tags : [];
+                    document.querySelectorAll('#reviewDetailModal .review-tag').forEach(cb => {
+                        cb.checked = savedTags.indexOf(cb.value) !== -1;
                     });
+
+                    window.activeReviewInput = this;
+                    window.activeReviewOriginalAction = action;
+                    new bootstrap.Modal(document.getElementById('reviewDetailModal')).show();
                 }
                 
                 // Update wasChecked states for group
@@ -3953,32 +4082,40 @@ document.addEventListener('click', function (e) {
         });
     };
 
-    // Helper to send the decision choice to the backend
-    function saveActionChoice(role, action, decision, metric, targetVal, date, resources, dependsOnId, rationale, assumptionRef, callback) {
+    // Helper to send the decision choice to the backend.
+    // opts: { role, action, decision, metric, targetVal, date, resources,
+    //         dependsOnId, rationale, assumptionRef, isCalibration,
+    //         constraintTags, revisionNotes }
+    function saveActionChoice(opts, callback) {
         const chatId = window.chatChatId || (document.getElementById('chat_id') ? document.getElementById('chat_id').value : '');
-        
+        const role = opts.role;
+        const decision = opts.decision;
+
         let decisionKey = 'review_in_detail';
         if (decision === 'Act on it' || decision === 'act_on_it') {
             decisionKey = 'act_on_it';
-        } else if (decision === 'Not viable for us') {
+        } else if (decision === 'Not viable for us' || decision === 'not_viable') {
             decisionKey = 'not_viable';
         }
-        
+
         fetch('{{ route("users-new-chat-save-expected-state.index") }}', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
             body: JSON.stringify({
                 chat_id: chatId,
                 role: role,
-                recommended_action: action,
+                recommended_action: opts.action,
                 decision: decisionKey,
-                decision_rationale: rationale || null,
-                success_metric: metric || null,
-                target_value: targetVal || null,
-                target_date: date || null,
-                resources_committed: resources || false,
-                depends_on_id: dependsOnId || null,
-                assumption_ref: assumptionRef || null
+                decision_rationale: opts.rationale || null,
+                success_metric: opts.metric || null,
+                target_value: opts.targetVal || null,
+                target_date: opts.date || null,
+                resources_committed: opts.resources || false,
+                depends_on_id: opts.dependsOnId || null,
+                assumption_ref: opts.assumptionRef || null,
+                is_calibration: opts.isCalibration || false,
+                constraint_tags: opts.constraintTags || [],
+                revision_notes: opts.revisionNotes || null
             })
         })
         .then(r => r.json())
@@ -3990,7 +4127,7 @@ document.addEventListener('click', function (e) {
                 } else {
                     console.log(`Saved decision for ${role}`);
                 }
-                if (callback) callback(true);
+                if (callback) callback(true, data.expected_state);
             } else {
                 alert('Failed to save decision: ' + (data.error || 'unknown error'));
                 if (callback) callback(false);
@@ -4048,7 +4185,11 @@ document.addEventListener('click', function (e) {
                     confirmBtn.disabled = true;
                     confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Activating...';
 
-                    saveActionChoice(role, action, 'act_on_it', metric, val, date, resources, dependsOnId, null, assumptionRef, function(success) {
+                    saveActionChoice({
+                        role: role, action: action, decision: 'act_on_it',
+                        metric: metric, targetVal: val, date: date,
+                        resources: resources, dependsOnId: dependsOnId, assumptionRef: assumptionRef
+                    }, function(success) {
                         confirmBtn.disabled = false;
                         confirmBtn.innerHTML = '<i class="bi bi-shield-check me-1"></i> Confirm & Activate Commitment';
                         
@@ -4071,6 +4212,98 @@ document.addEventListener('click', function (e) {
                     });
                 });
             }
+        }
+
+        // Review in Detail: calibrate the Studio action before committing it.
+        const reviewModalEl = document.getElementById('reviewDetailModal');
+        if (reviewModalEl) {
+            reviewModalEl.addEventListener('hidden.bs.modal', function () {
+                // Dismissed without saving — undo the radio selection.
+                if (window.activeReviewInput && !window.reviewConfirmed) {
+                    const input = window.activeReviewInput;
+                    input.checked = false;
+                    input.dataset.wasChecked = 'false';
+
+                    const table = input.closest('table');
+                    if (table) {
+                        table.querySelectorAll(`input[name="${input.name}"]`).forEach(sibling => {
+                            if (sibling !== input && sibling.dataset.wasChecked === 'true') {
+                                sibling.checked = true;
+                            }
+                        });
+                    }
+                    window.activeReviewInput = null;
+                }
+                window.reviewConfirmed = false;
+            });
+
+            const confirmReviewBtn = document.getElementById('confirmReviewBtn');
+            confirmReviewBtn.addEventListener('click', function() {
+                const form = document.getElementById('reviewDetailForm');
+                if (!form.checkValidity()) {
+                    form.reportValidity();
+                    return;
+                }
+
+                const role = document.getElementById('review-role').value;
+                const refinedAction = document.getElementById('review-action').value;
+                const metric = document.getElementById('review-metric').value;
+                const targetVal = document.getElementById('review-value').value;
+                const date = document.getElementById('review-date').value;
+                const notes = document.getElementById('review-notes').value;
+                const tags = Array.from(document.querySelectorAll('#reviewDetailModal .review-tag:checked')).map(cb => cb.value);
+
+                confirmReviewBtn.disabled = true;
+                confirmReviewBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Saving...';
+
+                saveActionChoice({
+                    role: role,
+                    action: refinedAction,
+                    decision: 'review_in_detail',
+                    metric: metric,
+                    targetVal: targetVal,
+                    date: date,
+                    isCalibration: true,
+                    constraintTags: tags,
+                    revisionNotes: notes
+                }, function(success, state) {
+                    confirmReviewBtn.disabled = false;
+                    confirmReviewBtn.innerHTML = '<i class="bi bi-check2-square me-1"></i> Save Revised Commitment';
+
+                    if (success) {
+                        window.reviewConfirmed = true;
+
+                        // Keep the cached row in sync so re-opening the modal
+                        // pre-fills with what the user just saved.
+                        if (Array.isArray(window.actionTableRows)) {
+                            const cached = window.actionTableRows.find(x => x.role === role);
+                            if (cached && state) Object.assign(cached, state, { action: refinedAction });
+                        }
+
+                        if (window.activeReviewInput) {
+                            const row = window.activeReviewInput.closest('tr');
+                            if (row) {
+                                // The refined scope replaces the AI wording in the table.
+                                const actionCell = row.cells[1];
+                                if (actionCell) {
+                                    const stamp = actionCell.querySelector('.decision-revision-note');
+                                    actionCell.textContent = refinedAction;
+                                    if (stamp) actionCell.appendChild(stamp);
+                                }
+                                window.activeReviewInput.dataset.action = refinedAction;
+                                window.updateRowStyle(row, 'review_in_detail', state);
+                                window.renderRevisionNote(row, state);
+                            }
+                        }
+
+                        const modal = bootstrap.Modal.getInstance(reviewModalEl) || new bootstrap.Modal(reviewModalEl);
+                        modal.hide();
+
+                        // The revised baseline is now the tracking target.
+                        window.refreshProgressTile();
+                    }
+                });
+            });
         }
 
         // Decision Audit Trail: capture *why* an action was ruled out.
@@ -4112,7 +4345,9 @@ document.addEventListener('click', function (e) {
                 confirmRationaleBtn.disabled = true;
                 confirmRationaleBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Recording...';
 
-                saveActionChoice(role, action, decision, null, null, null, false, null, reason, null, function(success) {
+                saveActionChoice({
+                    role: role, action: action, decision: decision, rationale: reason
+                }, function(success) {
                     confirmRationaleBtn.disabled = false;
                     confirmRationaleBtn.innerHTML = '<i class="bi bi-check2-circle me-1"></i> Record Decision';
 
@@ -4292,6 +4527,22 @@ document.addEventListener('click', function (e) {
                         return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString();
                     };
 
+                    // Human-AI alignment variance: a calibrated commitment shows who
+                    // revised it, under which constraints, and what the AI first proposed.
+                    const revisionStamp = (state) => {
+                        if (!state.revised_at) return '';
+                        const who = [state.revised_by_name, state.revised_by_role].filter(Boolean).join(' — ');
+                        const tags = Array.isArray(state.constraint_tags) ? state.constraint_tags : [];
+                        const original = state.ai_original || {};
+                        const originalTarget = original.target_value || original.success_metric;
+                        return `<div class="small mt-1 text-success">
+                                <i class="bi bi-check2-square me-1"></i>Committed (Revised)${who ? ' · ' + escapeActionHtml(who) : ''}
+                                ${tags.map(t => `<span class="badge bg-secondary ms-1" style="font-size:0.62rem;">${escapeActionHtml(t)}</span>`).join('')}
+                            </div>
+                            ${originalTarget ? `<div class="text-muted small"><i class="bi bi-robot me-1"></i>AI originally proposed: ${escapeActionHtml(originalTarget)}</div>` : ''}
+                            ${state.revision_notes ? `<div class="text-muted small fst-italic">"${escapeActionHtml(state.revision_notes)}"</div>` : ''}`;
+                    };
+
                     data.states.forEach(state => {
                         const obs = state.latest_observation || {};
                         const status = obs.status || 'Scheduled';
@@ -4388,7 +4639,10 @@ document.addEventListener('click', function (e) {
                                     <strong>${escapeActionHtml(state.role)}</strong>
                                     ${dependencyText}
                                 </td>
-                                <td><span class="text-muted small">${escapeActionHtml(state.recommended_action)}</span></td>
+                                <td>
+                                    <span class="text-muted small">${escapeActionHtml(state.recommended_action)}</span>
+                                    ${revisionStamp(state)}
+                                </td>
                                 <td>
                                     <div><i class="bi bi-bullseye text-danger me-1"></i>${escapeActionHtml(state.success_metric)}</div>
                                     <div class="text-muted small mt-1"><i class="bi bi-calendar-event me-1"></i>Target: ${targetDate}</div>
