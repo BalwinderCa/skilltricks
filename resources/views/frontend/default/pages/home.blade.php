@@ -359,7 +359,6 @@
 </div>
 
 
-<script src="https://login2design.in/htmls/skilltricksinc-new/assets/js/index.js"></script>
 <script src="assets/js/globe.js"></script>
     <script src="assets/js/animation.js"></script>
     <script src="assets/js/horizontal.js"></script>

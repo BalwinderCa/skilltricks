@@ -83,15 +83,16 @@
 
         <section class="video-section">
             <div class="video-container">
-                <video 
+                {{-- ponytail: source dropped, login2design.in is a parked domain and never served the file. Add a local <source> when a video exists. --}}
+                <video
                     autoplay
                     muted
                     loop
                     playsinline
                     width="100%"
                     height="100%"
-                >
-                <source src="https://login2design.in/htmls/skilltricksinc-new/assets/images/video.qt" type="video/mp4">        
+                ></video>
+            </div>
         </section>
         
         <section class="features-section" id="choose">
