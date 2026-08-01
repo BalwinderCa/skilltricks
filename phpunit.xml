@@ -19,6 +19,10 @@
     </source>
     <php>
         <env name="APP_ENV" value="testing"/>
+        <!-- Decodes to exactly 32 bytes, which aes-256-cbc requires. Without this the
+             suite reports ~13 "Unsupported cipher or incorrect key length" errors that
+             look like real failures. Test-only value, never used outside phpunit. -->
+        <env name="APP_KEY" value="base64:bm90LWEtc2VjcmV0LXRlc3Rpbmcta2V5LTMyYnl0ZXM=" force="true"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>

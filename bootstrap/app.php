@@ -1,9 +1,23 @@
 <?php
 
+use App\Http\Middleware\AffiliateMiddleWare;
+use App\Http\Middleware\AffiliateReferral;
+use App\Http\Middleware\CurrencyMiddleware;
+use App\Http\Middleware\DemoMiddleware;
+use App\Http\Middleware\EnsureDemoMode;
+use App\Http\Middleware\IsAdmin;
+use App\Http\Middleware\IsBanned;
+use App\Http\Middleware\IsCustomer;
+use App\Http\Middleware\IsFrontendEnable;
+use App\Http\Middleware\IsInMaintenance;
+use App\Http\Middleware\LanguageMiddleware;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Support\Facades\Route;
+use Spatie\Permission\Middleware\PermissionMiddleware;
+use Spatie\Permission\Middleware\RoleMiddleware;
+use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -19,25 +33,34 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         // Global and web-specific middleware
         $middleware->web(append: [
-            \App\Http\Middleware\LanguageMiddleware::class,
-            \App\Http\Middleware\CurrencyMiddleware::class,
-            \App\Http\Middleware\AffiliateReferral::class,
-            \App\Http\Middleware\IsInMaintenance::class,
+            LanguageMiddleware::class,
+            CurrencyMiddleware::class,
+            AffiliateReferral::class,
+            IsInMaintenance::class,
+        ]);
+
+        // Payment webhooks authenticate by provider signature, not by session CSRF, so
+        // they must be exempt. app/Http/Middleware/VerifyCsrfToken.php still lists these
+        // in $except, but Laravel 12 never registers that class, so the list had no
+        // effect and both endpoints answered 419 to every real callback.
+        $middleware->validateCsrfTokens(except: [
+            'webhooks/paypal',
+            'webhooks/stripe',
         ]);
 
         // Route middleware aliases
         $middleware->alias([
-            'admin' => \App\Http\Middleware\IsAdmin::class,
-            'customer' => \App\Http\Middleware\IsCustomer::class,
-            'isBanned' => \App\Http\Middleware\IsBanned::class,
-            'affiliate' => \App\Http\Middleware\AffiliateMiddleWare::class,
-            'demo' => \App\Http\Middleware\DemoMiddleware::class,
-            'ensureDemoMode' => \App\Http\Middleware\EnsureDemoMode::class,
-            'frontendAllow' => \App\Http\Middleware\IsFrontendEnable::class,
+            'admin' => IsAdmin::class,
+            'customer' => IsCustomer::class,
+            'isBanned' => IsBanned::class,
+            'affiliate' => AffiliateMiddleWare::class,
+            'demo' => DemoMiddleware::class,
+            'ensureDemoMode' => EnsureDemoMode::class,
+            'frontendAllow' => IsFrontendEnable::class,
             // Spatie Permissions v6
-            'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
-            'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
-            'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
+            'role' => RoleMiddleware::class,
+            'permission' => PermissionMiddleware::class,
+            'role_or_permission' => RoleOrPermissionMiddleware::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
