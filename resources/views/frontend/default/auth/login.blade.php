@@ -82,7 +82,7 @@
                             <div class="col-12">
                                 <label class="fw-bold">Admin Access</label>
                                 <div class="d-flex flex-wrap align-items-center justify-content-between border-bottom pb-3">
-                                    <small>admin@themetags.com</small>
+                                    <small>admin@example.com</small>
                                     <small>123456</small>
                                     <button class="btn btn-sm btn-secondary py-0 px-2" type="button"
                                         onclick="copyAdmin()">Copy</button>
@@ -92,7 +92,7 @@
                             <div class="col-12 mt-3">
                                 <label class="fw-bold">Customer Access</label>
                                 <div class="d-flex flex-wrap align-items-center justify-content-between">
-                                    <small>customer@themetags.com</small>
+                                    <small>customer@example.com</small>
                                     <small>123456</small>
 
                                     <button class="btn btn-sm btn-secondary py-0 px-2" type="button"
@@ -129,17 +129,20 @@
     <script>
         "use strict";
 
-        // copyAdmin
-        function copyAdmin() {
-            $('#email').val('admin@themetags.com');
-            $('#password').val('123456');
-        }
+        {{-- Only emitted alongside the demo-credential buttons above, which sit behind the same guard. --}}
+        @if (config('custom.demo_mode') == 'On')
+            // copyAdmin
+            function copyAdmin() {
+                $('#email').val('admin@example.com');
+                $('#password').val('123456');
+            }
 
-        // copyCustomer
-        function copyCustomer() {
-            $('#email').val('customer@themetags.com');
-            $('#password').val('123456');
-        }
+            // copyCustomer
+            function copyCustomer() {
+                $('#email').val('customer@example.com');
+                $('#password').val('123456');
+            }
+        @endif
 
         // change input to phone
         function handleLoginWithPhone() {

@@ -159,7 +159,7 @@
         <label class="clr-neutral-80 mb-2">Admin Access</label>
         <div
             class="d-flex flex-wrap align-items-center justify-content-between border-bottom pb-3">
-            <small class="clr-neutral-80 fs-12">admin@themetags.com</small>
+            <small class="clr-neutral-80 fs-12">admin@example.com</small>
             <small class="clr-neutral-80 fs-12">123456</small>
             <button class="btn btn-sm btn-secondary py-0 px-2" type="button"
                 onclick="copyAdmin()">Copy</button>
@@ -169,7 +169,7 @@
     <div class="col-12 mt-3">
         <label class="clr-neutral-80 mb-2">Customer Access</label>
         <div class="d-flex flex-wrap align-items-center justify-content-between">
-            <small class="clr-neutral-80 fs-12">customer@themetags.com</small>
+            <small class="clr-neutral-80 fs-12">customer@example.com</small>
             <small class="clr-neutral-80 fs-12">123456</small>
 
             <button class="btn btn-sm btn-secondary py-0 px-2" type="button"

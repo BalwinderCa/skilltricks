@@ -56,6 +56,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Frontend Theme
+    |--------------------------------------------------------------------------
+    |
+    | Picks which "frontend.{theme}" view namespace getView() resolves against.
+    | This key was lost when config/app.php was slimmed down during the Laravel
+    | 12 upgrade, which left getTheme() returning null, so every getView() route
+    | built a malformed "frontend..pages.*" path and returned a 500.
+    |
+    */
+
+    'theme' => env('APP_THEME', 'default'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |

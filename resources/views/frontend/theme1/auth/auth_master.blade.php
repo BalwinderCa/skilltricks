@@ -55,13 +55,13 @@
 
         // copyAdmin
         function copyAdmin() {
-            $('#email').val('admin@themetags.com');
+            $('#email').val('admin@example.com');
             $('#password').val('123456');
         }
 
         // copyCustomer
         function copyCustomer() {
-            $('#email').val('customer@themetags.com');
+            $('#email').val('customer@example.com');
             $('#password').val('123456');
         }
 

@@ -465,13 +465,13 @@ hidden;
 
         // copyAdmin
         function copyAdmin() {
-            $('#email').val('admin@themetags.com');
+            $('#email').val('admin@example.com');
             $('#password').val('123456');
         }
 
         // copyCustomer
         function copyCustomer() {
-            $('#email').val('customer@themetags.com');
+            $('#email').val('customer@example.com');
             $('#password').val('123456');
         }
 
@@ -602,7 +602,7 @@ hidden;
                             <div class="col-12">
                                 <label class="fw-bold">Admin Access</label>
                                 <div class="d-flex flex-wrap align-items-center justify-content-between border-bottom pb-3">
-                                    <small>admin@themetags.com</small>
+                                    <small>admin@example.com</small>
                                     <small>123456</small>
                                     <button class="btn btn-sm btn-secondary py-0 px-2" type="button"
                                         onclick="copyAdmin()">Copy</button>
@@ -612,7 +612,7 @@ hidden;
                             <div class="col-12 mt-3">
                                 <label class="fw-bold">Customer Access</label>
                                 <div class="d-flex flex-wrap align-items-center justify-content-between">
-                                    <small>customer@themetags.com</small>
+                                    <small>customer@example.com</small>
                                     <small>123456</small>
 
                                     <button class="btn btn-sm btn-secondary py-0 px-2" type="button"
@@ -651,13 +651,13 @@ hidden;
 
         // // copyAdmin
         // function copyAdmin() {
-        //     $('#email').val('admin@themetags.com');
+        //     $('#email').val('admin@example.com');
         //     $('#password').val('123456');
         // }
 
         // // copyCustomer
         // function copyCustomer() {
-        //     $('#email').val('customer@themetags.com');
+        //     $('#email').val('customer@example.com');
         //     $('#password').val('123456');
         // }
 
