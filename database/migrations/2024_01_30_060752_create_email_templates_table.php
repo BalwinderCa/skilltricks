@@ -1,10 +1,10 @@
 <?php
 
 use App\Models\EmailTemplate;
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Database\Migrations\Migration;
 
 class CreateEmailTemplatesTable extends Migration
 {
@@ -30,13 +30,13 @@ class CreateEmailTemplatesTable extends Migration
         });
         try {
             $templates = [
-                'welcome-email'=>[
-                    'name'      => 'Welcome Email',
-                    'subject'   => 'Welcome Email',
-                    'slug'      => 'welcome-email',
-                    'type'      => 'welcome-email',
+                'welcome-email' => [
+                    'name' => 'Welcome Email',
+                    'subject' => 'Welcome Email',
+                    'slug' => 'welcome-email',
+                    'type' => 'welcome-email',
                     'variables' => '[name], [email], [phone]',
-                    'code'      => '<div style="background-color:#D5D9E2; font-family:Arial,Helvetica,sans-serif; line-height: 1.5; min-height: 100%; font-weight: normal; font-size: 15px; color: #2F3044; margin:0; padding:0; width:100%;">
+                    'code' => '<div style="background-color:#D5D9E2; font-family:Arial,Helvetica,sans-serif; line-height: 1.5; min-height: 100%; font-weight: normal; font-size: 15px; color: #2F3044; margin:0; padding:0; width:100%;">
                     <div
                       style="background-color:#ffffff; padding: 45px 0 34px 0; border-radius: 24px; margin:0 auto; max-width: 600px;">
                       <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" height="auto"
@@ -105,15 +105,15 @@ class CreateEmailTemplatesTable extends Migration
                       </table>
                     </div>
                   </div>',
-                    
+
                 ],
-                'registration-verification'=>[
-                    'name'      => 'Registration Verification',
-                    'subject'      => 'Registration Verification',
-                    'slug'      => 'registration-verification',
-                    'type'      => 'registration-verification',
+                'registration-verification' => [
+                    'name' => 'Registration Verification',
+                    'subject' => 'Registration Verification',
+                    'slug' => 'registration-verification',
+                    'type' => 'registration-verification',
                     'variables' => '[name], [email], [phone]',
-                    'code'      => '<div style="background-color:#D5D9E2; font-family:Arial,Helvetica,sans-serif; line-height: 1.5; min-height: 100%; font-weight: normal; font-size: 15px; color: #2F3044; margin:0; padding:0; width:100%;">
+                    'code' => '<div style="background-color:#D5D9E2; font-family:Arial,Helvetica,sans-serif; line-height: 1.5; min-height: 100%; font-weight: normal; font-size: 15px; color: #2F3044; margin:0; padding:0; width:100%;">
                     <div
                       style="background-color:#ffffff; padding: 45px 0 34px 0; border-radius: 24px; margin:0 auto; max-width: 600px;">
                       <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" height="auto"
@@ -192,15 +192,15 @@ class CreateEmailTemplatesTable extends Migration
                       </table>
                     </div>
                   </div>',
-                    
+
                 ],
-                'add-new-customer-welcome-email'=>[
-                  'name'      => 'Add New Customer Welcome Email',
-                  'subject'   => 'Add New Customer Welcome Email',
-                  'slug'      => 'add-new-customer-welcome-email',
-                  'type'      => 'add-new-customer-welcome-email',
-                  'variables' => '[name], [email], [phone], [password], [package], [startDate], [endDate], [price], [method]',
-                  'code'      => '<div style="background-color:#D5D9E2; font-family:Arial,Helvetica,sans-serif; line-height: 1.5; min-height: 100%; font-weight: normal; font-size: 15px; color: #2F3044; margin:0; padding:0; width:100%;">
+                'add-new-customer-welcome-email' => [
+                    'name' => 'Add New Customer Welcome Email',
+                    'subject' => 'Add New Customer Welcome Email',
+                    'slug' => 'add-new-customer-welcome-email',
+                    'type' => 'add-new-customer-welcome-email',
+                    'variables' => '[name], [email], [phone], [password], [package], [startDate], [endDate], [price], [method]',
+                    'code' => '<div style="background-color:#D5D9E2; font-family:Arial,Helvetica,sans-serif; line-height: 1.5; min-height: 100%; font-weight: normal; font-size: 15px; color: #2F3044; margin:0; padding:0; width:100%;">
                   <div
                     style="background-color:#ffffff; padding: 45px 0 34px 0; border-radius: 24px; margin:0 auto; max-width: 600px;">
                     <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" height="auto"
@@ -282,15 +282,15 @@ class CreateEmailTemplatesTable extends Migration
                     </table>
                   </div>
                 </div>',
-                  
-              ],
-                'purchase-package'=>[
-                    'name'      => 'Purchase Package',
-                    'subject'      => 'Purchase Package',
-                    'slug'      => 'purchase-package',
-                    'type'      => 'purchase-package',
+
+                ],
+                'purchase-package' => [
+                    'name' => 'Purchase Package',
+                    'subject' => 'Purchase Package',
+                    'slug' => 'purchase-package',
+                    'type' => 'purchase-package',
                     'variables' => '[name], [email], [phone], [package],[startDate], [endDate],[price]',
-                    'code'      => '<div style="background-color:#D5D9E2; font-family:Arial,Helvetica,sans-serif; line-height: 1.5; min-height: 100%; font-weight: normal; font-size: 15px; color: #2F3044; margin:0; padding:0; width:100%;">
+                    'code' => '<div style="background-color:#D5D9E2; font-family:Arial,Helvetica,sans-serif; line-height: 1.5; min-height: 100%; font-weight: normal; font-size: 15px; color: #2F3044; margin:0; padding:0; width:100%;">
                     <div
                       style="background-color:#ffffff; padding: 45px 0 34px 0; border-radius: 24px; margin:0 auto; max-width: 600px;">
                       <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" height="auto"
@@ -359,15 +359,15 @@ class CreateEmailTemplatesTable extends Migration
                       </table>
                     </div>
                   </div>',
-                    
+
                 ],
-                'admin-assign-package'=>[
-                    'name'      => 'Admin Assign Package',
-                    'subject'      => 'Admin Assign Package',
-                    'slug'      => 'admin-assign-package',
-                    'type'      => 'admin-assign-package',
+                'admin-assign-package' => [
+                    'name' => 'Admin Assign Package',
+                    'subject' => 'Admin Assign Package',
+                    'slug' => 'admin-assign-package',
+                    'type' => 'admin-assign-package',
                     'variables' => '[name], [email], [phone], [package],[startDate], [endDate],[price]',
-                    'code'      => '<div style="background-color:#D5D9E2; font-family:Arial,Helvetica,sans-serif; line-height: 1.5; min-height: 100%; font-weight: normal; font-size: 15px; color: #2F3044; margin:0; padding:0; width:100%;">
+                    'code' => '<div style="background-color:#D5D9E2; font-family:Arial,Helvetica,sans-serif; line-height: 1.5; min-height: 100%; font-weight: normal; font-size: 15px; color: #2F3044; margin:0; padding:0; width:100%;">
                     <div
                       style="background-color:#ffffff; padding: 45px 0 34px 0; border-radius: 24px; margin:0 auto; max-width: 600px;">
                       <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" height="auto"
@@ -439,15 +439,15 @@ class CreateEmailTemplatesTable extends Migration
                       </table>
                     </div>
                   </div>',
-                    
+
                 ],
-                'offline-payment-request'=>[
-                    'name'      => 'Offline Payment Request',
-                    'subject'      => 'Offline Payment Request',
-                    'slug'      => 'offline-payment-request',
-                    'type'      => 'offline-payment-request',
+                'offline-payment-request' => [
+                    'name' => 'Offline Payment Request',
+                    'subject' => 'Offline Payment Request',
+                    'slug' => 'offline-payment-request',
+                    'type' => 'offline-payment-request',
                     'variables' => '[name], [email], [phone], [package],[price], [method],[note]',
-                    'code'      => '<div style="background-color:#D5D9E2; font-family:Arial,Helvetica,sans-serif; line-height: 1.5; min-height: 100%; font-weight: normal; font-size: 15px; color: #2F3044; margin:0; padding:0; width:100%;">
+                    'code' => '<div style="background-color:#D5D9E2; font-family:Arial,Helvetica,sans-serif; line-height: 1.5; min-height: 100%; font-weight: normal; font-size: 15px; color: #2F3044; margin:0; padding:0; width:100%;">
                     <div
                       style="background-color:#ffffff; padding: 45px 0 34px 0; border-radius: 24px; margin:0 auto; max-width: 600px;">
                       <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" height="auto"
@@ -516,15 +516,15 @@ class CreateEmailTemplatesTable extends Migration
                       </table>
                     </div>
                   </div>',
-                    
+
                 ],
-                'offline-payment-request-approve'=>[
-                    'name'      => 'Offline Payment Request Approve',
-                    'subject'      => 'Offline Payment Request Approve',
-                    'slug'      => 'offline-payment-request-approve',
-                    'type'      => 'offline-payment-request-approve',
+                'offline-payment-request-approve' => [
+                    'name' => 'Offline Payment Request Approve',
+                    'subject' => 'Offline Payment Request Approve',
+                    'slug' => 'offline-payment-request-approve',
+                    'type' => 'offline-payment-request-approve',
                     'variables' => '[name], [email], [phone], [package],[startDate], [endDate],[price], [method],[note]',
-                    'code'      => '<div style="background-color:#D5D9E2; font-family:Arial,Helvetica,sans-serif; line-height: 1.5; min-height: 100%; font-weight: normal; font-size: 15px; color: #2F3044; margin:0; padding:0; width:100%;">
+                    'code' => '<div style="background-color:#D5D9E2; font-family:Arial,Helvetica,sans-serif; line-height: 1.5; min-height: 100%; font-weight: normal; font-size: 15px; color: #2F3044; margin:0; padding:0; width:100%;">
                     <div
                       style="background-color:#ffffff; padding: 45px 0 34px 0; border-radius: 24px; margin:0 auto; max-width: 600px;">
                       <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" height="auto"
@@ -594,15 +594,15 @@ class CreateEmailTemplatesTable extends Migration
                       </table>
                     </div>
                   </div>',
-                    
+
                 ],
-                'offline-payment-request-rejected'=>[
-                    'name'      => 'Offline Payment Request Reject',
-                    'subject'   => 'Offline Payment Request Reject',
-                    'slug'      => 'offline-payment-request-rejected',
-                    'type'      => 'offline-payment-request-rejected',
+                'offline-payment-request-rejected' => [
+                    'name' => 'Offline Payment Request Reject',
+                    'subject' => 'Offline Payment Request Reject',
+                    'slug' => 'offline-payment-request-rejected',
+                    'type' => 'offline-payment-request-rejected',
                     'variables' => '[name], [email], [phone], [package],[price], [method],[note]',
-                    'code'      => '<div style="background-color:#D5D9E2; font-family:Arial,Helvetica,sans-serif; line-height: 1.5; min-height: 100%; font-weight: normal; font-size: 15px; color: #2F3044; margin:0; padding:0; width:100%;">
+                    'code' => '<div style="background-color:#D5D9E2; font-family:Arial,Helvetica,sans-serif; line-height: 1.5; min-height: 100%; font-weight: normal; font-size: 15px; color: #2F3044; margin:0; padding:0; width:100%;">
                     <div
                       style="background-color:#ffffff; padding: 45px 0 34px 0; border-radius: 24px; margin:0 auto; max-width: 600px;">
                       <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" height="auto"
@@ -671,15 +671,15 @@ class CreateEmailTemplatesTable extends Migration
                       </table>
                     </div>
                   </div>',
-                    
+
                 ],
-                'offline-payment-request-add-note'=>[
-                    'name'      => 'Offline Payment Request Add Note',
-                    'subject'   => 'Offline Payment Request Add Note',
-                    'slug'      => 'offline-payment-request-add-note',
-                    'type'      => 'offline-payment-request-add-note',
+                'offline-payment-request-add-note' => [
+                    'name' => 'Offline Payment Request Add Note',
+                    'subject' => 'Offline Payment Request Add Note',
+                    'slug' => 'offline-payment-request-add-note',
+                    'type' => 'offline-payment-request-add-note',
                     'variables' => '[name], [email], [phone], [package],[price], [method],[note]',
-                    'code'      => '<div style="background-color:#D5D9E2; font-family:Arial,Helvetica,sans-serif; line-height: 1.5; min-height: 100%; font-weight: normal; font-size: 15px; color: #2F3044; margin:0; padding:0; width:100%;">
+                    'code' => '<div style="background-color:#D5D9E2; font-family:Arial,Helvetica,sans-serif; line-height: 1.5; min-height: 100%; font-weight: normal; font-size: 15px; color: #2F3044; margin:0; padding:0; width:100%;">
                     <div
                       style="background-color:#ffffff; padding: 45px 0 34px 0; border-radius: 24px; margin:0 auto; max-width: 600px;">
                       <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" height="auto"
@@ -748,15 +748,15 @@ class CreateEmailTemplatesTable extends Migration
                         </tbody>
                       </table>
                     </div>
-                  </div>',                
+                  </div>',
                 ],
-                'ticket-assign'=>[
-                    'name'      => 'Assign Ticket',
-                    'subject'   => 'Assign Ticket',
-                    'slug'      => 'ticket-assign',
-                    'type'      => 'ticket-assign',
+                'ticket-assign' => [
+                    'name' => 'Assign Ticket',
+                    'subject' => 'Assign Ticket',
+                    'slug' => 'ticket-assign',
+                    'type' => 'ticket-assign',
                     'variables' => '[name], [email], [phone], [title], [ticketId]',
-                    'code'      => '<div style="background-color:#D5D9E2; font-family:Arial,Helvetica,sans-serif; line-height: 1.5; min-height: 100%; font-weight: normal; font-size: 15px; color: #2F3044; margin:0; padding:0; width:100%;">
+                    'code' => '<div style="background-color:#D5D9E2; font-family:Arial,Helvetica,sans-serif; line-height: 1.5; min-height: 100%; font-weight: normal; font-size: 15px; color: #2F3044; margin:0; padding:0; width:100%;">
                     <div
                       style="background-color:#ffffff; padding: 45px 0 34px 0; border-radius: 24px; margin:0 auto; max-width: 600px;">
                       <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" height="auto"
@@ -824,15 +824,15 @@ class CreateEmailTemplatesTable extends Migration
                         </tbody>
                       </table>
                     </div>
-                  </div>',                
+                  </div>',
                 ],
-                'ticket-reply'=>[
-                    'name'      => 'Ticket Reply',
-                    'subject'   => 'Ticket Reply',
-                    'slug'      => 'ticket-reply',
-                    'type'      => 'ticket-reply',
+                'ticket-reply' => [
+                    'name' => 'Ticket Reply',
+                    'subject' => 'Ticket Reply',
+                    'slug' => 'ticket-reply',
+                    'type' => 'ticket-reply',
                     'variables' => '[name], [email], [phone], [title],[titleId]',
-                    'code'      => '<div style="background-color:#D5D9E2; font-family:Arial,Helvetica,sans-serif; line-height: 1.5; min-height: 100%; font-weight: normal; font-size: 15px; color: #2F3044; margin:0; padding:0; width:100%;">
+                    'code' => '<div style="background-color:#D5D9E2; font-family:Arial,Helvetica,sans-serif; line-height: 1.5; min-height: 100%; font-weight: normal; font-size: 15px; color: #2F3044; margin:0; padding:0; width:100%;">
                     <div
                       style="background-color:#ffffff; padding: 45px 0 34px 0; border-radius: 24px; margin:0 auto; max-width: 600px;">
                       <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" height="auto"
@@ -900,25 +900,41 @@ class CreateEmailTemplatesTable extends Migration
                         </tbody>
                       </table>
                     </div>
-                  </div>',                
+                  </div>',
                 ],
-      
+
             ];
-    
-            foreach($templates as $key=>$template) {
+
+            // The template HTML below was authored against the vendor's demo site. Both
+            // writebot.themetags.com and skill.login2design.in are dead -- the first no
+            // longer resolves at all -- so seeding those URLs verbatim gives every
+            // transactional email a broken logo and a link to nowhere. Rewrite them onto
+            // this installation's own assets, which are tracked in the repo and therefore
+            // present on any deploy. Longest patterns first: str_replace applies the map
+            // in order, and the bare host would otherwise clobber the two full URLs.
+            $appUrl = rtrim(config('app.url'), '/');
+            $replacements = [
+                'https://writebot.themetags.com/public/uploads/media/bwZeX0SwgEwevLfO0yCGNAvxkFq8vdlVAt6swLQX.png' => $appUrl.'/public/backend/assets/img/logo.png',
+                'https://writebot.themetags.com/public/images/like.svg' => $appUrl.'/public/images/like.svg',
+                'https://writebot.themetags.com/' => $appUrl.'/',
+                'Copyright ThemeTags' => 'Copyright '.config('app.name'),
+                'admin@themetags.com' => config('mail.from.address'),
+            ];
+
+            foreach ($templates as $key => $template) {
                 EmailTemplate::updateOrCreate([
-                    'slug' => $key
+                    'slug' => $key,
                 ], [
-                    'name'      => $template['name'],
-                    'subject'   => $template['subject'],
-                    'slug'      => $template['slug'],
-                    'type'      => $template['type'],
+                    'name' => $template['name'],
+                    'subject' => $template['subject'],
+                    'slug' => $template['slug'],
+                    'type' => $template['type'],
                     'variables' => $template['variables'],
-                    'code'      => $template['code']
+                    'code' => str_replace(array_keys($replacements), array_values($replacements), $template['code']),
                 ]);
             }
-        } catch (\Throwable $th) {
-            Log::info("email template migration issues : ". $th->getMessage());
+        } catch (Throwable $th) {
+            Log::info('email template migration issues : '.$th->getMessage());
         }
 
     }

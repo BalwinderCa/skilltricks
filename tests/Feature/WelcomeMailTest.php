@@ -40,6 +40,28 @@ class WelcomeMailTest extends TestCase
         $this->assertStringContainsString('Hello Ada Lovelace, welcome aboard.', $html);
     }
 
+    /**
+     * The seeding migration originally hardcoded writebot.themetags.com, which no longer
+     * resolves, so every freshly-installed environment shipped emails with a broken logo
+     * and a dead link. RefreshDatabase runs that migration, so this asserts the real seed.
+     */
+    public function test_seeded_email_templates_contain_no_dead_vendor_urls(): void
+    {
+        $templates = EmailTemplate::all();
+
+        $this->assertNotEmpty($templates, 'migration should seed email templates');
+
+        foreach ($templates as $template) {
+            foreach (['themetags', 'login2design'] as $vendor) {
+                $this->assertStringNotContainsStringIgnoringCase(
+                    $vendor,
+                    (string) $template->code,
+                    "Template [{$template->type}] still references {$vendor}"
+                );
+            }
+        }
+    }
+
     /** An inactive or absent template must fail the job, not deliver an empty message. */
     public function test_welcome_mail_refuses_to_send_without_an_active_template(): void
     {
