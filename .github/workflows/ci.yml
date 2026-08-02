@@ -61,8 +61,46 @@ jobs:
     runs-on: ubuntu-latest
     needs: [tests, pint]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    env:
+      # Defined once so the two attempts below cannot drift apart. Every command is
+      # idempotent -- reset --hard, composer install and migrate --force all re-run
+      # safely -- so replaying the whole deploy on a retry is fine.
+      DEPLOY_SCRIPT: |
+        echo "==> Deploying to Staging Server"
+        cd public_html/staging
+
+        echo "==> Enabling Maintenance Mode"
+        php artisan down || true
+
+        echo "==> Pulling latest code from main"
+        git fetch origin main
+        git reset --hard origin/main
+
+        echo "==> Syncing optimized composer dependencies"
+        composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+
+        echo "==> Running database migrations"
+        php artisan migrate --force
+
+        echo "==> Rebuilding route and template caches"
+        php artisan route:cache
+        php artisan view:cache
+        php artisan config:clear
+
+        echo "==> Restarting background queues"
+        php artisan queue:restart
+
+        echo "==> Lifting Maintenance Mode"
+        php artisan up
+
+        echo "✓ Staging deployment finished successfully!"
     steps:
+      # appleboy/ssh-action exposes no retry input, so the retry wraps the step. On
+      # 2026-08-02 a deploy that had passed every gate was lost to "dial tcp: i/o
+      # timeout" -- the runner never opened SSH, so none of the script ran.
       - name: Execute Remote Deploy Commands over SSH
+        id: deploy
+        continue-on-error: true
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.STAGING_SSH_HOST }}
@@ -70,35 +108,24 @@ jobs:
           username: ${{ secrets.STAGING_SSH_USER }}
           key: ${{ secrets.STAGING_SSH_KEY }}
           timeout: 120s
-          script: |
-            echo "==> Deploying to Staging Server"
-            cd public_html/staging
-            
-            echo "==> Enabling Maintenance Mode"
-            php artisan down || true
-            
-            echo "==> Pulling latest code from main"
-            git fetch origin main
-            git reset --hard origin/main
-            
-            echo "==> Syncing optimized composer dependencies"
-            composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
-            
-            echo "==> Running database migrations"
-            php artisan migrate --force
-            
-            echo "==> Rebuilding route and template caches"
-            php artisan route:cache
-            php artisan view:cache
-            php artisan config:clear
-            
-            echo "==> Restarting background queues"
-            php artisan queue:restart
-            
-            echo "==> Lifting Maintenance Mode"
-            php artisan up
-            
-            echo "✓ Staging deployment finished successfully!"
+          script: ${{ env.DEPLOY_SCRIPT }}
+
+      - name: Back off before retry
+        if: steps.deploy.outcome == 'failure'
+        run: |
+          echo "Deploy attempt 1 failed. Waiting 30s, then retrying once."
+          sleep 30
+
+      - name: Execute Remote Deploy Commands over SSH (retry)
+        if: steps.deploy.outcome == 'failure'
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.STAGING_SSH_HOST }}
+          port: ${{ secrets.STAGING_SSH_PORT }}
+          username: ${{ secrets.STAGING_SSH_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          timeout: 120s
+          script: ${{ env.DEPLOY_SCRIPT }}
 
 
   pint:
