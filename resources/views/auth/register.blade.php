@@ -408,7 +408,7 @@ hidden;
                                         </div>
                                         <div class="col-md-12">
                                             <div class="form-group position-relative">
-                                                <label>Do you have a company?</label>
+                                                <label>Are you representing a company?</label>
                                                 <div class="d-flex align-items-center">
                                                     <div class="d-flex align-items-center">
                                                         <input type="radio" id="yes" name="company" value="yes" required>&nbsp;
