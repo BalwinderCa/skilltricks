@@ -247,7 +247,7 @@ html::-webkit-scrollbar {
 hidden;
   border-radius:
 35px;}
-.login-page .img-wrap img{width: 150px;padding:10px 24px 10px;}
+.login-page .img-wrap img{width: 220px;padding:10px 24px 10px;}
 
 
 .hiddenbg{padding: 150px 200px;overflow: hidden;}
@@ -354,7 +354,7 @@ hidden;
                 <div class="col-lg-6 mt-5">
                     <div class="img-wrap d-flex">
                      <a href="{{ route('home') }}" class="navbar-brand d-flex justify-content-center mb-2 text-decoration-none">
-                        <img src="{{ uploadedAsset(getSetting('navbar_logo_dark')) }}" alt="">
+                        <img src="{{ staticAsset('newfronted/Assets/logo-wordmark.png') }}" alt="Skilltricks">
                       </a>
                     </div>
                     <div class="flex-grow d-flex align-items-center w-md-50">
