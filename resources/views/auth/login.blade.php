@@ -351,7 +351,7 @@ hidden;
     <div class="login-page">
         <div class="container-fluid p-0">
             <div class="row">
-                <div class="col-lg-6 mt-5">
+                <div class="col-lg-6 mt-3">
                     <div class="img-wrap d-flex">
                      <a href="{{ route('home') }}" class="navbar-brand d-flex justify-content-center mb-2 text-decoration-none">
                         <img src="{{ staticAsset('newfronted/Assets/logo-wordmark.png') }}" alt="Skilltricks">
