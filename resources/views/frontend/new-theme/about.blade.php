@@ -31,7 +31,7 @@
 </head>
 <body>
     <nav class="nav-desktop">
-        <a href="/"><img src="{{ asset('newfronted/Assets/Logo.svg') }}" alt="Logo" class="logo"></a>
+        <a href="/"><img src="{{ asset('newfronted/Assets/Logo-si.webp') }}" alt="Logo" class="logo"></a>
         <div class="nav-items">
             <a href="{{ url('/about') }}">WHO WE ARE</a>
             <a href="{{ url('/services') }}">WHAT WE DO</a>
