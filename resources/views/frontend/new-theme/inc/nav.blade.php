@@ -1,5 +1,5 @@
 <nav class="nav-desktop">
-    <a href="./index.html"><img src="{{ asset('newfronted/Assets/Logo.webp') }}" alt="Logo" class="logo"></a>
+    <a href="./index.html"><img src="{{ asset('newfronted/Assets/Logo.svg') }}" alt="Logo" class="logo"></a>
     <div class="nav-items">
         <a href="./about.html">WHO WE ARE</a>
         <a href="./services.html">WHAT WE DO</a>
