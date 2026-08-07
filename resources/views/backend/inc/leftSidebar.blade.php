@@ -1,6 +1,5 @@
 @php
     $user = auth()->user();
-    $theme_mode = !empty($_COOKIE['theme']) ? $_COOKIE['theme'] : 'light';
 @endphp
 <aside class="tt-sidebar bg-light-subtle {{ Route::is('blog.wizard.create') ? 'collapse' : '' }} " id="sidebar">
     <div class="tt-brand">
@@ -8,13 +7,9 @@
             <img src="{{ uploadedAsset(getSetting('favicon')) }}" id="favicon_backend" class="tt-brand-favicon ms-1 d-none"
                 alt="favicon" width="30" />
 
-            @if ($theme_mode == 'dark')
-                <img src="{{ uploadedAsset(getSetting('admin_panel_logo_dark') ?? getSetting('admin_panel_logo')) }}"
-                    class="tt-brand-logo ms-2" alt="logo" />
-            @else
-                <img src="{{ uploadedAsset(getSetting('admin_panel_logo')) }}" class="tt-brand-logo ms-2"
-                    alt="logo" />
-            @endif
+            {{-- ponytail: one mark for both themes; add a light variant here if dark mode ships --}}
+            <img src="{{ staticAsset('newfronted/Assets/logo-wordmark.png') }}" class="tt-brand-logo ms-2"
+                alt="Skilltricks" width="150" />
         </a>
         <a href="javascript:void(0);" class="tt-toggle-sidebar">
             <span><i data-feather="chevron-left"></i></span>

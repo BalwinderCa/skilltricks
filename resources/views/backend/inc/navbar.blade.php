@@ -185,9 +185,6 @@
         
     </div>
 </header>
-@php
-    $theme_mode = !empty($_COOKIE['theme']) ? $_COOKIE['theme'] : 'light';
-@endphp
 <!--mobile offcanvas menu start-->
 <div class="offcanvas offcanvas-start tt-aside-navbar" id="offcanvasLeft" tabindex="-1">
     <div class="offcanvas-header border-bottom">
@@ -196,13 +193,8 @@
                 <img src="{{ uploadedAsset(getSetting('favicon')) }}" id="favicon_backend"
                     class="tt-brand-favicon ms-1 d-none" alt="favicon" width="30" />
 
-                @if ($theme_mode == 'dark')
-                    <img src="{{ uploadedAsset(getSetting('admin_panel_logo_dark') ?? getSetting('admin_panel_logo')) }}"
-                        class="tt-brand-logo ms-2" alt="logo" />
-                @else
-                    <img src="{{ uploadedAsset(getSetting('admin_panel_logo')) }}" class="tt-brand-logo ms-2"
-                        alt="logo" />
-                @endif
+                <img src="{{ staticAsset('newfronted/Assets/logo-wordmark.png') }}" class="tt-brand-logo ms-2"
+                    alt="Skilltricks" width="150" />
             </a>
         </div>
         <button class="btn-close" type="button" data-bs-dismiss="offcanvas"></button>
