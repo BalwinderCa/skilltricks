@@ -27,7 +27,7 @@
     </script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-    <link rel="stylesheet" href="{{ asset('newfronted/Styles/index.css') }}">
+    <link rel="stylesheet" href="{{ asset('newfronted/Styles/index.css') }}?v={{ filemtime(public_path('newfronted/Styles/index.css')) }}">
 
 </head>
 <body id="body">

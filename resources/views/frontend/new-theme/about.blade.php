@@ -26,7 +26,7 @@
     <script src="https://cdn.jsdelivr.net/gh/studio-freight/lenis@1.0.27/bundled/lenis.min.js"></script>
     <script src="https://kit.fontawesome.com/670c39e75d.js" crossorigin="anonymous"></script>
 
-    <link rel="stylesheet" href="{{ asset('newfronted/Styles/index.css') }}">
+    <link rel="stylesheet" href="{{ asset('newfronted/Styles/index.css') }}?v={{ filemtime(public_path('newfronted/Styles/index.css')) }}">
 
 </head>
 <body>
