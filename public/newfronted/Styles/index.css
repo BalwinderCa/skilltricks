@@ -100,13 +100,13 @@ body {
     font-size: 16px;line-height: 30px;
 }
 .nav-desktop a .logo {
-    width: 75px;
-    height: 75px;
-    /* contain, not cover: the mark is portrait (896x1034) and cover would crop it top and bottom */
+    width: 40px;
+    height: 40px;
     object-fit: contain;
     margin-left: 30px;
-    margin-top: -2vh;
+    margin-top: 1vh;
 }
+
 .menu-toggle {
     display: none;
     color: #36839B;
