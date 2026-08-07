@@ -59,7 +59,7 @@
     @laravelPWA
 
     <style>
-        .preloader-wrap{width: 150px;max-width: 100%;margin:auto;}
+        .preloader-wrap{width: 220px;max-width: 100%;margin:auto;}
 
     </style>
 </head>
@@ -70,7 +70,7 @@
     @if (getSetting('enable_preloader') != '0')
         <div id="preloader" class="bg-light-subtle">
             <div class="preloader-wrap">
-                <img src="{{ uploadedAsset(getSetting('navbar_logo_dark')) }}" class="img-fluid">
+                <img src="{{ staticAsset('newfronted/Assets/logo-wordmark.png') }}" class="img-fluid" alt="Skilltricks">
                 <div class="loading-bar"></div>
             </div>
         </div>
