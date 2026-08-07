@@ -9,7 +9,7 @@
 
             {{-- ponytail: one mark for both themes; add a light variant here if dark mode ships --}}
             <img src="{{ staticAsset('newfronted/Assets/logo-wordmark.png') }}" class="tt-brand-logo ms-2"
-                alt="Skilltricks" width="180" />
+                alt="Skilltricks" width="150" />
         </a>
         <a href="javascript:void(0);" class="tt-toggle-sidebar">
             <span><i data-feather="chevron-left"></i></span>

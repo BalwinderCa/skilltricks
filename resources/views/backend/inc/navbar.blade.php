@@ -194,7 +194,7 @@
                     class="tt-brand-favicon ms-1 d-none" alt="favicon" width="30" />
 
                 <img src="{{ staticAsset('newfronted/Assets/logo-wordmark.png') }}" class="tt-brand-logo ms-2"
-                    alt="Skilltricks" width="150" />
+                    alt="Skilltricks" width="180" />
             </a>
         </div>
         <button class="btn-close" type="button" data-bs-dismiss="offcanvas"></button>
