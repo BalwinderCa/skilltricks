@@ -1,8 +1,10 @@
 @if (@$localLang->is_rtl == 1)
-<link href="{{ staticAsset('backend/assets/css/main-rtl.css') }}" rel="stylesheet" type="text/css" />
+{{-- &m= is the file mtime; see backend/inc/styles.blade.php for why APP_VERSION
+     alone leaves these behind the CDN's year-long cache. --}}
+<link href="{{ staticAsset('backend/assets/css/main-rtl.css') }}&m={{ filemtime(public_path('backend/assets/css/main-rtl.css')) }}" rel="stylesheet" type="text/css" />
 @else
-<link href="{{ staticAsset('backend/assets/css/main.css') }}" rel="stylesheet" type="text/css" />
-<link href="{{ staticAsset('backend/assets/css/defaultcustom.css') }}" rel="stylesheet" type="text/css" />
+<link href="{{ staticAsset('backend/assets/css/main.css') }}&m={{ filemtime(public_path('backend/assets/css/main.css')) }}" rel="stylesheet" type="text/css" />
+<link href="{{ staticAsset('backend/assets/css/defaultcustom.css') }}&m={{ filemtime(public_path('backend/assets/css/defaultcustom.css')) }}" rel="stylesheet" type="text/css" />
 
 <link rel="preconnect" href="https://fonts.googleapis.com/">
     <link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin>
