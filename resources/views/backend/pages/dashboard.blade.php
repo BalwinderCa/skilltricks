@@ -355,7 +355,7 @@
             yaxis: {
                 min: 0,
             },
-            colors: ["#9333ea"],
+            colors: ["#ff8f3b"],
         };
         new ApexCharts(document.querySelector("#chart"), totalSales).render();
 

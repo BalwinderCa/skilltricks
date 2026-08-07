@@ -25,7 +25,7 @@
 
         /* Buttons and links */
         button {
-            background: #9333ea;
+            background: #ff8f3b;
             font-family: Arial, sans-serif;
             color: #ffffff;
             border-radius: 4px;

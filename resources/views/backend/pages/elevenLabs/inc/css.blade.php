@@ -17,7 +17,7 @@
   width: 16px;
   height: 16px;
   border-radius: 100%;
-  background: #9333ea;
+  background: #ff8f3b;
   cursor: pointer;
   transition: all 0.3s ease-in-out;
 }
@@ -25,11 +25,11 @@
 /*On hover change colour of black thumb into green 🟢 and scale size*/
 .range-slider__range::-webkit-slider-thumb:hover {
   transform: scale(1.1);
-  background: #9333ea;}
+  background: #ff8f3b;}
 
 .range-slider__range:active::-webkit-slider-thumb {
   transform: scale(1.1);
-  background: #9333ea;}
+  background: #ff8f3b;}
 
 /*Range current value*/
 .range-slider__value {

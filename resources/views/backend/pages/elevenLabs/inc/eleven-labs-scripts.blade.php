@@ -13,7 +13,7 @@ var stability_slider = document.getElementById("stability");
 
         var value = (this.value - this.min) / (this.max - this.min) * 100;
         console.log(value);
-        this.style.background = 'linear-gradient(to right, #9333ea  0%, #7a16d4  ' + value + '%, #d7dcdf ' + value +
+        this.style.background = 'linear-gradient(to right, #ff8f3b  0%, #ff7208  ' + value + '%, #d7dcdf ' + value +
             '%, #d7dcdf 100%)'
     }
     //  similarity boost
@@ -29,7 +29,7 @@ var stability_slider = document.getElementById("stability");
 
         var value = (this.value - this.min) / (this.max - this.min) * 100;
 
-        this.style.background = 'linear-gradient(to right, #9333ea  0%, #7a16d4  ' + value + '%, #d7dcdf ' + value +
+        this.style.background = 'linear-gradient(to right, #ff8f3b  0%, #ff7208  ' + value + '%, #d7dcdf ' + value +
             '%, #d7dcdf 100%)'
     }
 
@@ -46,7 +46,7 @@ var stability_slider = document.getElementById("stability");
 
         var value = (this.value - this.min) / (this.max - this.min) * 100;
 
-        this.style.background = 'linear-gradient(to right, #9333ea  0%, #7a16d4  ' + value + '%, #d7dcdf ' + value +
+        this.style.background = 'linear-gradient(to right, #ff8f3b  0%, #ff7208  ' + value + '%, #d7dcdf ' + value +
             '%, #d7dcdf 100%)'
     }
 

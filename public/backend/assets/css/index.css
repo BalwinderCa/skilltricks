@@ -46,7 +46,7 @@ html::-webkit-scrollbar {
     content:"";
     width:35px;
     height:3px;
-    background:#9333ea;
+    background:#ff8f3b;
     position:absolute;
     left:-34px;
     -webkit-animation:bluebar 1.5s infinite ease;
