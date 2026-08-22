@@ -77,6 +77,12 @@ class DocumentContextService
         return $list;
     }
 
+    /** Per-field character cap for the org block. */
+    private const ORG_FIELD_CHARS = 300;
+
+    /** Most friction points rendered into a prompt. */
+    private const ORG_MAX_FRICTIONS = 5;
+
     /**
      * Build the "ORGANIZATIONAL CONTEXT" block for a user's organization.
      *
@@ -84,6 +90,13 @@ class DocumentContextService
      * member — the executive vision is the working truth for everyone
      * downstream. Returns an empty string when there is nothing to say, exactly
      * as SearchUserChat::additionalContextBlock() does.
+     *
+     * Bounded on purpose. This block goes into EVERY system message on EVERY
+     * turn, unlike document text which is sent in full only on the first
+     * message. Without a cap, one long governance answer would inflate every
+     * request that organization ever makes, on a paid API. Truncation is at
+     * render time only — the full text stays in org_context_versions, so the
+     * persistence guarantee is untouched.
      */
     public function orgContextBlock($user): string
     {
@@ -98,20 +111,20 @@ class DocumentContextService
         $block = "\n\n--- ORGANIZATIONAL CONTEXT (ACTIVE BASELINE) ---\n";
 
         foreach ([
-            'role' => 'Declared by',
-            'scale' => 'Organizational scale',
-            'governance' => 'Governance model',
-        ] as $key => $label) {
+            'role' => ['Declared by', self::ORG_FIELD_CHARS],
+            'scale' => ['Organizational scale', self::ORG_FIELD_CHARS],
+            'governance' => ['Governance model', self::ORG_FIELD_CHARS],
+        ] as $key => [$label, $limit]) {
             if (! empty($profile[$key])) {
-                $block .= $label.': '.$profile[$key]."\n";
+                $block .= $label.': '.mb_substr((string) $profile[$key], 0, $limit)."\n";
             }
         }
 
         if (! empty($profile['frictions']) && is_array($profile['frictions'])) {
             $block .= "Key execution friction:\n";
 
-            foreach ($profile['frictions'] as $friction) {
-                $block .= '- '.$friction."\n";
+            foreach (array_slice($profile['frictions'], 0, self::ORG_MAX_FRICTIONS) as $friction) {
+                $block .= '- '.mb_substr((string) $friction, 0, self::ORG_FIELD_CHARS)."\n";
             }
         }
 
