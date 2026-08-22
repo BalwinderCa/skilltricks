@@ -242,18 +242,25 @@ so a provider outage cannot permanently lock a user out of the platform.
 
 ## 7. Context injection — the payoff
 
-`App\Services\AI\DocumentContextService::buildSystemMessage($user)` is already
-the single chokepoint feeding six StrategiStudio prompts
-(`AiChatController.php:528, 633, 842, 933, 1162, 1280`). It gains an
-`--- ORGANIZATIONAL CONTEXT ---` block built from the user's organization's
-active context version, prepended ahead of the document block.
+`App\Services\AI\DocumentContextService` gains one new public method,
+`orgContextBlock($user)`, which renders an `--- ORGANIZATIONAL CONTEXT ---`
+block from the user's organization's active context version.
 
-`users_new_chat_ask()` (`AiChatController.php:716`) is the one call site that
-hand-rolls its own system message instead of using the chokepoint. It is routed
-through `buildSystemMessage()` as part of this work, so a single method governs
-org context for every prompt in the engine and no call site can drift again.
+`buildSystemMessage($user)` prepends that block ahead of the document context.
+That single change reaches six StrategiStudio prompts
+(`AiChatController.php:528, 633, 842, 933, 1162, 1280`).
 
-A user with no organization context yields an empty block, exactly as
+`users_new_chat_ask()` (`AiChatController.php:716`) hand-rolls its own system
+message rather than using `buildSystemMessage()`, and must keep doing so: it
+deliberately sends full document text only on the first message and document
+*names* on follow-ups. Routing it through `buildSystemMessage()` would send the
+full document body on every turn — a token-cost regression, not a cleanup. It
+calls `orgContextBlock($user)` directly instead.
+
+`orgContextBlock()` is therefore the single unit governing org context across
+every prompt in the engine, and no call site can drift from it.
+
+A user with no organization context yields an empty string, exactly as
 `additionalContextBlock()` does today.
 
 **Note:** this step is not in the client brief. It is what makes the feature pay
@@ -308,8 +315,10 @@ Feature tests in the existing `tests/Feature` style:
 - equal rank repoints (tie resolves to the newer declaration)
 - two organizations on different domains cannot read each other's context
 - two free-domain users on `gmail.com` land in separate organizations
-- `buildSystemMessage()` includes the active context for a calibrated user and
-  omits the block entirely for an uncalibrated one
+- `orgContextBlock()` returns the active context for a calibrated user and an
+  empty string for an uncalibrated one
+- `buildSystemMessage()` includes the block, and `users_new_chat_ask()` still
+  sends document *names* rather than full document text on a follow-up turn
 - the dashboard gate redirects an uncalibrated customer to `dashboard/onboarding`
 
 Unit test: the domain-to-organization resolver, including free-domain handling
@@ -328,7 +337,7 @@ and case/whitespace normalisation.
 | `app/Models/User.php` | `organization_id`, `hierarchy_rank` |
 | `app/Http/Controllers/Backend/DashboardController.php` | gate condition (line 89) |
 | `app/Services/AI/DocumentContextService.php` | org context injection |
-| `app/Http/Controllers/Backend/AI/AiChatController.php` | route line 716 through the chokepoint |
+| `app/Http/Controllers/Backend/AI/AiChatController.php` | line 716 calls `orgContextBlock()` |
 | `resources/views/backend/inc/userSidebarMenus.blade.php` | gate condition (line 12) |
 | `resources/views/backend/pages/onboarding.blade.php` | new |
 | `resources/views/backend/pages/partials/org-members.blade.php` | new |
