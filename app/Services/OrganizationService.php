@@ -3,9 +3,18 @@
 namespace App\Services;
 
 use App\Models\Organization;
+use App\Models\OrgContextVersion;
+use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
 class OrganizationService
 {
+    /**
+     * The only ranks this feature recognises. LLM output is untrusted, so any
+     * rank crossing into persistence is checked against this list.
+     */
+    public const VALID_RANKS = [10, 20, 30, 40, 50, 60];
+
     /**
      * Find or create the organization an email address belongs to.
      *
@@ -38,5 +47,45 @@ class OrganizationService
         $isFree = in_array($domain, config('organizations.free_domains', []), true);
 
         return Organization::firstOrCreate(['domain' => $isFree ? $email : $domain]);
+    }
+
+    /**
+     * Append a context declaration and re-evaluate which one governs.
+     *
+     * The insert is unconditional — every input from every hierarchy level is
+     * preserved, per the brief's "Full Input Persistence" rule. Only the active
+     * pointer is contested, and the highest rank wins it. Ties go to the newer
+     * declaration so a peer refreshing a stale baseline needs no escalation.
+     */
+    public function recordContext(
+        Organization $org,
+        User $user,
+        int $rank,
+        array $profile,
+        ?array $transcript = null
+    ): OrgContextVersion {
+        if (! in_array($rank, self::VALID_RANKS, true)) {
+            throw new \InvalidArgumentException("Unrecognised hierarchy rank: {$rank}");
+        }
+
+        return DB::transaction(function () use ($org, $user, $rank, $profile, $transcript) {
+            $version = OrgContextVersion::create([
+                'organization_id' => $org->id,
+                'user_id' => $user->id,
+                'rank' => $rank,
+                'profile' => $profile,
+                'transcript' => $transcript,
+            ]);
+
+            $user->forceFill(['hierarchy_rank' => $rank])->save();
+
+            $active = $org->fresh()->activeContext;
+
+            if (! $active || $rank >= $active->rank) {
+                $org->forceFill(['active_context_id' => $version->id])->save();
+            }
+
+            return $version;
+        });
     }
 }
