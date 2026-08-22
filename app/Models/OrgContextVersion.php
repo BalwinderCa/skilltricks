@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -37,6 +38,31 @@ class OrgContextVersion extends Model
         static::deleting(function () {
             throw new \RuntimeException('org_context_versions is append-only; a context version cannot be deleted.');
         });
+    }
+
+    /**
+     * Model events only fire on loaded instances, so a query-builder mass
+     * update or delete would slip past the guards in booted(). Routing this
+     * model through a builder that refuses both closes every Eloquent path.
+     *
+     * ponytail: raw DB::table('org_context_versions') still bypasses this —
+     * closing that would need a database trigger, which is disproportionate
+     * for a table only this application writes.
+     */
+    public function newEloquentBuilder($query): Builder
+    {
+        return new class($query) extends Builder
+        {
+            public function update(array $values)
+            {
+                throw new \RuntimeException('org_context_versions is append-only; a context version cannot be updated.');
+            }
+
+            public function delete()
+            {
+                throw new \RuntimeException('org_context_versions is append-only; a context version cannot be deleted.');
+            }
+        };
     }
 
     public function organization(): BelongsTo

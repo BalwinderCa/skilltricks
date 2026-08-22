@@ -53,8 +53,13 @@ class OrgContextVersionTest extends TestCase
             'profile' => ['role' => 'Director of Ops'],
         ]);
 
-        $this->expectException(\RuntimeException::class);
-        $version->update(['rank' => 60]);
+        try {
+            $version->update(['rank' => 60]);
+            $this->fail('Expected RuntimeException');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('append-only', $e->getMessage());
+            $this->assertSame(30, (int) OrgContextVersion::find($version->id)->rank);
+        }
     }
 
     public function test_a_context_version_cannot_be_deleted(): void
@@ -68,8 +73,13 @@ class OrgContextVersionTest extends TestCase
             'profile' => ['role' => 'Director of Ops'],
         ]);
 
-        $this->expectException(\RuntimeException::class);
-        $version->delete();
+        try {
+            $version->delete();
+            $this->fail('Expected RuntimeException');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('append-only', $e->getMessage());
+            $this->assertNotNull(OrgContextVersion::find($version->id));
+        }
     }
 
     public function test_an_organization_points_at_its_active_context(): void
@@ -87,5 +97,35 @@ class OrgContextVersionTest extends TestCase
 
         $this->assertSame($version->id, $org->fresh()->activeContext->id);
         $this->assertCount(1, $org->fresh()->versions);
+    }
+
+    public function test_a_context_version_cannot_be_mass_updated(): void
+    {
+        $user = User::factory()->create(['user_type' => 'customer']);
+        $org = Organization::create(['domain' => 'acme.com']);
+        OrgContextVersion::create([
+            'organization_id' => $org->id,
+            'user_id' => $user->id,
+            'rank' => 30,
+            'profile' => ['role' => 'Director of Ops'],
+        ]);
+
+        $this->expectException(\RuntimeException::class);
+        OrgContextVersion::where('organization_id', $org->id)->update(['rank' => 60]);
+    }
+
+    public function test_a_context_version_cannot_be_mass_deleted(): void
+    {
+        $user = User::factory()->create(['user_type' => 'customer']);
+        $org = Organization::create(['domain' => 'acme.com']);
+        OrgContextVersion::create([
+            'organization_id' => $org->id,
+            'user_id' => $user->id,
+            'rank' => 30,
+            'profile' => ['role' => 'Director of Ops'],
+        ]);
+
+        $this->expectException(\RuntimeException::class);
+        OrgContextVersion::where('organization_id', $org->id)->delete();
     }
 }
