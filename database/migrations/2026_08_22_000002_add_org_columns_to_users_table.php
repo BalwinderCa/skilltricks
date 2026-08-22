@@ -10,7 +10,7 @@ return new class extends Migration
     {
         if (! Schema::hasColumn('users', 'organization_id')) {
             Schema::table('users', function (Blueprint $table) {
-                $table->unsignedBigInteger('organization_id')->nullable()->after('company');
+                $table->unsignedBigInteger('organization_id')->nullable();
                 $table->index('organization_id');
             });
         }
@@ -18,7 +18,7 @@ return new class extends Migration
         if (! Schema::hasColumn('users', 'hierarchy_rank')) {
             Schema::table('users', function (Blueprint $table) {
                 // Null means "not yet calibrated" — this is what the dashboard gate reads.
-                $table->integer('hierarchy_rank')->nullable()->after('organization_id');
+                $table->integer('hierarchy_rank')->nullable();
             });
         }
     }

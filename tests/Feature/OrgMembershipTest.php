@@ -6,6 +6,7 @@ use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class OrgMembershipTest extends TestCase
@@ -51,5 +52,18 @@ class OrgMembershipTest extends TestCase
         $this->assertSame(50, (int) $ranks['C-Suite']);
         $this->assertSame(60, (int) $ranks['Board']);
         $this->assertSame(10, (int) $ranks['Individual Contributor']);
+    }
+
+    public function test_the_profile_columns_exist_on_a_freshly_migrated_database(): void
+    {
+        foreach ([
+            'company', 'company_name', 'company_address', 'number_employess',
+            'chat_role_categories', 'company_category', 'about_company',
+        ] as $column) {
+            $this->assertTrue(
+                Schema::hasColumn('users', $column),
+                "users.{$column} is missing — Task 11's backfill reads it."
+            );
+        }
     }
 }

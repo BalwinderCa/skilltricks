@@ -25,7 +25,7 @@ return new class extends Migration
     {
         if (! Schema::hasColumn('chat_role_categories', 'rank')) {
             Schema::table('chat_role_categories', function (Blueprint $table) {
-                $table->integer('rank')->nullable()->after('name');
+                $table->integer('rank')->nullable();
             });
         }
 
@@ -49,8 +49,10 @@ return new class extends Migration
 
     public function down()
     {
-        DB::table('chat_role_categories')->whereIn('name', array_keys(self::LADDER))->delete();
-
+        // Deliberately does NOT delete rows. up() cannot distinguish, on rollback,
+        // a category it inserted from one that already existed, and destroying a
+        // pre-existing row is far worse than leaving six harmless standard ones.
+        // Dropping the column removes everything this migration actually added.
         if (Schema::hasColumn('chat_role_categories', 'rank')) {
             Schema::table('chat_role_categories', function (Blueprint $table) {
                 $table->dropColumn('rank');
