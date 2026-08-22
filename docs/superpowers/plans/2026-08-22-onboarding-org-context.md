@@ -845,6 +845,7 @@ Create `app/Services/OrganizationService.php`:
 namespace App\Services;
 
 use App\Models\Organization;
+use Illuminate\Database\QueryException;
 
 class OrganizationService
 {
@@ -874,12 +875,34 @@ class OrganizationService
             // No '@' at all, or nothing after it ('alice@'). Not addressable, so
             // not verifiable: key on the whole string so each such address gets
             // its own singleton org instead of sharing one.
-            return Organization::firstOrCreate(['domain' => $email]);
+            return $this->firstOrCreateDomain($email);
         }
 
         $isFree = in_array($domain, config('organizations.free_domains', []), true);
 
-        return Organization::firstOrCreate(['domain' => $isFree ? $email : $domain]);
+        return $this->firstOrCreateDomain($isFree ? $email : $domain);
+    }
+
+    /**
+     * firstOrCreate is read-then-write, so two people registering on the same
+     * brand-new domain at once can both pass the SELECT and one hits the unique
+     * index. This runs inside registration's transaction, where a raw
+     * "Integrity constraint violation" would be flashed straight at the user.
+     * The loser simply re-reads the row the winner just created.
+     */
+    private function firstOrCreateDomain(string $domain): Organization
+    {
+        try {
+            return Organization::firstOrCreate(['domain' => $domain]);
+        } catch (QueryException $e) {
+            $existing = Organization::where('domain', $domain)->first();
+
+            if ($existing) {
+                return $existing;
+            }
+
+            throw $e;
+        }
     }
 }
 ```
@@ -1271,6 +1294,25 @@ class OrgRegistrationTest extends TestCase
         $this->assertSame('user:'.$first->id, $orgOne->domain);
     }
 
+    public function test_a_phone_only_registration_gets_an_isolated_organization(): void
+    {
+        // Registration allows signup with no email at all. This exercises the real
+        // controller path, not just the service, because that wiring is where an
+        // empty address would otherwise reach resolveForEmail() and throw.
+        $this->post(route('register'), [
+            'name' => 'Phone Only',
+            'phone' => '+15550100',
+            'password' => 'secret123',
+            'password_confirmation' => 'secret123',
+        ]);
+
+        $user = User::where('phone', 'like', '%5550100%')->first();
+
+        $this->assertNotNull($user, 'Phone-only registration did not create the user.');
+        $this->assertNotNull($user->organization_id, 'Phone-only user got no organization.');
+        $this->assertSame('user:'.$user->id, Organization::find($user->organization_id)->domain);
+    }
+
     public function test_a_registered_user_is_attached_to_an_organization(): void
     {
         $response = $this->post(route('register'), [
@@ -1321,12 +1363,17 @@ Add to `app/Services/OrganizationService.php`:
         $email = strtolower(trim((string) $user->email));
 
         return $email === ''
-            ? Organization::firstOrCreate(['domain' => 'user:'.$user->id])
+            ? $this->firstOrCreateDomain('user:'.$user->id)
             : $this->resolveForEmail($email);
     }
 
     public function attachUser(User $user, Organization $org): void
     {
+        // ponytail: the owner_user_id read-then-write is unlocked, unlike
+        // recordContext(). Safe only because org creation and the ownership claim
+        // happen inside one request's transaction today. If a caller ever
+        // pre-creates an unowned org (invites, admin provisioning), wrap this in
+        // a transaction with lockForUpdate() the way recordContext() does.
         $user->forceFill(['organization_id' => $org->id])->save();
 
         $updates = [];
@@ -1366,8 +1413,10 @@ Change the `register()` signature to inject the service:
 Then, immediately after the existing `$user = $userService->storeUser($data);` line and before the `storeUserAsSubscriber` call, insert:
 
 ```php
-            // Organization membership is settled at registration from the verified
-            // email domain; hierarchy rank is set later, on interview confirmation.
+            // Organization membership is settled at registration from the email
+            // domain; hierarchy rank is set later, on interview confirmation.
+            // Note: the address is not confirmed at this point, and email
+            // verification is a site setting that can be disabled entirely.
             $organizationService->attachUser($user, $organizationService->resolveForUser($user));
 ```
 
@@ -1485,6 +1534,50 @@ class OrgContextInjectionTest extends TestCase
         $this->assertSame('', $this->docs->orgContextBlock(null));
     }
 
+    public function test_a_backfilled_profile_renders_without_stray_labels(): void
+    {
+        // The backfill writes governance => '' and frictions => [].
+        $org = Organization::create(['domain' => 'acme.com']);
+        $user = User::factory()->create(['user_type' => 'customer', 'organization_id' => $org->id]);
+
+        app(OrganizationService::class)->recordContext($org, $user, 30, [
+            'role' => 'Director',
+            'rank' => 30,
+            'scale' => '200 employees — Software',
+            'governance' => '',
+            'frictions' => [],
+            'summary_bullets' => ['Company: Acme'],
+        ]);
+
+        $block = $this->docs->orgContextBlock($user->fresh());
+
+        $this->assertStringContainsString('Director', $block);
+        $this->assertStringNotContainsString('Governance model', $block);
+        $this->assertStringNotContainsString('Key execution friction', $block);
+    }
+
+    public function test_the_block_is_bounded_so_one_user_cannot_inflate_every_prompt(): void
+    {
+        $org = Organization::create(['domain' => 'acme.com']);
+        $user = User::factory()->create(['user_type' => 'customer', 'organization_id' => $org->id]);
+
+        app(OrganizationService::class)->recordContext($org, $user, 50, [
+            'role' => 'CEO',
+            'rank' => 50,
+            'scale' => str_repeat('very large ', 500),
+            'governance' => str_repeat('committee ', 500),
+            'frictions' => array_fill(0, 50, str_repeat('friction ', 100)),
+            'summary_bullets' => [],
+        ]);
+
+        $block = $this->docs->orgContextBlock($user->fresh());
+
+        // Bounded well under a kilobyte-scale ceiling rather than growing freely.
+        $this->assertLessThan(3000, mb_strlen($block));
+        // The full text is still preserved in the database, untruncated.
+        $this->assertGreaterThan(4000, mb_strlen($org->fresh()->activeContext->profile['scale']));
+    }
+
     public function test_build_system_message_includes_the_org_block(): void
     {
         $message = $this->docs->buildSystemMessage($this->calibratedUser());
@@ -1513,6 +1606,12 @@ Expected: FAIL — `Call to undefined method App\Services\AI\DocumentContextServ
 Add this method to `app/Services/AI/DocumentContextService.php`, directly above the existing `buildSystemMessage()`:
 
 ```php
+    /** Per-field character cap for the org block. */
+    private const ORG_FIELD_CHARS = 300;
+
+    /** Most friction points rendered into a prompt. */
+    private const ORG_MAX_FRICTIONS = 5;
+
     /**
      * Build the "ORGANIZATIONAL CONTEXT" block for a user's organization.
      *
@@ -1520,6 +1619,13 @@ Add this method to `app/Services/AI/DocumentContextService.php`, directly above 
      * member — the executive vision is the working truth for everyone
      * downstream. Returns an empty string when there is nothing to say, exactly
      * as SearchUserChat::additionalContextBlock() does.
+     *
+     * Bounded on purpose. This block goes into EVERY system message on EVERY
+     * turn, unlike document text which is sent in full only on the first
+     * message. Without a cap, one long governance answer would inflate every
+     * request that organization ever makes, on a paid API. Truncation is at
+     * render time only — the full text stays in org_context_versions, so the
+     * persistence guarantee is untouched.
      */
     public function orgContextBlock($user): string
     {
@@ -1534,20 +1640,20 @@ Add this method to `app/Services/AI/DocumentContextService.php`, directly above 
         $block = "\n\n--- ORGANIZATIONAL CONTEXT (ACTIVE BASELINE) ---\n";
 
         foreach ([
-            'role' => 'Declared by',
-            'scale' => 'Organizational scale',
-            'governance' => 'Governance model',
-        ] as $key => $label) {
+            'role' => ['Declared by', self::ORG_FIELD_CHARS],
+            'scale' => ['Organizational scale', self::ORG_FIELD_CHARS],
+            'governance' => ['Governance model', self::ORG_FIELD_CHARS],
+        ] as $key => [$label, $limit]) {
             if (! empty($profile[$key])) {
-                $block .= $label.': '.$profile[$key]."\n";
+                $block .= $label.': '.mb_substr((string) $profile[$key], 0, $limit)."\n";
             }
         }
 
         if (! empty($profile['frictions']) && is_array($profile['frictions'])) {
             $block .= "Key execution friction:\n";
 
-            foreach ($profile['frictions'] as $friction) {
-                $block .= '- '.$friction."\n";
+            foreach (array_slice($profile['frictions'], 0, self::ORG_MAX_FRICTIONS) as $friction) {
+                $block .= '- '.mb_substr((string) $friction, 0, self::ORG_FIELD_CHARS)."\n";
             }
         }
 
