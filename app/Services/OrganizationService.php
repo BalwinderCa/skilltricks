@@ -97,4 +97,48 @@ class OrganizationService
             return $version;
         });
     }
+
+    /**
+     * Resolve the organization for a user account.
+     *
+     * Registration permits phone-only signup ("email" => "nullable"), so a user
+     * may have no address at all. Those users get their own singleton
+     * organization keyed on their id rather than an exception: a colon cannot
+     * appear in a domain, so "user:12" can never collide with a real one, and
+     * the isolation guarantee holds exactly as it does for free-domain users.
+     */
+    public function resolveForUser(User $user): Organization
+    {
+        $email = strtolower(trim((string) $user->email));
+
+        return $email === ''
+            ? Organization::firstOrCreate(['domain' => 'user:'.$user->id])
+            : $this->resolveForEmail($email);
+    }
+
+    /**
+     * Put a user in an organization, claiming ownership if it is unowned.
+     *
+     * Ownership goes to whoever registers first on the domain, independent of
+     * who finishes calibrating first — so it is settled here, not in the
+     * interview.
+     */
+    public function attachUser(User $user, Organization $org): void
+    {
+        $user->forceFill(['organization_id' => $org->id])->save();
+
+        $updates = [];
+
+        if (empty($org->owner_user_id)) {
+            $updates['owner_user_id'] = $user->id;
+        }
+
+        if (empty($org->name) && ! empty($user->company_name)) {
+            $updates['name'] = $user->company_name;
+        }
+
+        if ($updates !== []) {
+            $org->forceFill($updates)->save();
+        }
+    }
 }
