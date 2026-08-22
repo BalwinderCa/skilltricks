@@ -52,6 +52,34 @@ class OrganizationServiceTest extends TestCase
         $this->assertSame('bob@gmail.com', $second->domain);
     }
 
+    public function test_malformed_addresses_do_not_share_an_organization(): void
+    {
+        // Every one of these previously keyed to domain '' and collided into a
+        // single shared org — the cross-tenant merge this boundary must prevent.
+        $a = $this->service->resolveForEmail('alice@');
+        $b = $this->service->resolveForEmail('bob@');
+        $c = $this->service->resolveForEmail('@');
+
+        $this->assertNotSame($a->id, $b->id);
+        $this->assertNotSame($b->id, $c->id);
+        $this->assertNotSame($a->id, $c->id);
+        $this->assertSame(3, Organization::count());
+    }
+
+    public function test_an_empty_address_is_rejected(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->service->resolveForEmail('   ');
+    }
+
+    public function test_a_trailing_dot_does_not_split_an_organization(): void
+    {
+        $withDot = $this->service->resolveForEmail('anoop@acme.com.');
+        $without = $this->service->resolveForEmail('raghu@acme.com');
+
+        $this->assertSame($withDot->id, $without->id);
+    }
+
     public function test_a_corporate_domain_is_not_treated_as_free(): void
     {
         $org = $this->service->resolveForEmail('someone@notgmail.com');
