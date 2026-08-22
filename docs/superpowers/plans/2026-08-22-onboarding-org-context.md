@@ -34,7 +34,7 @@
 | `database/migrations/2026_08_22_000001_create_org_context_versions_table.php` | append-only context history |
 | `database/migrations/2026_08_22_000002_add_org_columns_to_users_table.php` | `organization_id`, `hierarchy_rank` |
 | `database/migrations/2026_08_22_000003_add_rank_to_chat_role_categories_table.php` | rank column + ladder seed |
-| `database/migrations/2026_08_22_000004_backfill_organizations_from_users.php` | data-only backfill |
+| `database/migrations/2026_08_22_000005_backfill_organizations_from_users.php` | data-only backfill |
 | `app/Models/Organization.php` | org identity, active-context pointer, members |
 | `app/Models/OrgContextVersion.php` | one immutable context declaration |
 | `app/Services/OrganizationService.php` | domain resolution + the cascade rule. No LLM, no HTTP. |
@@ -367,6 +367,7 @@ git commit -m "feat(org): add organizations and append-only org_context_versions
 **Files:**
 - Create: `database/migrations/2026_08_22_000002_add_org_columns_to_users_table.php`
 - Create: `database/migrations/2026_08_22_000003_add_rank_to_chat_role_categories_table.php`
+- Create: `database/migrations/2026_08_22_000004_add_profile_columns_to_users_table.php`
 - Modify: `app/Models/User.php` (add to `$fillable`, add `organization()` relation)
 - Test: `tests/Feature/OrgMembershipTest.php`
 
@@ -458,7 +459,7 @@ return new class extends Migration
     {
         if (! Schema::hasColumn('users', 'organization_id')) {
             Schema::table('users', function (Blueprint $table) {
-                $table->unsignedBigInteger('organization_id')->nullable()->after('company');
+                $table->unsignedBigInteger('organization_id')->nullable();
                 $table->index('organization_id');
             });
         }
@@ -466,7 +467,7 @@ return new class extends Migration
         if (! Schema::hasColumn('users', 'hierarchy_rank')) {
             Schema::table('users', function (Blueprint $table) {
                 // Null means "not yet calibrated" — this is what the dashboard gate reads.
-                $table->integer('hierarchy_rank')->nullable()->after('organization_id');
+                $table->integer('hierarchy_rank')->nullable();
             });
         }
     }
@@ -489,7 +490,85 @@ return new class extends Migration
 };
 ```
 
-- [ ] **Step 4: Write the rank ladder migration**
+- [ ] **Step 4: Create the missing profile columns**
+
+`users.company`, `company_name`, `company_address`, `number_employess`,
+`chat_role_categories`, `company_category`, and `about_company` are read and
+written throughout the app (`User::$fillable`, `DashboardController::updateProfile()`,
+`profile.blade.php`) but **no migration ever creates them** — they exist only on
+the live database, added out of band. A freshly migrated database therefore lacks
+them, which breaks CI and makes Task 11's backfill unrunnable.
+
+Create `database/migrations/2026_08_22_000004_add_profile_columns_to_users_table.php`:
+
+```php
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Repairs drift between the migrations and the live database. These columns
+     * are used all over the app but were added out of band, so a fresh database
+     * never had them. Every add is guarded, making this a no-op wherever they
+     * already exist.
+     */
+    private const COLUMNS = [
+        'company',
+        'company_name',
+        'company_address',
+        'number_employess',
+        'chat_role_categories',
+        'company_category',
+    ];
+
+    public function up()
+    {
+        foreach (self::COLUMNS as $column) {
+            if (! Schema::hasColumn('users', $column)) {
+                Schema::table('users', function (Blueprint $table) use ($column) {
+                    $table->string($column)->nullable();
+                });
+            }
+        }
+
+        if (! Schema::hasColumn('users', 'about_company')) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->text('about_company')->nullable();
+            });
+        }
+    }
+
+    public function down()
+    {
+        // Intentionally empty. These columns predate this migration on every
+        // real database and hold live user data; dropping them on rollback
+        // would destroy it.
+    }
+};
+```
+
+Add this test to `tests/Feature/OrgMembershipTest.php`:
+
+```php
+    public function test_the_profile_columns_exist_on_a_freshly_migrated_database(): void
+    {
+        foreach ([
+            'company', 'company_name', 'company_address', 'number_employess',
+            'chat_role_categories', 'company_category', 'about_company',
+        ] as $column) {
+            $this->assertTrue(
+                \Illuminate\Support\Facades\Schema::hasColumn('users', $column),
+                "users.{$column} is missing — Task 11's backfill reads it."
+            );
+        }
+    }
+```
+
+- [ ] **Step 5: Write the rank ladder migration**
 
 Create `database/migrations/2026_08_22_000003_add_rank_to_chat_role_categories_table.php`:
 
@@ -521,7 +600,7 @@ return new class extends Migration
     {
         if (! Schema::hasColumn('chat_role_categories', 'rank')) {
             Schema::table('chat_role_categories', function (Blueprint $table) {
-                $table->integer('rank')->nullable()->after('name');
+                $table->integer('rank')->nullable();
             });
         }
 
@@ -545,8 +624,10 @@ return new class extends Migration
 
     public function down()
     {
-        DB::table('chat_role_categories')->whereIn('name', array_keys(self::LADDER))->delete();
-
+        // Deliberately does NOT delete rows. up() cannot distinguish, on rollback,
+        // a category it inserted from one that already existed, and destroying a
+        // pre-existing row is far worse than leaving six harmless standard ones.
+        // Dropping the column removes everything this migration actually added.
         if (Schema::hasColumn('chat_role_categories', 'rank')) {
             Schema::table('chat_role_categories', function (Blueprint $table) {
                 $table->dropColumn('rank');
@@ -558,7 +639,7 @@ return new class extends Migration
 
 Note: the `chat_role_categories` table's updated-at column is named `update_at` (a pre-existing typo preserved by the model). The inserts above set only `created_at`, so the typo is not touched.
 
-- [ ] **Step 5: Add the fields and relation to the User model**
+- [ ] **Step 6: Add the fields and relation to the User model**
 
 In `app/Models/User.php`, add `'organization_id'` and `'hierarchy_rank'` to `$fillable` immediately after `'company'`:
 
@@ -585,16 +666,16 @@ And add this relation next to the existing `role()` method:
     }
 ```
 
-- [ ] **Step 6: Run the test to verify it passes**
+- [ ] **Step 7: Run the test to verify it passes**
 
 Run: `vendor/bin/phpunit --filter OrgMembershipTest`
 Expected: PASS, 3 tests.
 
-- [ ] **Step 7: Format and commit**
+- [ ] **Step 8: Format and commit**
 
 ```bash
 vendor/bin/pint app/Models/User.php
-git add database/migrations/2026_08_22_00000{2,3}_*.php app/Models/User.php tests/Feature/OrgMembershipTest.php
+git add database/migrations/2026_08_22_00000{2,3,4}_*.php app/Models/User.php tests/Feature/OrgMembershipTest.php
 git commit -m "feat(org): add user membership columns and seed the rank ladder"
 ```
 
@@ -668,6 +749,34 @@ class OrganizationServiceTest extends TestCase
         $this->assertNotSame($first->id, $second->id);
         $this->assertSame('alice@gmail.com', $first->domain);
         $this->assertSame('bob@gmail.com', $second->domain);
+    }
+
+    public function test_malformed_addresses_do_not_share_an_organization(): void
+    {
+        // Every one of these previously keyed to domain '' and collided into a
+        // single shared org — the cross-tenant merge this boundary must prevent.
+        $a = $this->service->resolveForEmail('alice@');
+        $b = $this->service->resolveForEmail('bob@');
+        $c = $this->service->resolveForEmail('@');
+
+        $this->assertNotSame($a->id, $b->id);
+        $this->assertNotSame($b->id, $c->id);
+        $this->assertNotSame($a->id, $c->id);
+        $this->assertSame(3, Organization::count());
+    }
+
+    public function test_an_empty_address_is_rejected(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->service->resolveForEmail('   ');
+    }
+
+    public function test_a_trailing_dot_does_not_split_an_organization(): void
+    {
+        $withDot = $this->service->resolveForEmail('anoop@acme.com.');
+        $without = $this->service->resolveForEmail('raghu@acme.com');
+
+        $this->assertSame($withDot->id, $without->id);
     }
 
     public function test_a_corporate_domain_is_not_treated_as_free(): void
@@ -749,15 +858,25 @@ class OrganizationService
     public function resolveForEmail(string $email): Organization
     {
         $email = strtolower(trim($email));
-        $at = strrpos($email, '@');
 
-        if ($at === false) {
-            // Not addressable, so not verifiable. Give it its own singleton org
-            // rather than silently grouping it with anything else.
+        if ($email === '') {
+            // Refuse rather than bucket. An empty key would become a shared
+            // organization that every other empty input joins — the exact
+            // cross-tenant merge this method exists to prevent.
+            throw new \InvalidArgumentException('Cannot resolve an organization from an empty email address.');
+        }
+
+        $at = strrpos($email, '@');
+        // Trailing DNS root dot: acme.com. and acme.com are the same domain.
+        $domain = $at === false ? '' : rtrim(substr($email, $at + 1), '.');
+
+        if ($domain === '') {
+            // No '@' at all, or nothing after it ('alice@'). Not addressable, so
+            // not verifiable: key on the whole string so each such address gets
+            // its own singleton org instead of sharing one.
             return Organization::firstOrCreate(['domain' => $email]);
         }
 
-        $domain = substr($email, $at + 1);
         $isFree = in_array($domain, config('organizations.free_domains', []), true);
 
         return Organization::firstOrCreate(['domain' => $isFree ? $email : $domain]);
@@ -912,13 +1031,35 @@ class OrgCascadeTest extends TestCase
         $this->assertSame(50, (int) $ceo->fresh()->hierarchy_rank);
     }
 
-    public function test_an_invalid_rank_is_rejected(): void
+    public function test_an_invalid_rank_is_rejected_and_writes_nothing(): void
     {
         $org = Organization::create(['domain' => 'acme.com']);
         $user = $this->member($org, 'someone@acme.com');
 
-        $this->expectException(\InvalidArgumentException::class);
-        $this->service->recordContext($org, $user, 99, ['role' => 'Emperor']);
+        try {
+            $this->service->recordContext($org, $user, 99, ['role' => 'Emperor']);
+            $this->fail('Expected an InvalidArgumentException for rank 99.');
+        } catch (\InvalidArgumentException $e) {
+            // Validation runs before the transaction, so nothing may have been written.
+            $this->assertDatabaseCount('org_context_versions', 0);
+            $this->assertNull($user->fresh()->hierarchy_rank);
+            $this->assertNull($org->fresh()->active_context_id);
+        }
+    }
+
+    public function test_the_interview_transcript_is_persisted(): void
+    {
+        $org = Organization::create(['domain' => 'acme.com']);
+        $user = $this->member($org, 'ceo@acme.com');
+
+        $transcript = [
+            ['question' => 'What is your role?', 'answer' => 'CEO'],
+            ['question' => 'How large is the org?', 'answer' => '4,000 people'],
+        ];
+
+        $version = $this->service->recordContext($org, $user, 50, ['role' => 'CEO'], $transcript);
+
+        $this->assertSame($transcript, $version->fresh()->transcript);
     }
 
     public function test_two_organizations_do_not_see_each_others_context(): void
@@ -987,6 +1128,13 @@ Then the method:
         }
 
         return DB::transaction(function () use ($org, $user, $rank, $profile, $transcript) {
+            // Serialise concurrent calibrations for this organization. Without the
+            // lock, two members confirming at the same moment each decide against a
+            // pre-commit snapshot, and the lower rank can land last and govern — the
+            // exact failure this rule exists to prevent. Real on MySQL; Laravel
+            // compiles it to an empty string on SQLite, so tests are unaffected.
+            $locked = Organization::whereKey($org->id)->lockForUpdate()->first();
+
             $version = OrgContextVersion::create([
                 'organization_id' => $org->id,
                 'user_id' => $user->id,
@@ -997,9 +1145,11 @@ Then the method:
 
             $user->forceFill(['hierarchy_rank' => $rank])->save();
 
-            $active = $org->fresh()->activeContext;
+            $active = $locked?->activeContext;
 
             if (! $active || $rank >= $active->rank) {
+                // Written through the caller's instance so it stays in sync with
+                // the database for the rest of the request.
                 $org->forceFill(['active_context_id' => $version->id])->save();
             }
 
@@ -1104,6 +1254,23 @@ class OrgRegistrationTest extends TestCase
         $this->assertSame('Acme Corporation', $org->fresh()->name);
     }
 
+    public function test_a_user_without_an_email_gets_an_isolated_organization(): void
+    {
+        // Registration allows phone-only signup, so email may be null. Such a
+        // user must still get an organization, and must not share one with any
+        // other email-less user.
+        $service = app(OrganizationService::class);
+
+        $first = User::factory()->create(['email' => null, 'phone' => '+15550001', 'user_type' => 'customer']);
+        $second = User::factory()->create(['email' => null, 'phone' => '+15550002', 'user_type' => 'customer']);
+
+        $orgOne = $service->resolveForUser($first);
+        $orgTwo = $service->resolveForUser($second);
+
+        $this->assertNotSame($orgOne->id, $orgTwo->id);
+        $this->assertSame('user:'.$first->id, $orgOne->domain);
+    }
+
     public function test_a_registered_user_is_attached_to_an_organization(): void
     {
         $response = $this->post(route('register'), [
@@ -1140,6 +1307,24 @@ Add to `app/Services/OrganizationService.php`:
      * who finishes calibrating first — so it is settled here, not in the
      * interview.
      */
+    /**
+     * Resolve the organization for a user account.
+     *
+     * Registration permits phone-only signup ("email" => "nullable"), so a user
+     * may have no address at all. Those users get their own singleton
+     * organization keyed on their id rather than an exception: a colon cannot
+     * appear in a domain, so "user:12" can never collide with a real one, and
+     * the isolation guarantee holds exactly as it does for free-domain users.
+     */
+    public function resolveForUser(User $user): Organization
+    {
+        $email = strtolower(trim((string) $user->email));
+
+        return $email === ''
+            ? Organization::firstOrCreate(['domain' => 'user:'.$user->id])
+            : $this->resolveForEmail($email);
+    }
+
     public function attachUser(User $user, Organization $org): void
     {
         $user->forceFill(['organization_id' => $org->id])->save();
@@ -1183,7 +1368,7 @@ Then, immediately after the existing `$user = $userService->storeUser($data);` l
 ```php
             // Organization membership is settled at registration from the verified
             // email domain; hierarchy rank is set later, on interview confirmation.
-            $organizationService->attachUser($user, $organizationService->resolveForEmail($user->email));
+            $organizationService->attachUser($user, $organizationService->resolveForUser($user));
 ```
 
 - [ ] **Step 5: Run the test to verify it passes**
@@ -1990,7 +2175,7 @@ class OnboardingController extends Controller
         }
 
         $org = $user->organization
-            ?: $this->organizations->resolveForEmail((string) $user->email);
+            ?: $this->organizations->resolveForUser($user);
 
         if (empty($user->organization_id)) {
             $this->organizations->attachUser($user, $org);
@@ -2655,7 +2840,7 @@ git commit -m "feat(org): let the organization owner correct a member rank"
 ### Task 11: Backfill existing users
 
 **Files:**
-- Create: `database/migrations/2026_08_22_000004_backfill_organizations_from_users.php`
+- Create: `database/migrations/2026_08_22_000005_backfill_organizations_from_users.php`
 - Test: `tests/Feature/OrgBackfillTest.php`
 
 **Interfaces:**
@@ -2823,11 +3008,13 @@ class BackfillRunner
 
         User::orderBy('id')->chunkById(200, function ($users) use ($service, $ladder) {
             foreach ($users as $user) {
-                if (empty($user->email) || ! empty($user->organization_id)) {
+                if (! empty($user->organization_id)) {
                     continue;
                 }
 
-                $org = $service->resolveForEmail((string) $user->email);
+                // resolveForUser handles email-less accounts (phone-only signup)
+                // by giving them their own singleton organization.
+                $org = $service->resolveForUser($user);
                 $service->attachUser($user, $org);
 
                 if (! $this->profileIsComplete($user)) {
@@ -2870,7 +3057,7 @@ class BackfillRunner
 
 - [ ] **Step 5: Write the migration**
 
-Create `database/migrations/2026_08_22_000004_backfill_organizations_from_users.php`:
+Create `database/migrations/2026_08_22_000005_backfill_organizations_from_users.php`:
 
 ```php
 <?php
@@ -2904,7 +3091,7 @@ Expected: PASS, 4 tests.
 ```bash
 vendor/bin/pint database/migrations/support/BackfillRunner.php
 composer dump-autoload
-git add database/migrations/2026_08_22_000004_backfill_organizations_from_users.php database/migrations/support/BackfillRunner.php composer.json tests/Feature/OrgBackfillTest.php
+git add database/migrations/2026_08_22_000005_backfill_organizations_from_users.php database/migrations/support/BackfillRunner.php composer.json tests/Feature/OrgBackfillTest.php
 git commit -m "feat(org): backfill organizations and ranks from existing profiles"
 ```
 
