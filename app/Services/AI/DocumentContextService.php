@@ -34,11 +34,11 @@ class DocumentContextService
             return '';
         }
 
-        $perDoc  = max(800, intdiv($maxChars, max($documents->count(), 1)));
-        $budget  = $maxChars;
+        $perDoc = max(800, intdiv($maxChars, max($documents->count(), 1)));
+        $budget = $maxChars;
         $context = "\n\n--- COMPANY DOCUMENTS CONTEXT ---\n"
-            . "The following are summaries of uploaded company documents. "
-            . "Use this context to provide accurate, company-specific responses:\n\n";
+            .'The following are summaries of uploaded company documents. '
+            ."Use this context to provide accurate, company-specific responses:\n\n";
 
         foreach ($documents as $doc) {
             if ($budget <= 0) {
@@ -51,11 +51,11 @@ class DocumentContextService
                 continue;
             }
 
-            $budget  -= mb_strlen($text);
+            $budget -= mb_strlen($text);
             $context .= "--- Document: {$doc->name} (Type: {$doc->file_type}) ---\n{$text}\n\n";
         }
 
-        return $context . "--- END COMPANY DOCUMENTS CONTEXT ---\n";
+        return $context."--- END COMPANY DOCUMENTS CONTEXT ---\n";
     }
 
     /**
@@ -78,15 +78,56 @@ class DocumentContextService
     }
 
     /**
+     * Build the "ORGANIZATIONAL CONTEXT" block for a user's organization.
+     *
+     * The active baseline is the one declared by the highest-ranking calibrated
+     * member — the executive vision is the working truth for everyone
+     * downstream. Returns an empty string when there is nothing to say, exactly
+     * as SearchUserChat::additionalContextBlock() does.
+     */
+    public function orgContextBlock($user): string
+    {
+        $version = optional(optional($user)->organization)->activeContext;
+
+        if (! $version || empty($version->profile)) {
+            return '';
+        }
+
+        $profile = $version->profile;
+
+        $block = "\n\n--- ORGANIZATIONAL CONTEXT (ACTIVE BASELINE) ---\n";
+
+        foreach ([
+            'role' => 'Declared by',
+            'scale' => 'Organizational scale',
+            'governance' => 'Governance model',
+        ] as $key => $label) {
+            if (! empty($profile[$key])) {
+                $block .= $label.': '.$profile[$key]."\n";
+            }
+        }
+
+        if (! empty($profile['frictions']) && is_array($profile['frictions'])) {
+            $block .= "Key execution friction:\n";
+
+            foreach ($profile['frictions'] as $friction) {
+                $block .= '- '.$friction."\n";
+            }
+        }
+
+        return $block."--- END ORGANIZATIONAL CONTEXT ---\n";
+    }
+
+    /**
      * Build a GoalSync system message, appending the full document context.
      * Pass a custom $base to override the default persona.
      */
     public function buildSystemMessage($user, string $base = 'You are a strategy assistant. Respond only using structured ChatGPT-style text with emojis and clean formatting based on the GoalSync method.'): string
     {
         $documents = $this->forUser($user);
-        $context   = $this->buildContext($documents);
+        $context = $this->buildContext($documents);
 
-        return $base . ($context !== '' ? $context : '');
+        return $base.$this->orgContextBlock($user).($context !== '' ? $context : '');
     }
 
     /**
@@ -95,7 +136,7 @@ class DocumentContextService
      */
     public function documentText($doc, int $maxChars = 6000): string
     {
-        $text = !empty($doc->summary) ? $doc->summary : (string) $doc->parsed_text;
+        $text = ! empty($doc->summary) ? $doc->summary : (string) $doc->parsed_text;
 
         return mb_substr(trim($text), 0, $maxChars);
     }

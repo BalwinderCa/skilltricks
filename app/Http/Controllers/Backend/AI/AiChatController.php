@@ -714,6 +714,7 @@ EOT;
         $documentNamesList = $this->docs->buildNamesList($documents);
 
         $systemMessage = 'You are a strategy assistant. Respond only using structured ChatGPT-style text with emojis and clean formatting based on the GoalSync method.';
+        $systemMessage .= $this->docs->orgContextBlock($user);
 
         if ($isFirstMessage) {
             $systemMessage .= $this->docs->buildContext($documents);
