@@ -69,6 +69,13 @@ class OrganizationService
         }
 
         return DB::transaction(function () use ($org, $user, $rank, $profile, $transcript) {
+            // Serialise concurrent calibrations for this organization. Without the
+            // lock, two members confirming at the same moment each decide against a
+            // pre-commit snapshot, and the lower rank can land last and govern — the
+            // exact failure this rule exists to prevent. Real on MySQL; Laravel
+            // compiles it to an empty string on SQLite, so tests are unaffected.
+            $locked = Organization::whereKey($org->id)->lockForUpdate()->first();
+
             $version = OrgContextVersion::create([
                 'organization_id' => $org->id,
                 'user_id' => $user->id,
@@ -79,9 +86,11 @@ class OrganizationService
 
             $user->forceFill(['hierarchy_rank' => $rank])->save();
 
-            $active = $org->fresh()->activeContext;
+            $active = $locked?->activeContext;
 
             if (! $active || $rank >= $active->rank) {
+                // Written through the caller's instance so it stays in sync with
+                // the database for the rest of the request.
                 $org->forceFill(['active_context_id' => $version->id])->save();
             }
 

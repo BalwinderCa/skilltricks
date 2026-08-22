@@ -113,13 +113,35 @@ class OrgCascadeTest extends TestCase
         $this->assertSame(50, (int) $ceo->fresh()->hierarchy_rank);
     }
 
-    public function test_an_invalid_rank_is_rejected(): void
+    public function test_an_invalid_rank_is_rejected_and_writes_nothing(): void
     {
         $org = Organization::create(['domain' => 'acme.com']);
         $user = $this->member($org, 'someone@acme.com');
 
-        $this->expectException(\InvalidArgumentException::class);
-        $this->service->recordContext($org, $user, 99, ['role' => 'Emperor']);
+        try {
+            $this->service->recordContext($org, $user, 99, ['role' => 'Emperor']);
+            $this->fail('Expected an InvalidArgumentException for rank 99.');
+        } catch (\InvalidArgumentException $e) {
+            // Validation runs before the transaction, so nothing may have been written.
+            $this->assertDatabaseCount('org_context_versions', 0);
+            $this->assertNull($user->fresh()->hierarchy_rank);
+            $this->assertNull($org->fresh()->active_context_id);
+        }
+    }
+
+    public function test_the_interview_transcript_is_persisted(): void
+    {
+        $org = Organization::create(['domain' => 'acme.com']);
+        $user = $this->member($org, 'ceo@acme.com');
+
+        $transcript = [
+            ['question' => 'What is your role?', 'answer' => 'CEO'],
+            ['question' => 'How large is the org?', 'answer' => '4,000 people'],
+        ];
+
+        $version = $this->service->recordContext($org, $user, 50, ['role' => 'CEO'], $transcript);
+
+        $this->assertSame($transcript, $version->fresh()->transcript);
     }
 
     public function test_two_organizations_do_not_see_each_others_context(): void
