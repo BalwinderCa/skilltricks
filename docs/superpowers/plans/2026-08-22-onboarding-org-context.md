@@ -2519,8 +2519,10 @@ In `app/Http/Controllers/Backend/DashboardController.php`, add the imports:
 
 ```php
 use App\Services\OrganizationService;
-use App\Models\User as UserModel;
+use App\Models\User;
 ```
+
+(`DashboardController` does not currently import `App\Models\User`, so there is no collision.)
 
 Add this method next to `updateProfile()`:
 
@@ -2533,7 +2535,7 @@ Add this method next to `updateProfile()`:
             'rank' => 'required|integer|in:'.implode(',', OrganizationService::VALID_RANKS),
         ]);
 
-        $member = UserModel::find($validated['user_id']);
+        $member = User::find($validated['user_id']);
 
         if (! $member) {
             abort(404);
@@ -2575,7 +2577,7 @@ In `routes/backend.php`, next to the onboarding routes added in Task 8:
                 Route::post('/organization/member-rank', [DashboardController::class, 'updateMemberRank'])->name('organization.member-rank');
 ```
 
-Ensure `use App\Http\Controllers\Backend\DashboardController;` is present among the imports (it will already be there if the dashboard routes are registered in this file; if the dashboard routes live elsewhere, add the import).
+`routes/backend.php:47` already imports `DashboardController`, so no new import is needed.
 
 - [ ] **Step 6: Write the partial**
 
