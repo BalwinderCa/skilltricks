@@ -81,6 +81,25 @@ class OrgRegistrationTest extends TestCase
         $this->assertSame('user:'.$first->id, $orgOne->domain);
     }
 
+    public function test_a_phone_only_registration_gets_an_isolated_organization(): void
+    {
+        // Registration allows signup with no email at all. This exercises the real
+        // controller path, not just the service, because that wiring is where an
+        // empty address would otherwise reach resolveForEmail() and throw.
+        $this->post(route('register'), [
+            'name' => 'Phone Only',
+            'phone' => '+15550100',
+            'password' => 'secret123',
+            'password_confirmation' => 'secret123',
+        ]);
+
+        $user = User::where('phone', 'like', '%5550100%')->first();
+
+        $this->assertNotNull($user, 'Phone-only registration did not create the user.');
+        $this->assertNotNull($user->organization_id, 'Phone-only user got no organization.');
+        $this->assertSame('user:'.$user->id, Organization::find($user->organization_id)->domain);
+    }
+
     public function test_a_registered_user_is_attached_to_an_organization(): void
     {
         $response = $this->post(route('register'), [

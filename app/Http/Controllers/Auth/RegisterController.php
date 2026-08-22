@@ -151,8 +151,10 @@ class RegisterController extends Controller
 
             $user = $userService->storeUser($data);
 
-            // Organization membership is settled at registration from the verified
-            // email domain; hierarchy rank is set later, on interview confirmation.
+            // Organization membership is settled at registration from the email
+            // domain; hierarchy rank is set later, on interview confirmation.
+            // Note: the address is not confirmed at this point, and email
+            // verification is a site setting that can be disabled entirely.
             $organizationService->attachUser($user, $organizationService->resolveForUser($user));
 
             // Store User as subscriber

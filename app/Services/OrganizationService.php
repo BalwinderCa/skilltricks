@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Organization;
 use App\Models\OrgContextVersion;
 use App\Models\User;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 
 class OrganizationService
@@ -41,12 +42,34 @@ class OrganizationService
             // No '@' at all, or nothing after it ('alice@'). Not addressable, so
             // not verifiable: key on the whole string so each such address gets
             // its own singleton org instead of sharing one.
-            return Organization::firstOrCreate(['domain' => $email]);
+            return $this->firstOrCreateDomain($email);
         }
 
         $isFree = in_array($domain, config('organizations.free_domains', []), true);
 
-        return Organization::firstOrCreate(['domain' => $isFree ? $email : $domain]);
+        return $this->firstOrCreateDomain($isFree ? $email : $domain);
+    }
+
+    /**
+     * firstOrCreate is read-then-write, so two people registering on the same
+     * brand-new domain at once can both pass the SELECT and one hits the unique
+     * index. This runs inside registration's transaction, where a raw
+     * "Integrity constraint violation" would be flashed straight at the user.
+     * The loser simply re-reads the row the winner just created.
+     */
+    private function firstOrCreateDomain(string $domain): Organization
+    {
+        try {
+            return Organization::firstOrCreate(['domain' => $domain]);
+        } catch (QueryException $e) {
+            $existing = Organization::where('domain', $domain)->first();
+
+            if ($existing) {
+                return $existing;
+            }
+
+            throw $e;
+        }
     }
 
     /**
@@ -112,7 +135,7 @@ class OrganizationService
         $email = strtolower(trim((string) $user->email));
 
         return $email === ''
-            ? Organization::firstOrCreate(['domain' => 'user:'.$user->id])
+            ? $this->firstOrCreateDomain('user:'.$user->id)
             : $this->resolveForEmail($email);
     }
 
@@ -125,6 +148,11 @@ class OrganizationService
      */
     public function attachUser(User $user, Organization $org): void
     {
+        // ponytail: the owner_user_id read-then-write is unlocked, unlike
+        // recordContext(). Safe only because org creation and the ownership claim
+        // happen inside one request's transaction today. If a caller ever
+        // pre-creates an unowned org (invites, admin provisioning), wrap this in
+        // a transaction with lockForUpdate() the way recordContext() does.
         $user->forceFill(['organization_id' => $org->id])->save();
 
         $updates = [];
