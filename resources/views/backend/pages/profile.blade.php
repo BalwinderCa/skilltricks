@@ -43,17 +43,11 @@
                             </div>
 
                             <div class="tt-action">
-                                @if(!empty($user->user_type == 'customer'))
-                                    @if($user->name && $user->phone && $user->company_name && $user->company_address && $user->number_employess && $user->chat_role_categories && $user->company_category && $user->about_company)
-
-                                    @else
-                                        <script>
-                                            window.addEventListener('load', function () {
-                                                alert('Please complete your profile to access the dashboard.');
-                                            });
-                                        </script>
-                                    @endif
-
+                                @if(!empty($user->user_type == 'customer') && ! ($user->organization_id && $user->hierarchy_rank))
+                                    <div class="alert alert-info mb-0">
+                                        {{ localize('Finish your calibration to unlock the dashboard.') }}
+                                        <a href="{{ route('onboarding.index') }}">{{ localize('Continue calibration') }}</a>
+                                    </div>
                                 @endif
                             </div>
 

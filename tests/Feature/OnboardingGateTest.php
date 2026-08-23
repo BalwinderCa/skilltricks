@@ -68,4 +68,20 @@ class OnboardingGateTest extends TestCase
             ->get(route('writebot.dashboard'))
             ->assertOk();
     }
+
+    public function test_the_profile_page_no_longer_claims_the_form_gates_the_dashboard(): void
+    {
+        $org = Organization::create(['domain' => 'acme.com']);
+        $user = User::factory()->create([
+            'user_type' => 'customer',
+            'email_verified_at' => now(),
+            'organization_id' => $org->id,
+            'hierarchy_rank' => 10,
+        ]);
+
+        $response = $this->actingAs($user)->get(route('dashboard.profile'));
+
+        $response->assertOk();
+        $response->assertDontSee('complete your profile to access the dashboard', false);
+    }
 }
