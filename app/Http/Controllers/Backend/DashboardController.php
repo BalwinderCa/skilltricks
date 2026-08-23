@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Project;
 use App\Models\SystemSetting;
 use App\Models\Template;
+use App\Models\User;
+use App\Services\OrganizationService;
 use Carbon\Carbon;
 use DB;
 use Illuminate\Http\Request;
@@ -83,7 +85,11 @@ class DashboardController extends Controller
 
         $chatrolecategories = DB::table('chat_role_categories')->where('status', 1)->get();
 
-        return view('backend.pages.profile', compact('user', 'chatrolecategories'));
+        $orgMembers = ($user->organization && (int) $user->organization->owner_user_id === (int) $user->id)
+            ? $user->organization->members()->orderBy('name')->get()
+            : collect();
+
+        return view('backend.pages.profile', compact('user', 'chatrolecategories', 'orgMembers'));
 
     }
 
@@ -124,6 +130,33 @@ class DashboardController extends Controller
         $user->save();
 
         flash(localize('Profile has been updated'))->success();
+
+        return back();
+
+    }
+
+    // organization owner corrects a member's hierarchy rank
+
+    public function updateMemberRank(Request $request, OrganizationService $organizations)
+    {
+        $validated = $request->validate([
+            'user_id' => 'required|integer',
+            'rank' => 'required|integer|in:'.implode(',', OrganizationService::VALID_RANKS),
+        ]);
+
+        $member = User::find($validated['user_id']);
+
+        if (! $member) {
+            abort(404);
+        }
+
+        try {
+            $organizations->setMemberRank(auth()->user(), $member, (int) $validated['rank']);
+        } catch (\RuntimeException $e) {
+            abort(403);
+        }
+
+        flash(localize('Rank updated.'))->success();
 
         return back();
 

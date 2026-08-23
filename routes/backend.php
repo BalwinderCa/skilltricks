@@ -292,6 +292,9 @@ Route::group(
                     ->name('onboarding.answer');
                 Route::post('/onboarding/confirm', [OnboardingController::class, 'confirm'])->name('onboarding.confirm');
 
+                // organization owner corrects a member's declared rank
+                Route::post('/organization/member-rank', [DashboardController::class, 'updateMemberRank'])->name('organization.member-rank');
+
                 // chat
                 /* Route::get('/newusers-new-chat/{id}', [AiChatController::class, 'newusers_new_chat'])->name('newusers-new-chat.index'); */
                 Route::get('/newusers-new-chat', [AiChatController::class, 'newusers_new_chat'])->name('newusers-new-chat.index');

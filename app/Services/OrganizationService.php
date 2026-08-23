@@ -169,4 +169,56 @@ class OrganizationService
             $org->forceFill($updates)->save();
         }
     }
+
+    /**
+     * Let an organization's owner correct a member's self-declared rank.
+     *
+     * A correction is not a new declaration, so no version row is written. The
+     * member's existing inputs stay on record; only which one governs can change.
+     */
+    public function setMemberRank(User $owner, User $member, int $rank): void
+    {
+        // Known limitation: a corrected member who runs the interview again can
+        // re-declare the higher rank, and recordContext() will take it. The owner
+        // can correct it again, and every claim stays on record. Locking a
+        // corrected rank is deferred until it is actually asked for.
+        if (! in_array($rank, self::VALID_RANKS, true)) {
+            throw new \InvalidArgumentException("Unrecognised hierarchy rank: {$rank}");
+        }
+
+        $org = $member->organization;
+
+        if (! $org || (int) $org->owner_user_id !== (int) $owner->id) {
+            throw new \RuntimeException('Only the organization owner can change a member rank.');
+        }
+
+        DB::transaction(function () use ($org, $member, $rank) {
+            // Same lock recordContext() takes: serialises this correction against
+            // any concurrent declaration or correction for the organization so the
+            // recompute below is never racing a write it can't see.
+            Organization::whereKey($org->id)->lockForUpdate()->first();
+
+            $member->forceFill(['hierarchy_rank' => $rank])->save();
+
+            $this->recomputeActiveContext($org);
+        });
+    }
+
+    /**
+     * Re-elect the governing context after a rank correction: the highest-ranked
+     * version whose declarer still holds at least that rank today.
+     */
+    private function recomputeActiveContext(Organization $org): void
+    {
+        $ranks = User::where('organization_id', $org->id)
+            ->pluck('hierarchy_rank', 'id');
+
+        $winner = $org->versions()
+            ->orderByDesc('rank')
+            ->orderByDesc('id')
+            ->get()
+            ->first(fn ($version) => (int) ($ranks[$version->user_id] ?? 0) >= (int) $version->rank);
+
+        $org->forceFill(['active_context_id' => $winner?->id])->save();
+    }
 }
