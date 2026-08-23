@@ -4,8 +4,10 @@ namespace Tests\Feature;
 
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\AI\DocumentContextService;
 use Database\Migrations\BackfillRunner;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class OrgBackfillTest extends TestCase
@@ -28,6 +30,15 @@ class OrgBackfillTest extends TestCase
         (new BackfillRunner)->run();
     }
 
+    /**
+     * users.chat_role_categories stores the category id — that is what the
+     * profile form submits — so fixtures must seed the id, not the name.
+     */
+    private function roleId(string $name): string
+    {
+        return (string) DB::table('chat_role_categories')->where('name', $name)->value('id');
+    }
+
     public function test_a_complete_profile_is_calibrated_without_an_interview(): void
     {
         $user = User::factory()->create([
@@ -37,7 +48,7 @@ class OrgBackfillTest extends TestCase
             'company_name' => 'Acme Corporation',
             'company_address' => '1 Acme Way',
             'number_employess' => '1000-10000',
-            'chat_role_categories' => 'C-Suite',
+            'chat_role_categories' => $this->roleId('C-Suite'),
             'company_category' => 'Software',
             'about_company' => 'Real estate technology.',
         ]);
@@ -53,6 +64,11 @@ class OrgBackfillTest extends TestCase
         $this->assertNotNull($active);
         $this->assertStringContainsString('Real estate technology', $active->profile['scale'].' '.implode(' ', $active->profile['summary_bullets']));
         $this->assertNull($active->transcript, 'A backfilled row is marked by a null transcript.');
+
+        // This profile is rendered into every prompt the org sends, and the row
+        // is append-only — a raw category id here could never be corrected.
+        $this->assertSame('C-Suite', $active->profile['role']);
+        $this->assertStringContainsString('C-Suite', app(DocumentContextService::class)->orgContextBlock($user));
     }
 
     public function test_running_the_backfill_twice_changes_nothing(): void
@@ -65,7 +81,7 @@ class OrgBackfillTest extends TestCase
             'company_name' => 'Acme Corporation',
             'company_address' => '1 Acme Way',
             'number_employess' => '1000-10000',
-            'chat_role_categories' => 'C-Suite',
+            'chat_role_categories' => $this->roleId('C-Suite'),
             'company_category' => 'Software',
             'about_company' => 'Real estate technology.',
         ]);
@@ -87,7 +103,7 @@ class OrgBackfillTest extends TestCase
             'company_name' => 'Acme',
             'company_address' => '1 Acme Way',
             'number_employess' => '0-10',
-            'chat_role_categories' => 'Chief Vibes Officer',
+            'chat_role_categories' => 'Chief Vibes Officer', // matches no seeded id or name
             'company_category' => 'Software',
             'about_company' => 'Things.',
         ]);

@@ -17,9 +17,16 @@ class BackfillRunner
     public function run(): void
     {
         $service = app(OrganizationService::class);
-        $ladder = DB::table('chat_role_categories')->whereNotNull('rank')->pluck('rank', 'name');
 
-        User::whereNull('organization_id')->orderBy('id')->chunkById(200, function ($users) use ($service, $ladder) {
+        // users.chat_role_categories holds the category *id* — that is what the
+        // profile and new-chat forms submit. Keyed by name too, because nothing
+        // stops an out-of-band row from holding the name instead, and a wrong
+        // rank here is permanent: these version rows are append-only.
+        $byId = DB::table('chat_role_categories')->whereNotNull('rank')->pluck('rank', 'id');
+        $byName = DB::table('chat_role_categories')->whereNotNull('rank')->pluck('rank', 'name');
+        $names = DB::table('chat_role_categories')->pluck('name', 'id');
+
+        User::whereNull('organization_id')->orderBy('id')->chunkById(200, function ($users) use ($service, $byId, $byName, $names) {
             foreach ($users as $user) {
                 if (! empty($user->organization_id)) {
                     continue;
@@ -33,7 +40,7 @@ class BackfillRunner
                 // rank, and every future run would skip them forever. Nothing
                 // could repair that row. Atomic per user: either both land or
                 // neither does, and the next run retries cleanly.
-                DB::transaction(function () use ($service, $ladder, $user) {
+                DB::transaction(function () use ($service, $byId, $byName, $names, $user) {
                     // resolveForUser handles email-less accounts (phone-only
                     // signup) by giving them their own singleton organization.
                     $org = $service->resolveForUser($user);
@@ -45,11 +52,17 @@ class BackfillRunner
                         return;
                     }
 
-                    $rank = (int) ($ladder[$user->chat_role_categories] ?? 10);
+                    $key = $user->chat_role_categories;
+                    $rank = (int) ($byId[(int) $key] ?? $byName[$key] ?? 10);
                     $rank = in_array($rank, OrganizationService::VALID_RANKS, true) ? $rank : 10;
 
+                    // The id is meaningless to a reader, and this profile is
+                    // rendered verbatim into every prompt the org ever sends.
+                    // A non-numeric key is already a name, so keep it as-is.
+                    $role = (string) ($names[(int) $key] ?? (is_numeric($key) ? '' : $key));
+
                     $service->recordContext($org, $user, $rank, [
-                        'role' => (string) $user->chat_role_categories,
+                        'role' => $role,
                         'rank' => $rank,
                         'scale' => trim($user->number_employess.' employees — '.$user->company_category),
                         'governance' => '',
