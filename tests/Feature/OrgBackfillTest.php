@@ -32,8 +32,8 @@ class OrgBackfillTest extends TestCase
     {
         $user = User::factory()->create([
             'email' => 'anoop@acme.com',
-            'phone' => '+15550100001',
             'user_type' => 'customer',
+            'phone' => '+15550001',
             'company_name' => 'Acme Corporation',
             'company_address' => '1 Acme Way',
             'number_employess' => '1000-10000',
@@ -55,12 +55,35 @@ class OrgBackfillTest extends TestCase
         $this->assertNull($active->transcript, 'A backfilled row is marked by a null transcript.');
     }
 
+    public function test_running_the_backfill_twice_changes_nothing(): void
+    {
+        // It runs unattended on deploy and may run again on the next one.
+        $user = User::factory()->create([
+            'email' => 'anoop@acme.com',
+            'user_type' => 'customer',
+            'phone' => '+15550001',
+            'company_name' => 'Acme Corporation',
+            'company_address' => '1 Acme Way',
+            'number_employess' => '1000-10000',
+            'chat_role_categories' => 'C-Suite',
+            'company_category' => 'Software',
+            'about_company' => 'Real estate technology.',
+        ]);
+
+        $this->runBackfill();
+        $this->runBackfill();
+
+        $this->assertDatabaseCount('org_context_versions', 1);
+        $this->assertSame(1, Organization::where('domain', 'acme.com')->count());
+        $this->assertSame(50, (int) $user->fresh()->hierarchy_rank);
+    }
+
     public function test_an_unmatched_role_falls_to_the_rank_floor(): void
     {
         $user = User::factory()->create([
             'email' => 'someone@acme.com',
-            'phone' => '+15550100002',
             'user_type' => 'customer',
+            'phone' => '+15550002',
             'company_name' => 'Acme',
             'company_address' => '1 Acme Way',
             'number_employess' => '0-10',
