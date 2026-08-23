@@ -56,6 +56,7 @@ use App\Http\Controllers\Backend\Newsletters\NewslettersController;
 use App\Http\Controllers\Backend\Offline\CustomerReSubmitRequestController;
 use App\Http\Controllers\Backend\Offline\OfflinePaymentMethodController;
 use App\Http\Controllers\Backend\Offline\PaymentRequestController;
+use App\Http\Controllers\Backend\OnboardingController;
 use App\Http\Controllers\Backend\Pages\PagesController;
 use App\Http\Controllers\Backend\PaymentGateway\PaymentGatewayController;
 use App\Http\Controllers\Backend\Payments\Midtrans\MidtransController;
@@ -282,6 +283,11 @@ Route::group(
                         'Content-Type' => 'application/javascript',
                     ]);
                 });
+
+                // onboarding calibration
+                Route::get('/onboarding', [OnboardingController::class, 'index'])->name('onboarding.index');
+                Route::post('/onboarding/answer', [OnboardingController::class, 'answer'])->name('onboarding.answer');
+                Route::post('/onboarding/confirm', [OnboardingController::class, 'confirm'])->name('onboarding.confirm');
 
                 // chat
                 /* Route::get('/newusers-new-chat/{id}', [AiChatController::class, 'newusers_new_chat'])->name('newusers-new-chat.index'); */
