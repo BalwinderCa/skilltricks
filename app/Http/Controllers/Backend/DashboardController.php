@@ -1,127 +1,95 @@
 <?php
 
-
-
 namespace App\Http\Controllers\Backend;
 
-
-
-use Carbon\Carbon;
-
-use App\Models\Project;
-
-use App\Models\Template;
-
-use Illuminate\Http\Request;
-
-use App\Models\SystemSetting;
-
-use Spatie\Permission\Models\Role;
-
 use App\Http\Controllers\Controller;
-
+use App\Models\Project;
+use App\Models\SystemSetting;
+use App\Models\Template;
+use Carbon\Carbon;
+use DB;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 
-use DB;
-
-
-
 class DashboardController extends Controller
-
 {
-
-    # admin dashboard
+    // admin dashboard
 
     public function index(Request $request)
-
     {
 
-
-
-        # total words chart
+        // total words chart
 
         $totalWordsChart = $this->totalWordsChart($request->timeline);
 
-        $totalWordsData  = $totalWordsChart[0];
+        $totalWordsData = $totalWordsChart[0];
 
-        $timelineText    = $totalWordsChart[1];
+        $timelineText = $totalWordsChart[1];
 
-
-
-        # top 5 template words
+        // top 5 template words
 
         $totalTemplateWordsData = $this->topFiveTemplateChart();
 
-
-
-        # give permission to the Super admin
+        // give permission to the Super admin
 
         $user = auth()->user();
 
-
-
         $view = view('backend.pages.dashboard', [
 
-            'user'                      => $user,
+            'user' => $user,
 
-            'totalWordsData'            => $totalWordsData,
+            'totalWordsData' => $totalWordsData,
 
-            'timelineText'              => $timelineText,
+            'timelineText' => $timelineText,
 
-            'totalTemplateWordsData'    => $totalTemplateWordsData,
+            'totalTemplateWordsData' => $totalTemplateWordsData,
 
         ]);
-
-
 
         if (isAdmin() && $user->hasRole('Super Admin')) {
 
             return $view;
 
-        } else if (isAdmin()) {
+        } elseif (isAdmin()) {
 
             $user->assignRole('Super Admin');
 
         }
 
-        if(!empty($user->user_type == 'customer')){
-           
-           if($user->name && $user->phone && $user->company_name && $user->company_address && $user->number_employess && $user->chat_role_categories && $user->company_category && $user->about_company){
-             return $view;
-           }else{
-             return redirect('dashboard/profile');
-           }
+        if (! empty($user->user_type == 'customer')) {
 
-        }else{
+            // Calibration, not paperwork, is the gate. The profile page stays
+            // editable at dashboard/profile; it just no longer blocks anyone.
+            if ($user->organization_id && $user->hierarchy_rank) {
+                return $view;
+            } else {
+                return redirect()->route('onboarding.index');
+            }
 
-           return $view;
+        } else {
+
+            return $view;
 
         }
 
     }
 
-
-
-    # admin profile
+    // admin profile
 
     public function profile()
-
     {
 
         $user = auth()->user();
 
-        $chatrolecategories = DB::table('chat_role_categories')->where('status',1)->get();
+        $chatrolecategories = DB::table('chat_role_categories')->where('status', 1)->get();
 
-        return view('backend.pages.profile', compact('user','chatrolecategories'));
+        return view('backend.pages.profile', compact('user', 'chatrolecategories'));
 
     }
 
-
-
-    # admin profile
+    // admin profile
 
     public function updateProfile(Request $request)
-
     {
 
         $user = auth()->user();
@@ -131,15 +99,13 @@ class DashboardController extends Controller
         $user->phone = validatePhone($request->phone);
 
         $user->avatar = $request->avatar;
-        
+
         $user->company_name = $request->company_name;
         $user->company_address = $request->company_address;
         $user->number_employess = $request->number_employess;
         $user->chat_role_categories = $request->chat_role_categories;
         $user->company_category = $request->company_category;
         $user->about_company = $request->about_company;
-
-
 
         if ($request->has('password') && $request->password != '') {
 
@@ -155,11 +121,7 @@ class DashboardController extends Controller
 
         }
 
-
-
         $user->save();
-
-
 
         flash(localize('Profile has been updated'))->success();
 
@@ -167,49 +129,38 @@ class DashboardController extends Controller
 
     }
 
-
-
-    # total words chart
+    // total words chart
 
     private function totalWordsChart($time)
-
     {
 
-        $timeline                   = 7; // 7, 30 or 90 days
+        $timeline = 7; // 7, 30 or 90 days
 
-        $timelineText               = localize('Last 7 days');
+        $timelineText = localize('Last 7 days');
 
-
-
-        if ((int)$time > 7) {
+        if ((int) $time > 7) {
 
             $timeline = (int) $time;
 
             if ($timeline == 30) {
 
-                $timelineText               = localize('Last 30 days');
+                $timelineText = localize('Last 30 days');
 
             } else {
 
-                $timelineText               = localize('Last 3 months');
+                $timelineText = localize('Last 3 months');
 
             }
 
         }
 
-
-
-        $projects = Project::where('content_type',  'content')->where('created_at', '>=', Carbon::now()->subDays($timeline));
-
-
+        $projects = Project::where('content_type', 'content')->where('created_at', '>=', Carbon::now()->subDays($timeline));
 
         if (isCustomer()) {
 
             $projects = $projects->where('user_id', auth()->user()->id);
 
         }
-
-
 
         $projectQueries = $projects->oldest();
 
@@ -218,19 +169,15 @@ class DashboardController extends Controller
 
         $totalWordsTimelineInString = '';
 
-        $totalWordsAmountInString   = '';
-
-
+        $totalWordsAmountInString = '';
 
         for ($i = $timeline; $i >= 0; $i--) {
 
             $totalWordsAmount = 0;
 
-
-
             foreach ($projectCollection as $project) {
 
-                if (date('Y-m-d', strtotime($i . ' days ago')) == date('Y-m-d', strtotime($project->created_at))) {
+                if (date('Y-m-d', strtotime($i.' days ago')) == date('Y-m-d', strtotime($project->created_at))) {
 
                     $totalWordsAmount += $project->words;
 
@@ -238,46 +185,37 @@ class DashboardController extends Controller
 
             }
 
-
-
             if ($i == 0) {
 
-                $totalWordsTimelineInString .= json_encode(date('Y-m-d', strtotime($i . ' days ago')));
+                $totalWordsTimelineInString .= json_encode(date('Y-m-d', strtotime($i.' days ago')));
 
                 $totalWordsAmountInString .= json_encode($totalWordsAmount);
 
             } else {
 
-                $totalWordsTimelineInString .= json_encode(date('Y-m-d', strtotime($i . ' days ago'))) . ',';
+                $totalWordsTimelineInString .= json_encode(date('Y-m-d', strtotime($i.' days ago'))).',';
 
-                $totalWordsAmountInString .= json_encode($totalWordsAmount) . ',';
+                $totalWordsAmountInString .= json_encode($totalWordsAmount).',';
 
             }
 
         }
 
+        $totalWordsData = new SystemSetting; // to create temp instance.
 
-
-        $totalWordsData         = new SystemSetting; // to create temp instance.
-
-        $totalWordsData->labels =  $totalWordsTimelineInString;
+        $totalWordsData->labels = $totalWordsTimelineInString;
 
         $totalWordsData->words = $totalWordsAmountInString;
 
         $totalWordsData->totalWords = $projectQueries->sum('words');
 
-
-
         return [$totalWordsData, $timelineText];
 
     }
 
-
-
-    # top 5 template chart
+    // top 5 template chart
 
     private function topFiveTemplateChart()
-
     {
 
         $templates = Template::orderBy('total_words_generated', 'DESC')->take(5);
@@ -287,8 +225,6 @@ class DashboardController extends Controller
         $templatesLabelsInString = '';
 
         $templateSeries = [];
-
-
 
         foreach ($templates->get() as $key => $template) {
 
@@ -304,8 +240,6 @@ class DashboardController extends Controller
 
         }
 
-
-
         $totalTemplateWordsData = new SystemSetting; // to create temp instance.
 
         $totalTemplateWordsData->totalTemplateWordsCount = $totalTemplateWordsCount;
@@ -314,11 +248,7 @@ class DashboardController extends Controller
 
         $totalTemplateWordsData->labels = $templatesLabelsInString;
 
-
-
         return $totalTemplateWordsData;
 
     }
-
 }
-
