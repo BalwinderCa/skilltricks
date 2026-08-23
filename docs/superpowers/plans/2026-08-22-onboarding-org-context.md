@@ -2852,21 +2852,67 @@ with:
 @if($user->organization_id && $user->hierarchy_rank)
 ```
 
-- [ ] **Step 5: Run the test to verify it passes**
+- [ ] **Step 5: Retire the third copy of the old gate**
+
+`resources/views/backend/pages/profile.blade.php:46-54` holds a third copy of the
+eight-field condition. Its `@else` fires a blocking JS alert reading *"Please
+complete your profile to access the dashboard."* That message is now false in
+both directions: a calibrated user with a sparse profile is warned about access
+they already have, and an uncalibrated user — who can reach `dashboard/profile`
+directly, since that route has no gate — is pointed at a form that no longer
+unlocks anything.
+
+Replace the whole `<div class="tt-action">` block's inner condition with:
+
+```blade
+                            <div class="tt-action">
+                                @if(!empty($user->user_type == 'customer') && ! ($user->organization_id && $user->hierarchy_rank))
+                                    <div class="alert alert-info mb-0">
+                                        {{ localize('Finish your calibration to unlock the dashboard.') }}
+                                        <a href="{{ route('onboarding.index') }}">{{ localize('Continue calibration') }}</a>
+                                    </div>
+                                @endif
+                            </div>
+```
+
+An inline banner with a link replaces the blocking `alert()`: it tells the truth,
+and it points at the page that actually unlocks the dashboard.
+
+Add this test to `tests/Feature/OnboardingGateTest.php`:
+
+```php
+    public function test_the_profile_page_no_longer_claims_the_form_gates_the_dashboard(): void
+    {
+        $org = Organization::create(['domain' => 'acme.com']);
+        $user = User::factory()->create([
+            'user_type' => 'customer',
+            'email_verified_at' => now(),
+            'organization_id' => $org->id,
+            'hierarchy_rank' => 10,
+        ]);
+
+        $response = $this->actingAs($user)->get(route('dashboard.profile'));
+
+        $response->assertOk();
+        $response->assertDontSee('complete your profile to access the dashboard', false);
+    }
+```
+
+- [ ] **Step 6: Run the test to verify it passes**
 
 Run: `vendor/bin/phpunit --filter OnboardingGateTest`
-Expected: PASS, 3 tests.
+Expected: PASS, 4 tests.
 
-- [ ] **Step 6: Run the full suite**
+- [ ] **Step 7: Run the full suite**
 
 Run: `vendor/bin/phpunit`
 Expected: PASS. Watch for pre-existing tests that hit `writebot.dashboard` with users that have no `hierarchy_rank` — if any now redirect where they previously did not, set `hierarchy_rank` on that test's user rather than weakening the gate.
 
-- [ ] **Step 7: Format and commit**
+- [ ] **Step 8: Format and commit**
 
 ```bash
 vendor/bin/pint app/Http/Controllers/Backend/DashboardController.php
-git add app/Http/Controllers/Backend/DashboardController.php resources/views/backend/inc/userSidebarMenus.blade.php tests/Feature/OnboardingGateTest.php
+git add app/Http/Controllers/Backend/DashboardController.php resources/views/backend/inc/userSidebarMenus.blade.php resources/views/backend/pages/profile.blade.php tests/Feature/OnboardingGateTest.php
 git commit -m "feat(onboarding): gate on calibration instead of the profile form"
 ```
 
