@@ -1270,6 +1270,7 @@ class OrgRegistrationTest extends TestCase
         $first = User::factory()->create([
             'email' => 'anoop@acme.com',
             'user_type' => 'customer',
+            'phone' => '+15550001',
             'company_name' => 'Acme Corporation',
         ]);
         $service->attachUser($first, $org);
@@ -2227,7 +2228,7 @@ class OnboardingFlowTest extends TestCase
         $this->instance(OnboardingAgentService::class, $agent);
 
         $profile = ['role' => 'CEO', 'rank' => 50, 'scale' => '', 'governance' => '',
-                    'frictions' => [], 'summary_bullets' => ['Runs the company']];
+                        'frictions' => [], 'summary_bullets' => ['Runs the company']];
 
         $response = $this->withSession(['onboarding.profile' => $profile])
             ->actingAs($this->customer())
@@ -3293,6 +3294,7 @@ class OrgBackfillTest extends TestCase
         $user = User::factory()->create([
             'email' => 'anoop@acme.com',
             'user_type' => 'customer',
+            'phone' => '+15550001',
             'company_name' => 'Acme Corporation',
             'company_address' => '1 Acme Way',
             'number_employess' => '1000-10000',
@@ -3314,11 +3316,35 @@ class OrgBackfillTest extends TestCase
         $this->assertNull($active->transcript, 'A backfilled row is marked by a null transcript.');
     }
 
+    public function test_running_the_backfill_twice_changes_nothing(): void
+    {
+        // It runs unattended on deploy and may run again on the next one.
+        $user = User::factory()->create([
+            'email' => 'anoop@acme.com',
+            'user_type' => 'customer',
+            'phone' => '+15550001',
+            'company_name' => 'Acme Corporation',
+            'company_address' => '1 Acme Way',
+            'number_employess' => '1000-10000',
+            'chat_role_categories' => 'C-Suite',
+            'company_category' => 'Software',
+            'about_company' => 'Real estate technology.',
+        ]);
+
+        $this->runBackfill();
+        $this->runBackfill();
+
+        $this->assertDatabaseCount('org_context_versions', 1);
+        $this->assertSame(1, Organization::where('domain', 'acme.com')->count());
+        $this->assertSame(50, (int) $user->fresh()->hierarchy_rank);
+    }
+
     public function test_an_unmatched_role_falls_to_the_rank_floor(): void
     {
         $user = User::factory()->create([
             'email' => 'someone@acme.com',
             'user_type' => 'customer',
+            'phone' => '+15550002',
             'company_name' => 'Acme',
             'company_address' => '1 Acme Way',
             'number_employess' => '0-10',
@@ -3412,38 +3438,48 @@ class BackfillRunner
         $service = app(OrganizationService::class);
         $ladder = DB::table('chat_role_categories')->whereNotNull('rank')->pluck('rank', 'name');
 
-        User::orderBy('id')->chunkById(200, function ($users) use ($service, $ladder) {
+        User::whereNull('organization_id')->orderBy('id')->chunkById(200, function ($users) use ($service, $ladder) {
             foreach ($users as $user) {
                 if (! empty($user->organization_id)) {
                     continue;
                 }
 
-                // resolveForUser handles email-less accounts (phone-only signup)
-                // by giving them their own singleton organization.
-                $org = $service->resolveForUser($user);
-                $service->attachUser($user, $org);
+                // One transaction per user. attachUser() commits organization_id
+                // immediately, and the skip guard above keys on that column — so
+                // without this wrapper, a recordContext() failure (a deadlock
+                // against live traffic taking the same row lock, a dropped
+                // connection) would leave the user with an organization and no
+                // rank, and every future run would skip them forever. Nothing
+                // could repair that row. Atomic per user: either both land or
+                // neither does, and the next run retries cleanly.
+                DB::transaction(function () use ($service, $ladder, $user) {
+                    // resolveForUser handles email-less accounts (phone-only
+                    // signup) by giving them their own singleton organization.
+                    $org = $service->resolveForUser($user);
+                    $service->attachUser($user, $org);
 
-                if (! $this->profileIsComplete($user)) {
-                    // Membership is assigned but rank is not, so the gate routes
-                    // them into the interview on next login.
-                    continue;
-                }
+                    if (! $this->profileIsComplete($user)) {
+                        // Membership is assigned but rank is not, so the gate
+                        // routes them into the interview on next login.
+                        return;
+                    }
 
-                $rank = (int) ($ladder[$user->chat_role_categories] ?? 10);
-                $rank = in_array($rank, OrganizationService::VALID_RANKS, true) ? $rank : 10;
+                    $rank = (int) ($ladder[$user->chat_role_categories] ?? 10);
+                    $rank = in_array($rank, OrganizationService::VALID_RANKS, true) ? $rank : 10;
 
-                $service->recordContext($org, $user, $rank, [
-                    'role' => (string) $user->chat_role_categories,
-                    'rank' => $rank,
-                    'scale' => trim($user->number_employess.' employees — '.$user->company_category),
-                    'governance' => '',
-                    'frictions' => [],
-                    'summary_bullets' => array_values(array_filter([
-                        $user->company_name ? 'Company: '.$user->company_name : null,
-                        $user->company_address ? 'Based in: '.$user->company_address : null,
-                        $user->about_company ? 'About: '.$user->about_company : null,
-                    ])),
-                ], null); // a null transcript marks this row as backfilled, not interviewed
+                    $service->recordContext($org, $user, $rank, [
+                        'role' => (string) $user->chat_role_categories,
+                        'rank' => $rank,
+                        'scale' => trim($user->number_employess.' employees — '.$user->company_category),
+                        'governance' => '',
+                        'frictions' => [],
+                        'summary_bullets' => array_values(array_filter([
+                            $user->company_name ? 'Company: '.$user->company_name : null,
+                            $user->company_address ? 'Based in: '.$user->company_address : null,
+                            $user->about_company ? 'About: '.$user->about_company : null,
+                        ])),
+                    ], null); // a null transcript marks this row as backfilled, not interviewed
+                });
             }
         });
     }
@@ -3469,7 +3505,6 @@ Create `database/migrations/2026_08_22_000005_backfill_organizations_from_users.
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
@@ -3480,9 +3515,16 @@ return new class extends Migration
 
     public function down()
     {
-        // organizations and org_context_versions are dropped by their own
-        // migrations; only the pointers on users need clearing here.
-        DB::table('users')->update(['organization_id' => null, 'hierarchy_rank' => null]);
+        // Intentionally empty.
+        //
+        // The obvious rollback — clearing organization_id and hierarchy_rank —
+        // has no WHERE clause that can tell a backfilled row from one a real
+        // interview populated afterwards. Running it against a live database
+        // would de-calibrate every user on the platform, including signups that
+        // never went through this migration at all. The organizations and
+        // org_context_versions tables are dropped by their own migrations, so
+        // rolling those back cleans up regardless; leaving the pointers alone is
+        // strictly safer than a rollback that destroys live calibration.
     }
 };
 ```
