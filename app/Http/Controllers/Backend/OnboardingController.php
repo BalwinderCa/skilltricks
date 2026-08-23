@@ -16,6 +16,11 @@ class OnboardingController extends Controller
 
     private const FAILURES_KEY = 'onboarding.failures';
 
+    private const PENDING_KEY = 'onboarding.pending_question';
+
+    /** Summarize attempts before falling back, bounding billed calls per interview. */
+    private const MAX_SUMMARY_ATTEMPTS = 2;
+
     public function __construct(
         protected OnboardingAgentService $agent,
         protected OrganizationService $organizations,
@@ -27,10 +32,12 @@ class OnboardingController extends Controller
     public function index(Request $request)
     {
         $turns = $request->session()->get(self::TURNS_KEY, []);
+        $question = $request->session()->get(self::PENDING_KEY, OnboardingAgentService::SEED_QUESTION);
+        $request->session()->put(self::PENDING_KEY, $question);
 
         return view('backend.pages.onboarding', [
             'turns' => $turns,
-            'question' => $turns === [] ? OnboardingAgentService::SEED_QUESTION : end($turns)['question'],
+            'question' => $question,
             'profile' => $request->session()->get(self::PROFILE_KEY),
         ]);
     }
@@ -42,43 +49,82 @@ class OnboardingController extends Controller
     public function answer(Request $request)
     {
         $validated = $request->validate([
-            'question' => 'required|string|max:2000',
             'answer' => 'required|string|max:4000',
         ]);
 
+        // Already summarized: return the stored card instead of paying for
+        // another model call. Without this, replaying the endpoint bills a
+        // summarize() on every POST, forever.
+        if ($done = $request->session()->get(self::PROFILE_KEY)) {
+            return response()->json(['done' => true, 'profile' => $done]);
+        }
+
         $turns = $request->session()->get(self::TURNS_KEY, []);
-        $turns[] = ['question' => $validated['question'], 'answer' => $validated['answer']];
+
+        // The server owns the question. The client used to echo it back and we
+        // stored that echo verbatim — an unvalidated request field flowing into
+        // the prompt that decides the user's rank. The rank is read from the
+        // session precisely so the request body cannot influence it, and
+        // trusting this echo reopened that door indirectly.
+        $question = $request->session()->get(self::PENDING_KEY, OnboardingAgentService::SEED_QUESTION);
+
+        $turns[] = ['question' => $question, 'answer' => $validated['answer']];
         $request->session()->put(self::TURNS_KEY, $turns);
 
         $existing = optional(optional($request->user())->organization)->activeContext;
 
         if (count($turns) < OnboardingAgentService::QUESTION_TURNS) {
-            return response()->json([
-                'done' => false,
-                'question' => $this->agent->nextQuestion($turns, $existing),
-            ]);
+            $next = $this->agent->nextQuestion($turns, $existing);
+            $request->session()->put(self::PENDING_KEY, $next);
+
+            return response()->json(['done' => false, 'question' => $next]);
         }
 
         $profile = $this->agent->summarize($turns, $existing);
 
         if ($profile === null) {
-            $failures = $request->session()->increment(self::FAILURES_KEY);
+            $failures = (int) $request->session()->increment(self::FAILURES_KEY);
 
-            // Two bad summaries in a row: fall back to a minimal form rather than
-            // locking the user out of the platform on a provider hiccup.
-            return response()->json([
-                'done' => false,
-                'fallback' => $failures >= 2,
-                'question' => $failures >= 2
-                    ? 'One more time, in your own words: what is your role, and how senior is it?'
-                    : 'Sorry, could you say that once more?',
-            ]);
+            if ($failures < self::MAX_SUMMARY_ATTEMPTS) {
+                $retry = 'Sorry, could you say that once more?';
+                $request->session()->put(self::PENDING_KEY, $retry);
+
+                return response()->json(['done' => false, 'question' => $retry]);
+            }
+
+            // Provider is failing. Stop paying for retries and complete the user
+            // deterministically at the individual-contributor floor: they reach
+            // the platform, and rank 10 grants no authority over anyone else's
+            // context. The org owner can correct it, and the transcript is kept.
+            $profile = $this->fallbackProfile($turns);
         }
 
         $request->session()->put(self::PROFILE_KEY, $profile);
-        $request->session()->forget(self::FAILURES_KEY);
+        $request->session()->forget([self::FAILURES_KEY, self::PENDING_KEY]);
 
         return response()->json(['done' => true, 'profile' => $profile]);
+    }
+
+    /**
+     * Minimal profile used when the model cannot produce a usable summary.
+     * Rank is the floor by construction — never inferred from what the user
+     * claimed, because nothing validated it.
+     */
+    private function fallbackProfile(array $turns): array
+    {
+        $firstAnswer = trim((string) ($turns[0]['answer'] ?? ''));
+
+        return [
+            'role' => $firstAnswer !== '' ? mb_substr($firstAnswer, 0, 200) : 'Not specified',
+            'rank' => 10,
+            'scale' => '',
+            'governance' => '',
+            'frictions' => [],
+            'summary_bullets' => [
+                'Recorded without AI calibration — the assistant was unavailable.',
+                'Your organization owner can adjust your seniority from the profile page.',
+            ],
+        ];
     }
 
     /**
@@ -119,6 +165,8 @@ class OnboardingController extends Controller
                 'user_id' => $user->id,
                 'rank' => $profile['rank'] ?? null,
             ]);
+
+            $request->session()->forget(self::PROFILE_KEY);
 
             flash(localize('Something went wrong saving your profile. Please try again.'))->error();
 

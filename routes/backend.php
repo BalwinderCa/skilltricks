@@ -286,7 +286,10 @@ Route::group(
 
                 // onboarding calibration
                 Route::get('/onboarding', [OnboardingController::class, 'index'])->name('onboarding.index');
-                Route::post('/onboarding/answer', [OnboardingController::class, 'answer'])->name('onboarding.answer');
+                // Throttled: this route spends money on every call.
+                Route::post('/onboarding/answer', [OnboardingController::class, 'answer'])
+                    ->middleware('throttle:20,1')
+                    ->name('onboarding.answer');
                 Route::post('/onboarding/confirm', [OnboardingController::class, 'confirm'])->name('onboarding.confirm');
 
                 // chat

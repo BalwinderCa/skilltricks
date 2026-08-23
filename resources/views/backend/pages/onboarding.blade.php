@@ -13,7 +13,14 @@
                         <div class="card-body">
                             <h4 class="mb-3">{{ localize('Let us calibrate SkillTricks to your organization') }}</h4>
 
-                            <div id="oi-thread" class="mb-3"></div>
+                            <div id="oi-thread" class="mb-3">
+                                @foreach($turns as $turn)
+                                    <div class="mb-3">
+                                        <p class="text-muted mb-1">{{ $turn['question'] }}</p>
+                                        <p class="mb-0">{{ $turn['answer'] }}</p>
+                                    </div>
+                                @endforeach
+                            </div>
 
                             <div id="oi-ask">
                                 <p id="oi-question" class="fw-semibold">{{ $question }}</p>
@@ -79,7 +86,7 @@
                     'X-CSRF-TOKEN': "{{ csrf_token() }}",
                     'Accept': 'application/json',
                 },
-                body: JSON.stringify({ question: question, answer: answer }),
+                body: JSON.stringify({ answer: answer }),
             });
 
             const data = await res.json();
