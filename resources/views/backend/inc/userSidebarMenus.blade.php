@@ -40,6 +40,8 @@
         </a>
     </li>
 
+{{-- Hidden on request. Nothing removed: delete these two comment markers to restore. --}}
+{{--
     <!-- subscriptions -->
     @php
         $subscriptionActiveRoutes = ['subscriptions.index'];
@@ -63,6 +65,7 @@
             </ul>
         </div>
     </li>
+--}}
 
     <!-- Documents -->
     <li class="side-nav-item nav-item {{ areActiveRoutes(['documents.index'], 'tt-menu-item-active') }}">
@@ -137,6 +140,8 @@
             <span class="tt-nav-link-text">{{ localize('All Projects') }}</span>
         </a>
     </li> -->
+{{-- Hidden on request. Nothing removed: delete these two comment markers to restore. --}}
+{{--
     <li class="side-nav-title side-nav-item nav-item mt-3">
         <span class="tt-nav-title-text text-muted">{{ localize('Support') }}</span>
     </li>
@@ -144,6 +149,7 @@
     @if (isModuleActive('Support'))
         @include('support::sidebar.customer_sidebar')
     @endif
+--}}
 
 
     <!-- Templates -->
