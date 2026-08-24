@@ -131,8 +131,8 @@ class OrganizationPageTest extends TestCase
             ]);
         }
 
-        SearchUserChat::create(['user_id' => $owner->id, 'status1' => 0]);
-        SearchUserChat::create(['user_id' => $outsider->id, 'status1' => 0]);
+        SearchUserChat::create(['user_id' => $owner->id, 'status1' => 0, 'response' => 'an answer']);
+        SearchUserChat::create(['user_id' => $outsider->id, 'status1' => 0, 'response' => 'an answer']);
 
         $response = $this->actingAs($owner->fresh())->get(route('writebot.dashboard'));
 
@@ -151,8 +151,8 @@ class OrganizationPageTest extends TestCase
     {
         [, $owner] = $this->orgWithOwnerAndMember();
 
-        SearchUserChat::create(['user_id' => $owner->id, 'status1' => 0]);
-        $latest = SearchUserChat::create(['user_id' => $owner->id, 'status1' => 0]);
+        SearchUserChat::create(['user_id' => $owner->id, 'status1' => 0, 'response' => 'first answer']);
+        $latest = SearchUserChat::create(['user_id' => $owner->id, 'status1' => 0, 'response' => 'second answer']);
 
         $response = $this->actingAs($owner->fresh())->get(route('writebot.dashboard'));
 
@@ -168,6 +168,25 @@ class OrganizationPageTest extends TestCase
         $response = $this->actingAs($owner->fresh())->get(route('writebot.dashboard'));
 
         $response->assertOk();
+        $response->assertViewHas('latestChatId', null);
+        $response->assertSee(route('newusers-new-chat.index'), false);
+    }
+
+    public function test_empty_chat_shells_are_not_counted(): void
+    {
+        // Opening "New Chat" creates a SearchUserChat row before the user has
+        // said anything. A brand-new account had seven of these and the card
+        // reported seven conversations.
+        [, $owner] = $this->orgWithOwnerAndMember();
+
+        SearchUserChat::create(['user_id' => $owner->id, 'status1' => 0]);
+        SearchUserChat::create(['user_id' => $owner->id, 'status1' => 0]);
+
+        $response = $this->actingAs($owner->fresh())->get(route('writebot.dashboard'));
+
+        $response->assertOk();
+        $response->assertViewHas('orgChatCount', 0);
+        // With nothing real to open, the card offers to start one.
         $response->assertViewHas('latestChatId', null);
         $response->assertSee(route('newusers-new-chat.index'), false);
     }

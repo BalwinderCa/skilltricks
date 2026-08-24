@@ -57,9 +57,12 @@ class DashboardController extends Controller
 
             'orgDocumentCount' => $memberIds->isEmpty() ? 0 : Document::whereIn('user_id', $memberIds)->count(),
 
-            'orgChatCount' => $memberIds->isEmpty() ? 0 : SearchUserChat::whereIn('user_id', $memberIds)->count(),
+            // Only chats that actually hold a conversation. Visiting "New Chat"
+            // creates an empty SearchUserChat row and redirects to it, so a
+            // plain row count reports clicks rather than chats.
+            'orgChatCount' => $memberIds->isEmpty() ? 0 : SearchUserChat::whereIn('user_id', $memberIds)->whereNotNull('response')->count(),
 
-            'latestChatId' => SearchUserChat::where('user_id', $user->id)->latest('id')->value('id'),
+            'latestChatId' => SearchUserChat::where('user_id', $user->id)->whereNotNull('response')->latest('id')->value('id'),
 
             'totalWordsData' => $totalWordsData,
 
