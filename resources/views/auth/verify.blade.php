@@ -10,13 +10,15 @@
     <div class="login-page">
         <div class="container-fluid p-0">
             <div class="row">
-                <div class="col-lg-6 mt-3">
+                {{-- Column stretches to the row height (set by the image panel), so the
+                     short verify copy can center against it instead of stacking under the logo. --}}
+                <div class="col-lg-6 mt-3 d-flex flex-column">
                     <div class="img-wrap d-flex">
                         <a href="{{ route('home') }}" class="navbar-brand d-flex justify-content-center mb-2 text-decoration-none">
                             <img src="{{ staticAsset('newfronted/Assets/logo-wordmark.png') }}" alt="Skilltricks">
                         </a>
                     </div>
-                    <div class="flex-grow d-flex align-items-center w-md-50">
+                    <div class="flex-grow-1 d-flex align-items-center w-md-50">
                         <div class="w-100 px-4 text-center text-extra-small w-lg-50">
                             <div class="container-tight">
 
