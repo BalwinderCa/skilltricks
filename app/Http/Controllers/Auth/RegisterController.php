@@ -7,6 +7,7 @@ use App\Http\Requests\UserRegistration\UserRegistrationStoreReqeust;
 use App\Jobs\User\EmailConfirmationJob;
 use App\Models\SubscriptionPackage;
 use App\Models\User;
+use App\Services\OrganizationService;
 use App\Services\UserService;
 use Illuminate\Foundation\Auth\RegistersUsers;
 use Illuminate\Http\Request;
@@ -96,8 +97,11 @@ class RegisterController extends Controller
 
     // register new customer here
 
-    public function register(UserRegistrationStoreReqeust $request, UserService $userService)
-    {
+    public function register(
+        UserRegistrationStoreReqeust $request,
+        UserService $userService,
+        OrganizationService $organizationService
+    ) {
 
         try {
 
@@ -146,6 +150,12 @@ class RegisterController extends Controller
             // Store User
 
             $user = $userService->storeUser($data);
+
+            // Organization membership is settled at registration from the email
+            // domain; hierarchy rank is set later, on interview confirmation.
+            // Note: the address is not confirmed at this point, and email
+            // verification is a site setting that can be disabled entirely.
+            $organizationService->attachUser($user, $organizationService->resolveForUser($user));
 
             // Store User as subscriber
 

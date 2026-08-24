@@ -24,24 +24,24 @@ return new class extends Migration
             $table->timestamps();
         });
         Schema::table('subscription_packages', function (Blueprint $table) {
-            if (!Schema::hasColumn($table->getTable(), 'show_dall_e_2_image')) {
+            if (! Schema::hasColumn($table->getTable(), 'show_dall_e_2_image')) {
                 $table->tinyInteger('show_dall_e_2_image')->nullable()->default(0);
             }
-            if (!Schema::hasColumn($table->getTable(), 'show_dall_e_3_image')) {
+            if (! Schema::hasColumn($table->getTable(), 'show_dall_e_3_image')) {
                 $table->tinyInteger('show_dall_e_3_image')->nullable()->default(1);
             }
-            if (!Schema::hasColumn($table->getTable(), 'allow_dall_e_2_image')) {
+            if (! Schema::hasColumn($table->getTable(), 'allow_dall_e_2_image')) {
                 $table->integer('allow_dall_e_2_image')->nullable()->default(1);
             }
-            if (!Schema::hasColumn($table->getTable(), 'allow_dall_e_3_image')) {
+            if (! Schema::hasColumn($table->getTable(), 'allow_dall_e_3_image')) {
                 $table->integer('allow_dall_e_3_image')->nullable()->default(1);
             }
         });
         $packages = SubscriptionPackage::where('allow_images', 1)->update([
-            'show_dall_e_2_image'=>1,
-            'show_dall_e_3_image'=>1,
-            'allow_dall_e_2_image'=>1,
-            'allow_dall_e_3_image'=>1
+            'show_dall_e_2_image' => 1,
+            'show_dall_e_3_image' => 1,
+            'allow_dall_e_2_image' => 1,
+            'allow_dall_e_3_image' => 1,
         ]);
     }
 
@@ -53,9 +53,16 @@ return new class extends Migration
     public function down()
     {
         Schema::dropIfExists('feature_category_detail_localizations');
-        Schema::table('pages', function (Blueprint $table) {
-            $columns = ['show_dall_e_2_image','show_dall_e_3_image','allow_dall_e_3_image','allow_dall_e_2_image'];
-            $table->dropColumn($columns);
+
+        // Same copy-paste error as the ai_content_detectors migration: up() adds
+        // these to subscription_packages, down() dropped them from `pages`, which
+        // never had them. Guarded to match up().
+        Schema::table('subscription_packages', function (Blueprint $table) {
+            foreach (['show_dall_e_2_image', 'show_dall_e_3_image', 'allow_dall_e_3_image', 'allow_dall_e_2_image'] as $column) {
+                if (Schema::hasColumn($table->getTable(), $column)) {
+                    $table->dropColumn($column);
+                }
+            }
         });
     }
 };

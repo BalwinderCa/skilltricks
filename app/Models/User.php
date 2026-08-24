@@ -2,37 +2,35 @@
 
 namespace App\Models;
 
-use Carbon\Carbon;
-use App\Models\SpatieRole;
+use App\Notifications\EmailVerificationNotification;
+use App\Notifications\WelcomeNotification;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
 use Laravel\Cashier\Billable;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
-use Illuminate\Notifications\Notifiable;
-use App\Notifications\WelcomeNotification;
-use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Contracts\Auth\MustVerifyEmail;
-use App\Models\Subscriptions as SubscriptionsModel;
-use App\Notifications\EmailVerificationNotification;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Foundation\Auth\User as Authenticatable;
 
 class User extends Authenticatable implements MustVerifyEmail
 {
-    use HasApiTokens, HasFactory, Notifiable, HasRoles, SoftDeletes,Billable;
+    use Billable, HasApiTokens, HasFactory, HasRoles, Notifiable,SoftDeletes;
 
-    # email verification notification
+    // email verification notification
     public function sendVerificationNotification()
     {
-        $this->notify(new EmailVerificationNotification());
+        $this->notify(new EmailVerificationNotification);
     }
 
-    # registration notification
+    // registration notification
     public function registrationNotification()
     {
-        $this->notify(new WelcomeNotification());
+        $this->notify(new WelcomeNotification);
     }
 
-    # guarded — use explicit fillable to prevent privilege escalation via mass assignment
+    // guarded — use explicit fillable to prevent privilege escalation via mass assignment
     protected $fillable = [
         'name',
         'email',
@@ -47,6 +45,8 @@ class User extends Authenticatable implements MustVerifyEmail
         'email_verified_at',
         'remember_token',
         'company',
+        'organization_id',
+        'hierarchy_rank',
         'company_name',
         'company_address',
         'number_employess',
@@ -56,78 +56,89 @@ class User extends Authenticatable implements MustVerifyEmail
         'referral_code',
     ];
 
-    # hidden for serializations
+    // hidden for serializations
     protected $hidden = [
         'password',
         'remember_token',
     ];
 
-    # should be casted
+    // should be casted
     protected $casts = [
         'email_verified_at' => 'datetime',
     ];
 
-    # role
+    // role
     public function role()
     {
         return $this->belongsTo(SpatieRole::class);
     }
 
-    # subscriptionPackage
+    // organization
+    /** @return BelongsTo<Organization, $this> */
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
+    }
+
+    // subscriptionPackage
     public function subscriptionPackage()
     {
         return $this->belongsTo(SubscriptionPackage::class)->withTrashed();
     }
 
-    # subscriptionHistories
+    // subscriptionHistories
     public function subscriptionHistories()
     {
         return $this->hasMany(SubscriptionHistory::class);
     }
 
-    # referred users
+    // referred users
     public function referredUsers()
     {
         return $this->hasMany(User::class, 'referred_by', 'id');
     }
-    # created users
+
+    // created users
     public function createdBy()
     {
         return $this->belongsTo(User::class, 'created_by', 'id')->withDefault([
-            'name' => 'not found'
+            'name' => 'not found',
         ]);
     }
 
-    # referred users earnings
+    // referred users earnings
     public function referredUserEarnings()
     {
         return $this->hasMany(AffiliateEarning::class, 'referred_by', 'id');
     }
 
-    # affiliatePayoutAccounts
+    // affiliatePayoutAccounts
     public function affiliatePayoutAccounts()
     {
         return $this->hasMany(AffiliatePayoutAccount::class);
     }
-    # non paid subscriptionHistories
-    function nonPaidSubscriptionHistories()
+
+    // non paid subscriptionHistories
+    public function nonPaidSubscriptionHistories()
     {
         return $this->subscriptionHistories()->where('payment_status', '!=', 1)->where('payment_method', 'offline');
     }
-    #active package
+
+    // active package
     public function currentPackage()
     {
         return $this->hasOne(SubscriptionHistory::class, 'user_id', 'id')->where('subscription_status', 1);
     }
-    # subscriped package
+
+    // subscriped package
     public function subscribeds()
     {
         return $this->hasMany(SubscriptionHistory::class, 'user_id', 'id')->where('subscription_status', 3);
     }
-    #avatar image
+
+    // avatar image
     public function profileImage()
     {
         return $this->belongsTo(MediaManager::class, 'avatar', 'id')->withDefault();
     }
-    
 }
