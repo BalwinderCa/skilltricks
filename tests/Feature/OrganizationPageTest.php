@@ -1,0 +1,106 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Organization;
+use App\Models\User;
+use App\Services\OrganizationService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class OrganizationPageTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        config([
+            'session.driver' => 'array',
+            'database.default' => 'sqlite',
+            'database.connections.sqlite.database' => ':memory:',
+        ]);
+    }
+
+    /** @return array{0: Organization, 1: User, 2: User} */
+    private function orgWithOwnerAndMember(): array
+    {
+        $org = Organization::create(['domain' => 'acme.com', 'name' => 'Acme']);
+
+        $owner = User::factory()->create([
+            'email' => 'owner@acme.com', 'user_type' => 'customer',
+            'email_verified_at' => now(), 'organization_id' => $org->id, 'hierarchy_rank' => 50,
+        ]);
+        $member = User::factory()->create([
+            'email' => 'member@acme.com', 'user_type' => 'customer',
+            'email_verified_at' => now(), 'organization_id' => $org->id, 'hierarchy_rank' => 20,
+        ]);
+
+        $org->forceFill(['owner_user_id' => $owner->id])->save();
+
+        return [$org, $owner, $member];
+    }
+
+    public function test_the_owner_sees_every_member_and_can_edit_ranks(): void
+    {
+        [, $owner, $member] = $this->orgWithOwnerAndMember();
+
+        $response = $this->actingAs($owner)->get(route('organization.index'));
+
+        $response->assertOk();
+        $response->assertSee($owner->email);
+        $response->assertSee($member->email);
+        // The editable control only renders for the owner.
+        $response->assertSee('organization/member-rank', false);
+        $response->assertSee('name="rank"', false);
+    }
+
+    public function test_a_member_sees_the_roster_but_cannot_edit_ranks(): void
+    {
+        [, , $member] = $this->orgWithOwnerAndMember();
+
+        $response = $this->actingAs($member)->get(route('organization.index'));
+
+        $response->assertOk();
+        $response->assertSee('owner@acme.com');
+        // Rank is shown as text, with no form to change it.
+        $response->assertSee('Manager');
+        $response->assertDontSee('name="rank"', false);
+        $response->assertDontSee('organization/member-rank', false);
+    }
+
+    public function test_the_page_shows_who_governs_the_active_context(): void
+    {
+        [$org, $owner] = $this->orgWithOwnerAndMember();
+
+        app(OrganizationService::class)->recordContext($org, $owner, 50, [
+            'role' => 'Chief Executive Officer',
+            'rank' => 50,
+            'scale' => '12 people across product and engineering',
+            'governance' => 'Quarterly OKRs',
+            'frictions' => [],
+            'summary_bullets' => [],
+        ]);
+
+        $response = $this->actingAs($owner->fresh())->get(route('organization.index'));
+
+        $response->assertOk();
+        $response->assertSee('Chief Executive Officer');
+        $response->assertSee('12 people across product and engineering');
+        $response->assertSee('Quarterly OKRs');
+    }
+
+    public function test_a_user_without_an_organization_is_pointed_at_calibration(): void
+    {
+        $user = User::factory()->create([
+            'user_type' => 'customer', 'email_verified_at' => now(),
+            'organization_id' => null, 'hierarchy_rank' => null,
+        ]);
+
+        $response = $this->actingAs($user)->get(route('organization.index'));
+
+        // Must not 500 for someone who has not calibrated yet.
+        $response->assertOk();
+        $response->assertSee(route('onboarding.index'), false);
+    }
+}

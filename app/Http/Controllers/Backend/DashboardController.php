@@ -85,11 +85,7 @@ class DashboardController extends Controller
 
         $chatrolecategories = DB::table('chat_role_categories')->where('status', 1)->get();
 
-        $orgMembers = ($user->organization && (int) $user->organization->owner_user_id === (int) $user->id)
-            ? $user->organization->members()->orderBy('name')->get()
-            : collect();
-
-        return view('backend.pages.profile', compact('user', 'chatrolecategories', 'orgMembers'));
+        return view('backend.pages.profile', compact('user', 'chatrolecategories'));
 
     }
 
@@ -133,6 +129,24 @@ class DashboardController extends Controller
 
         return back();
 
+    }
+
+    // organization page: who is in this organization, and who governs its context
+
+    public function organization()
+    {
+        $user = auth()->user();
+        $org = $user->organization;
+
+        // Every member sees the roster and who sets the active baseline. Only
+        // the owner may change a rank; the view branches on $isOwner.
+        return view('backend.pages.organization', [
+            'user' => $user,
+            'org' => $org,
+            'isOwner' => $org && (int) $org->owner_user_id === (int) $user->id,
+            'orgMembers' => $org ? $org->members()->orderBy('name')->get() : collect(),
+            'activeContext' => $org ? $org->activeContext : null,
+        ]);
     }
 
     // organization owner corrects a member's hierarchy rank

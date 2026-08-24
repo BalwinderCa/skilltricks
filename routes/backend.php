@@ -293,6 +293,7 @@ Route::group(
                 Route::post('/onboarding/confirm', [OnboardingController::class, 'confirm'])->name('onboarding.confirm');
 
                 // organization owner corrects a member's declared rank
+                Route::get('/organization', [DashboardController::class, 'organization'])->name('organization.index');
                 Route::post('/organization/member-rank', [DashboardController::class, 'updateMemberRank'])->name('organization.member-rank');
 
                 // chat
