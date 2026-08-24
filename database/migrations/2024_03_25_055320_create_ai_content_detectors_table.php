@@ -1,9 +1,9 @@
 <?php
 
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Spatie\Permission\Models\Permission;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Database\Migrations\Migration;
 
 return new class extends Migration
 {
@@ -30,40 +30,39 @@ return new class extends Migration
             $table->timestamps();
         });
         Schema::table('subscription_packages', function (Blueprint $table) {
-            if (!Schema::hasColumn($table->getTable(), 'show_ai_detector')) {
+            if (! Schema::hasColumn($table->getTable(), 'show_ai_detector')) {
                 $table->tinyInteger('show_ai_detector')->nullable()->default(0);
             }
-            if (!Schema::hasColumn($table->getTable(), 'show_ai_plagiarism')) {
+            if (! Schema::hasColumn($table->getTable(), 'show_ai_plagiarism')) {
                 $table->tinyInteger('show_ai_plagiarism')->nullable()->default(1);
             }
-            if (!Schema::hasColumn($table->getTable(), 'allow_ai_detector')) {
+            if (! Schema::hasColumn($table->getTable(), 'allow_ai_detector')) {
                 $table->integer('allow_ai_detector')->nullable()->default(1);
             }
-            if (!Schema::hasColumn($table->getTable(), 'allow_ai_plagiarism')) {
+            if (! Schema::hasColumn($table->getTable(), 'allow_ai_plagiarism')) {
                 $table->integer('allow_ai_plagiarism')->nullable()->default(1);
             }
         });
         try {
-           $permissions = array(
-            array('id' => 120, 'name' => 'plagiarism_api', 'group_name' => 'plagiarism_api', 'guard_name' => 'web'),
-            array('id' => 121, 'name' => 'ai_plagiarism', 'group_name' => 'plagiarism_api', 'guard_name' => 'web'),
-            array('id' => 122, 'name' => 'ai_detector', 'group_name' => 'plagiarism_api', 'guard_name' => 'web'),
-            array('id' => 123, 'name' => 'add_content_detectors', 'group_name' => 'plagiarism', 'guard_name' => 'web'),
-            array('id' => 124, 'name' => 'add_content_plagiarism', 'group_name' => 'plagiarism', 'guard_name' => 'web'),
-           );
-           foreach($permissions as $permission)
-           {
+            $permissions = [
+                ['id' => 120, 'name' => 'plagiarism_api', 'group_name' => 'plagiarism_api', 'guard_name' => 'web'],
+                ['id' => 121, 'name' => 'ai_plagiarism', 'group_name' => 'plagiarism_api', 'guard_name' => 'web'],
+                ['id' => 122, 'name' => 'ai_detector', 'group_name' => 'plagiarism_api', 'guard_name' => 'web'],
+                ['id' => 123, 'name' => 'add_content_detectors', 'group_name' => 'plagiarism', 'guard_name' => 'web'],
+                ['id' => 124, 'name' => 'add_content_plagiarism', 'group_name' => 'plagiarism', 'guard_name' => 'web'],
+            ];
+            foreach ($permissions as $permission) {
                 $data = Permission::where('name', $permission['name'])->first();
-                if(!$data){
-                    $data = new Permission();
+                if (! $data) {
+                    $data = new Permission;
                     $data->name = $data['name'];
                     $data->group_name = $data['group_name'];
                     $data->guard_name = $data['guard_name'];
                     $data->save();
                 }
-           }
-        } catch (\Throwable $th) {
-            //throw $th;
+            }
+        } catch (Throwable $th) {
+            // throw $th;
         }
     }
 
