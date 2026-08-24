@@ -36,9 +36,15 @@ class DashboardController extends Controller
 
         $user = auth()->user();
 
+        $org = $user->organization;
+
         $view = view('backend.pages.dashboard', [
 
             'user' => $user,
+
+            'org' => $org,
+
+            'activeContext' => $org ? $org->activeContext : null,
 
             'totalWordsData' => $totalWordsData,
 

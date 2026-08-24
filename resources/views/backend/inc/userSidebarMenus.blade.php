@@ -36,7 +36,7 @@
     <li class="side-nav-item nav-item {{ areActiveRoutes(['organization.index'], 'tt-menu-item-active') }}">
         <a href="{{ route('organization.index') }}" class="side-nav-link">
             <span class="tt-nav-link-icon"><i data-feather="users"></i></span>
-            <span class="tt-nav-link-text">{{ localize('Organization') }}</span>
+            <span class="tt-nav-link-text">{{ localize('Teams') }}</span>
         </a>
     </li>
 

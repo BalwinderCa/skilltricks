@@ -69,8 +69,10 @@ class OrganizationPageTest extends TestCase
         $response->assertDontSee('organization/member-rank', false);
     }
 
-    public function test_the_page_shows_who_governs_the_active_context(): void
+    public function test_the_dashboard_shows_who_governs_the_active_context(): void
     {
+        // The active context lives on the dashboard, not the Teams page: it
+        // describes what the platform is working from, not who is in the org.
         [$org, $owner] = $this->orgWithOwnerAndMember();
 
         app(OrganizationService::class)->recordContext($org, $owner, 50, [
@@ -78,16 +80,34 @@ class OrganizationPageTest extends TestCase
             'rank' => 50,
             'scale' => '12 people across product and engineering',
             'governance' => 'Quarterly OKRs',
-            'frictions' => [],
+            'frictions' => ['Execution drift between teams'],
             'summary_bullets' => [],
         ]);
 
-        $response = $this->actingAs($owner->fresh())->get(route('organization.index'));
+        $response = $this->actingAs($owner->fresh())->get(route('writebot.dashboard'));
 
         $response->assertOk();
         $response->assertSee('Chief Executive Officer');
         $response->assertSee('12 people across product and engineering');
         $response->assertSee('Quarterly OKRs');
+        $response->assertSee('Execution drift between teams');
+    }
+
+    public function test_the_teams_page_does_not_repeat_the_active_context(): void
+    {
+        [$org, $owner] = $this->orgWithOwnerAndMember();
+
+        app(OrganizationService::class)->recordContext($org, $owner, 50, [
+            'role' => 'Chief Executive Officer',
+            'rank' => 50, 'scale' => 'x', 'governance' => 'y',
+            'frictions' => [], 'summary_bullets' => [],
+        ]);
+
+        $response = $this->actingAs($owner->fresh())->get(route('organization.index'));
+
+        $response->assertOk();
+        $response->assertSee($owner->email);
+        $response->assertDontSee('Active strategic context');
     }
 
     public function test_a_user_without_an_organization_is_pointed_at_calibration(): void
