@@ -147,6 +147,31 @@ class OrganizationPageTest extends TestCase
         $response->assertViewHas('orgChatCount', 1);
     }
 
+    public function test_the_chat_card_opens_the_users_latest_chat(): void
+    {
+        [, $owner] = $this->orgWithOwnerAndMember();
+
+        SearchUserChat::create(['user_id' => $owner->id, 'status1' => 0]);
+        $latest = SearchUserChat::create(['user_id' => $owner->id, 'status1' => 0]);
+
+        $response = $this->actingAs($owner->fresh())->get(route('writebot.dashboard'));
+
+        $response->assertOk();
+        $response->assertViewHas('latestChatId', $latest->id);
+        $response->assertSee(route('users-new-chat.index', $latest->id), false);
+    }
+
+    public function test_the_chat_card_offers_to_start_one_when_there_are_none(): void
+    {
+        [, $owner] = $this->orgWithOwnerAndMember();
+
+        $response = $this->actingAs($owner->fresh())->get(route('writebot.dashboard'));
+
+        $response->assertOk();
+        $response->assertViewHas('latestChatId', null);
+        $response->assertSee(route('newusers-new-chat.index'), false);
+    }
+
     public function test_a_user_without_an_organization_is_pointed_at_calibration(): void
     {
         $user = User::factory()->create([

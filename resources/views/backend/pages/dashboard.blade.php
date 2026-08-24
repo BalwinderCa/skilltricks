@@ -53,7 +53,11 @@
                             <div class="card-body d-flex flex-column h-100">
                                 <span class="text-muted">{{ localize('Strategy chats') }}</span>
                                 <h4 class="fw-bold mb-0">{{ $orgChatCount }}</h4>
-                                <a class="fs-sm mt-2" href="{{ route('userchathistory.index') }}">{{ localize('View history') }}</a>
+                                @if($latestChatId)
+                                    <a class="fs-sm mt-2" href="{{ route('users-new-chat.index', $latestChatId) }}">{{ localize('Open latest chat') }}</a>
+                                @else
+                                    <a class="fs-sm mt-2" href="{{ route('newusers-new-chat.index') }}">{{ localize('Start a chat') }}</a>
+                                @endif
                             </div>
                         </div>
                     </div>

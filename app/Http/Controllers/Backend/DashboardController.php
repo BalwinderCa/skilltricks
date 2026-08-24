@@ -59,6 +59,8 @@ class DashboardController extends Controller
 
             'orgChatCount' => $memberIds->isEmpty() ? 0 : SearchUserChat::whereIn('user_id', $memberIds)->count(),
 
+            'latestChatId' => SearchUserChat::where('user_id', $user->id)->latest('id')->value('id'),
+
             'totalWordsData' => $totalWordsData,
 
             'timelineText' => $timelineText,
