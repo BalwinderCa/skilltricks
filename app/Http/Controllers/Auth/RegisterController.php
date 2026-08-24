@@ -275,7 +275,14 @@ class RegisterController extends Controller
 
         // send welcome email if enabled
 
-        if (getSetting('welcome_email') == 1 && activeEmailTemplate('welcome-email') == true) {
+        // One email per signup. When verification is on, register() has already
+        // dispatched the verification mail, which opens with the same "thanks for
+        // signing up" greeting and carries the activation button on top -- so a
+        // second welcome email arrives at the same moment saying strictly less.
+        // With verification disabled nothing else is sent, so it still goes out.
+        $verificationEmailSent = getSetting('registration_verification_with') != appStatic()::REGISTRATION_WITH_DISABLE;
+
+        if (! $verificationEmailSent && getSetting('welcome_email') == 1 && activeEmailTemplate('welcome-email') == true) {
 
             try {
 
