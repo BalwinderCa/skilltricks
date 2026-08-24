@@ -166,8 +166,21 @@
                                     </div>
 
                                 </div>
+                            </div>
 
+                        </div>
 
+                        <!--basic information end-->
+
+                        <!--password start-->
+
+                        <div class="card mb-4" id="section-2">
+
+                            <div class="card-body">
+
+                                <h5 class="mb-4">{{ localize('Password') }}</h5>
+
+                                <p class="text-muted small">{{ localize('Leave both fields blank to keep your current password.') }}</p>
 
                                 <div class="mb-3">
 
@@ -192,12 +205,22 @@
                                         placeholder="{{ localize('Re-type password') }}" name="password_confirmation">
 
                                 </div>
+                            </div>
 
+                        </div>
 
-                            @if(!empty($user->user_type == 'customer'))
+                        <!--password end-->
 
+                        @if(!empty($user->user_type == 'customer'))
 
-                                <h5 class="mb-4 mt-4">{{ localize('Company Information') }}</h5>
+                        <!--company information start-->
+
+                        <div class="card mb-4" id="section-3">
+
+                            <div class="card-body">
+
+                                <h5 class="mb-4">{{ localize('Company Information') }}</h5>
+
 
                                  <div class="mb-3">
 
@@ -379,15 +402,14 @@
 
                                     <textarea class="form-control" id="about_company" name="about_company" rows="5" required>{{ old('about_company', $user->about_company ?? '') }}</textarea>
                                 </div>
-
-
-                            @endif
-
                             </div>
 
                         </div>
 
-                        <!--basic information end-->
+                        <!--company information end-->
+
+                        @endif
+
 
 
 
@@ -444,6 +466,22 @@
                                         <a href="#section-1" class="active">{{ localize('Basic Information') }}</a>
 
                                     </li>
+
+                                    <li>
+
+                                        <a href="#section-2">{{ localize('Password') }}</a>
+
+                                    </li>
+
+                                    @if(!empty($user->user_type == 'customer'))
+
+                                    <li>
+
+                                        <a href="#section-3">{{ localize('Company Information') }}</a>
+
+                                    </li>
+
+                                    @endif
 
                                 </ul>
 
