@@ -1,112 +1,80 @@
 @extends('layouts.auth')
 
-
-
 @section('title')
-
     {{ localize('Verify') }}
-
 @endsection
-
-
 
 @section('contents')
+@include('auth.inc.authStyles')
 
-    <!--login registration section start-->
-
-    <section class="tt-login-registration min-vh-100 d-flex overflow-hidden bg-dark bg-image-hero align-items-center">
-
-        @include('auth.inc.loginSidebar')
-
-        <!--right bar content-->
-
-        <div class="tt-login-registration-form-wrap max-w-30 bg-secondary-subtle p-4 p-lg-5 min-vh-100">
-
-            <a href="{{ route('home') }}" class="navbar-brand d-flex justify-content-center mb-5 text-decoration-none">
-
-                <img src="{{ uploadedAsset(getSetting('navbar_logo_dark')) }}" alt="logo" class="img-fluid logo-color" />
-
-            </a>
-
-
-
-            @if (session('resent'))
-
-                <div class="alert alert-success" role="alert">
-
-                    {{ localize('A fresh verification link has been sent to your email address.') }}
-
-                </div>
-
-            @endif
-
-
-
-            <!--form login-->
-
-            <form action="{{ route('verification.resend') }}" method="POST" id="login-form" class="mt-4 register-form">
-
-                @csrf
-
-                <div class="row">
-
-                    <div class="col-12 mb-2">
-
-                        {{ localize('Before proceeding, please check your email for a verification link.') }}</div>
-
-
-
-                    <div class="col-12 mb-3">
-
-                        <button type="submit" class="btn btn-primary mt-3 d-block w-100 sign-in-btn"
-
-                            onclick="handleSubmit()"> {{ localize('Click here to request another') }}</button>
-
+    <div class="login-page">
+        <div class="container-fluid p-0">
+            <div class="row">
+                <div class="col-lg-6 mt-3">
+                    <div class="img-wrap d-flex">
+                        <a href="{{ route('home') }}" class="navbar-brand d-flex justify-content-center mb-2 text-decoration-none">
+                            <img src="{{ staticAsset('newfronted/Assets/logo-wordmark.png') }}" alt="Skilltricks">
+                        </a>
                     </div>
+                    <div class="flex-grow d-flex align-items-center w-md-50">
+                        <div class="w-100 px-4 text-center text-extra-small w-lg-50">
+                            <div class="container-tight">
 
+                                <h1 class="ttl">{{ localize('Confirm your email') }}</h1>
 
+                                <p class="lqd-input-label-txt mb-2">
+                                    {{ localize('We sent a verification link to') }}
+                                    <strong class="text-dark">{{ auth()->user()->email }}</strong>.
+                                    {{ localize('Open it and you are in — this is the last step before SkillTricks starts calibrating around your role.') }}
+                                </p>
 
+                                <p class="lqd-input-label-txt fs-12 mb-0">
+                                    {{ localize('Nothing there yet? Give it a minute, then check spam and promotions before sending a fresh one.') }}
+                                </p>
+
+                                @if (session('resent'))
+                                    <div class="alert alert-success mt-3 mb-0 py-2 fs-12" role="alert">
+                                        {{ localize('Done — a new link is on its way.') }}
+                                    </div>
+                                @endif
+
+                                <form action="{{ route('verification.resend') }}" method="POST" id="login-form" class="w-100 form-section mt-3">
+                                    @csrf
+                                    <button class="btn btn-md btn-blue mt-2 sign-in-btn" type="submit" onclick="handleSubmit()">
+                                        {{ localize('Send a new link') }}
+                                    </button>
+                                </form>
+
+                            </div>
+                            <div class="text-muted mt-4 mb-2 lqd-input-label-txt">
+                                {{ localize('Wrong address?') }}
+                                <a class="font-medium text-indigo-600 underline fs-12" href="{{ route('logout') }}">
+                                    {{ localize('Sign out and register again') }}
+                                </a>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-            </form>
-
-            <!--form login-->
-
+                <div class="col-lg-6">
+                    <div class="hiddenbg" style="background-image: url('{{ asset('public/images/bg-auth.jpg') }}');">
+                        <img class="translate-x-[27%]" src="{{ asset('public/images/dash-mockup.jpg') }}" alt="" />
+                    </div>
+                </div>
+            </div>
         </div>
-
-    </section>
-
-    <!--login registration section end-->
-
+    </div>
 @endsection
-
-
-
-
-
-
 
 @section('scripts')
-
     <script>
-
         "use strict";
 
-
-
-        // disable login button
-
+        // disable the resend button once it has been pressed
         function handleSubmit() {
-
             $('#login-form').on('submit', function(e) {
-
                 $('.sign-in-btn').prop('disabled', true);
-
             });
-
         }
-
     </script>
-
 @endsection
-
