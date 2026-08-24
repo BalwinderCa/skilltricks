@@ -166,6 +166,16 @@
                                     </div>
 
                                 </div>
+
+                                <div class="mt-4">
+
+                                    <button class="btn btn-primary" type="submit">
+
+                                        <i data-feather="save" class="me-1"></i> {{ localize('Save Basic Information') }}
+
+                                    </button>
+
+                                </div>
                             </div>
 
                         </div>
@@ -203,6 +213,16 @@
                                     <input class="form-control" type="password" id="password_confirmation"
 
                                         placeholder="{{ localize('Re-type password') }}" name="password_confirmation">
+
+                                </div>
+
+                                <div class="mt-4">
+
+                                    <button class="btn btn-primary" type="submit">
+
+                                        <i data-feather="save" class="me-1"></i> {{ localize('Update Password') }}
+
+                                    </button>
 
                                 </div>
                             </div>
@@ -402,6 +422,16 @@
 
                                     <textarea class="form-control" id="about_company" name="about_company" rows="5" required>{{ old('about_company', $user->about_company ?? '') }}</textarea>
                                 </div>
+
+                                <div class="mt-4">
+
+                                    <button class="btn btn-primary" type="submit">
+
+                                        <i data-feather="save" class="me-1"></i> {{ localize('Save Company Information') }}
+
+                                    </button>
+
+                                </div>
                             </div>
 
                         </div>
@@ -416,28 +446,6 @@
 
 
 
-
-                        <!-- submit button -->
-
-                        <div class="row">
-
-                            <div class="col-12">
-
-                                <div class="mb-3">
-
-                                    <button class="btn btn-primary" type="submit">
-
-                                        <i data-feather="save" class="me-1"></i> {{ localize('Save Changes') }}
-
-                                    </button>
-
-                                </div>
-
-                            </div>
-
-                        </div>
-
-                        <!-- submit button end -->
 
 
 
@@ -522,7 +530,56 @@
 
             showSelectedFilePreviewOnLoad();
 
+            bindStepperFix();
+
         });
+
+        // The theme's stepper (app.js) marks a step active once the page has
+        // scrolled past its heading, which the last card can never satisfy: it
+        // sits closer to the document bottom than the trigger offset, so max
+        // scrollTop stays below its threshold and Company Information never
+        // lights up. Re-deciding here, after app.js has had its turn, so this
+        // handler wins -- app.js is shared by every page and the CDN pins it for
+        // a year, so an edit there would not reach anyone anyway.
+        function bindStepperFix() {
+
+        $(window).on('scroll', function() {
+
+            var links = $('.tt-vertical-step ul li a');
+
+            if (!links.length) return;
+
+            var scrollTop = $(window).scrollTop();
+
+            // Bottom of the page always belongs to the last step, however short
+            // that section is.
+            var atBottom = scrollTop + window.innerHeight >= document.documentElement.scrollHeight - 2;
+
+            var current = links.first();
+
+            if (atBottom) {
+
+                current = links.last();
+
+            } else {
+
+                links.each(function() {
+
+                    var target = $(this.hash);
+
+                    if (target.length && scrollTop > target.offset().top - 90) current = $(this);
+
+                });
+
+            }
+
+            links.removeClass('active');
+
+            current.addClass('active');
+
+        });
+
+        }
 
     </script>
 
