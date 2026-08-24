@@ -446,7 +446,17 @@ EOT;
     public function newusers_new_chat(Request $request)
     {
         $user = auth()->user();
-        $newChat = SearchUserChat::create(['user_id' => $user->id, 'status1' => 0]);
+
+        // Reuse the user's untouched chat rather than stacking another empty
+        // row. This route creates the record before the user has typed
+        // anything, so every visit used to leave a shell behind -- a new
+        // account had seven of them without holding a single conversation.
+        // A chat with no response has nothing in it worth keeping separate.
+        $newChat = SearchUserChat::where('user_id', $user->id)
+            ->whereNull('response')
+            ->latest('id')
+            ->first()
+            ?: SearchUserChat::create(['user_id' => $user->id, 'status1' => 0]);
 
         flash(localize('New Chat.'));
 

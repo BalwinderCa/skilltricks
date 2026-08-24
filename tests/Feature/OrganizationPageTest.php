@@ -191,6 +191,31 @@ class OrganizationPageTest extends TestCase
         $response->assertSee(route('newusers-new-chat.index'), false);
     }
 
+    public function test_opening_new_chat_repeatedly_does_not_stack_empty_rows(): void
+    {
+        [, $owner] = $this->orgWithOwnerAndMember();
+
+        $this->actingAs($owner)->get(route('newusers-new-chat.index'));
+        $this->actingAs($owner)->get(route('newusers-new-chat.index'));
+        $this->actingAs($owner)->get(route('newusers-new-chat.index'));
+
+        // One untouched chat is reused, not three shells left behind.
+        $this->assertSame(1, SearchUserChat::where('user_id', $owner->id)->count());
+    }
+
+    public function test_a_used_chat_is_never_reused_for_a_new_one(): void
+    {
+        [, $owner] = $this->orgWithOwnerAndMember();
+
+        SearchUserChat::create(['user_id' => $owner->id, 'status1' => 1, 'response' => 'a real answer']);
+
+        $this->actingAs($owner)->get(route('newusers-new-chat.index'));
+
+        // The conversation is untouched and a fresh chat exists alongside it.
+        $this->assertSame(2, SearchUserChat::where('user_id', $owner->id)->count());
+        $this->assertSame(1, SearchUserChat::where('user_id', $owner->id)->whereNotNull('response')->count());
+    }
+
     public function test_a_user_without_an_organization_is_pointed_at_calibration(): void
     {
         $user = User::factory()->create([
