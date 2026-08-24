@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Organization;
+use App\Models\SearchUserChat;
 use App\Models\User;
 use App\Services\OrganizationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -108,6 +109,42 @@ class OrganizationPageTest extends TestCase
         $response->assertOk();
         $response->assertSee($owner->email);
         $response->assertDontSee('Active strategic context');
+    }
+
+    public function test_the_dashboard_counts_are_scoped_to_the_organization(): void
+    {
+        [$org, $owner, $member] = $this->orgWithOwnerAndMember();
+
+        // An unrelated user in a different organization must not be counted.
+        $outsider = User::factory()->create([
+            'email' => 'someone@globex.com', 'user_type' => 'customer',
+            'email_verified_at' => now(),
+            'organization_id' => Organization::create(['domain' => 'globex.com'])->id,
+            'hierarchy_rank' => 30,
+        ]);
+
+        foreach ([$owner->id, $member->id, $outsider->id] as $uid) {
+            \DB::table('documents')->insert([
+                'user_id' => $uid, 'name' => 'doc', 'file_path' => '/tmp/doc.pdf',
+                'file_name' => 'doc.pdf', 'file_type' => 'pdf',
+                'created_at' => now(), 'updated_at' => now(),
+            ]);
+        }
+
+        SearchUserChat::create(['user_id' => $owner->id, 'status1' => 0]);
+        SearchUserChat::create(['user_id' => $outsider->id, 'status1' => 0]);
+
+        $response = $this->actingAs($owner->fresh())->get(route('writebot.dashboard'));
+
+        $response->assertOk();
+        $response->assertSee('Members');
+        $response->assertSee('Documents uploaded');
+        $response->assertSee('Strategy chats');
+
+        // 2 members, 2 of the 3 documents, 1 of the 2 chats — the outsider's are excluded.
+        $response->assertViewHas('orgMemberCount', 2);
+        $response->assertViewHas('orgDocumentCount', 2);
+        $response->assertViewHas('orgChatCount', 1);
     }
 
     public function test_a_user_without_an_organization_is_pointed_at_calibration(): void

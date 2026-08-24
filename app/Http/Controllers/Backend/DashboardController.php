@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Backend;
 
 use App\Http\Controllers\Controller;
+use App\Models\Document;
 use App\Models\Project;
+use App\Models\SearchUserChat;
 use App\Models\SystemSetting;
 use App\Models\Template;
 use App\Models\User;
@@ -38,6 +40,11 @@ class DashboardController extends Controller
 
         $org = $user->organization;
 
+        // Org-wide totals for the dashboard cards. Scoped to fellow members
+        // rather than the whole install, since the panel above them describes
+        // this organization.
+        $memberIds = $org ? $org->members()->pluck('id') : collect();
+
         $view = view('backend.pages.dashboard', [
 
             'user' => $user,
@@ -45,6 +52,12 @@ class DashboardController extends Controller
             'org' => $org,
 
             'activeContext' => $org ? $org->activeContext : null,
+
+            'orgMemberCount' => $memberIds->count(),
+
+            'orgDocumentCount' => $memberIds->isEmpty() ? 0 : Document::whereIn('user_id', $memberIds)->count(),
+
+            'orgChatCount' => $memberIds->isEmpty() ? 0 : SearchUserChat::whereIn('user_id', $memberIds)->count(),
 
             'totalWordsData' => $totalWordsData,
 

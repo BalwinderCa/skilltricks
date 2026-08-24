@@ -25,6 +25,40 @@
                     <a href="{{ route('onboarding.index') }}">{{ localize('Start calibration') }}</a>
                 </div>
             @else
+
+                {{-- Org-wide totals, same card shape the dashboard already used --}}
+                <div class="row g-3 mb-3">
+                    <div class="col-md-4">
+                        <div class="card h-100 flex-column">
+                            <div class="card-body d-flex flex-column h-100">
+                                <span class="text-muted">{{ localize('Members') }}</span>
+                                <h4 class="fw-bold mb-0">{{ $orgMemberCount }}</h4>
+                                <a class="fs-sm mt-2" href="{{ route('organization.index') }}">{{ localize('View teams') }}</a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <div class="card h-100 flex-column">
+                            <div class="card-body d-flex flex-column h-100">
+                                <span class="text-muted">{{ localize('Documents uploaded') }}</span>
+                                <h4 class="fw-bold mb-0">{{ $orgDocumentCount }}</h4>
+                                <a class="fs-sm mt-2" href="{{ route('documents.index') }}">{{ localize('View documents') }}</a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <div class="card h-100 flex-column">
+                            <div class="card-body d-flex flex-column h-100">
+                                <span class="text-muted">{{ localize('Strategy chats') }}</span>
+                                <h4 class="fw-bold mb-0">{{ $orgChatCount }}</h4>
+                                <a class="fs-sm mt-2" href="{{ route('userchathistory.index') }}">{{ localize('View history') }}</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="card mb-4">
                     <div class="card-body">
                         <h5 class="mb-2">{{ localize('Active strategic context') }}</h5>
