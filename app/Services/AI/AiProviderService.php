@@ -43,6 +43,16 @@ class AiProviderService
     ) {
         $provider = $this->providerKey();
 
+        // Dusk drives a real HTTP server in a separate process, so the container
+        // mock PHPUnit tests use ($this->instance(AiProviderService::class, $mock))
+        // never reaches it — there is no container for a browser test to bind
+        // into. This branch is the deterministic substitute browser tests select
+        // via AI_PROVIDER=fake. Guarded to non-production environments so a
+        // config typo can never serve canned answers for real users.
+        if ($provider === 'fake' && app()->environment(['local', 'testing', 'dusk'])) {
+            return $this->fakeGenerate($jsonMode);
+        }
+
         if (in_array($provider, ['openai', 'chatgpt'])) {
             return $this->openAiGenerate($systemMessage, $userText, $maxOutputTokens, $temperature, $jsonMode);
         }
@@ -353,6 +363,38 @@ class AiProviderService
         Log::warning('OpenAI model failed', ['model' => $model, 'status' => $response->status(), 'body' => $response->body()]);
 
         return $response;
+    }
+
+    /**
+     * Deterministic canned provider for Dusk browser tests. No network call:
+     * one fixed follow-up question for OnboardingAgentService::nextQuestion()
+     * ($jsonMode false), one fixed profile for summarize() ($jsonMode true).
+     * Rank 50 / "Chief Operating Officer" are chosen to be easy to assert on.
+     */
+    private function fakeGenerate(bool $jsonMode)
+    {
+        if (! $jsonMode) {
+            return $this->fakeGeminiResponse([
+                'candidates' => [['content' => ['parts' => [['text' => 'And how large is the team you drive?']]]]],
+            ]);
+        }
+
+        $profile = [
+            'role' => 'Chief Operating Officer',
+            'rank' => 50,
+            'scale' => '400 people across 6 regions',
+            'governance' => 'Weekly ops review, quarterly OKRs',
+            'frictions' => ['Slow handoffs between regional teams'],
+            'summary_bullets' => [
+                'Chief Operating Officer running a 400-person, 6-region org',
+                'Governs through weekly ops reviews and quarterly OKRs',
+                'Main friction: slow handoffs between regional teams',
+            ],
+        ];
+
+        return $this->fakeGeminiResponse([
+            'candidates' => [['content' => ['parts' => [['text' => json_encode($profile)]]]]],
+        ]);
     }
 
     // -------------------------------------------------------------------------
