@@ -120,18 +120,33 @@ class DashboardController extends Controller
 
         $user = auth()->user();
 
-        $user->name = $request->name;
+        // The profile page posts one section at a time, so write only the fields
+        // the submitted form actually carried. Assigning all of them
+        // unconditionally would let the Basic Information form -- which has no
+        // company inputs -- null out every company column on save.
+        $fields = [
+            'name',
+            'phone',
+            'avatar',
+            'company_name',
+            'company_address',
+            'number_employess',
+            'chat_role_categories',
+            'company_category',
+            'about_company',
+        ];
 
-        $user->phone = validatePhone($request->phone);
+        foreach ($fields as $field) {
 
-        $user->avatar = $request->avatar;
+            // has(), not filled(): a field that was submitted empty is the user
+            // clearing it, and must still be written.
+            if ($request->has($field)) {
 
-        $user->company_name = $request->company_name;
-        $user->company_address = $request->company_address;
-        $user->number_employess = $request->number_employess;
-        $user->chat_role_categories = $request->chat_role_categories;
-        $user->company_category = $request->company_category;
-        $user->about_company = $request->about_company;
+                $user->$field = $field === 'phone' ? validatePhone($request->phone) : $request->$field;
+
+            }
+
+        }
 
         if ($request->has('password') && $request->password != '') {
 

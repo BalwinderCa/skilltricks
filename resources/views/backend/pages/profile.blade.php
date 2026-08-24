@@ -71,11 +71,10 @@
 
                 <div class="col-xl-9 order-2 order-md-2 order-lg-2 order-xl-1">
 
+
                     <form action="{{ route('dashboard.profile.update') }}" method="POST">
 
                         @csrf
-
-                        <input type="hidden" name="id" value="{{ $user->id }}">
 
                         <!--basic information start-->
 
@@ -182,6 +181,13 @@
 
                         <!--basic information end-->
 
+                    </form>
+
+
+                    <form action="{{ route('dashboard.profile.update') }}" method="POST">
+
+                        @csrf
+
                         <!--password start-->
 
                         <div class="card mb-4" id="section-2">
@@ -231,7 +237,14 @@
 
                         <!--password end-->
 
+                    </form>
+
                         @if(!empty($user->user_type == 'customer'))
+
+
+                    <form action="{{ route('dashboard.profile.update') }}" method="POST">
+
+                        @csrf
 
                         <!--company information start-->
 
@@ -438,18 +451,10 @@
 
                         <!--company information end-->
 
+                    </form>
+
                         @endif
 
-
-
-
-
-
-
-
-
-
-                    </form>
 
                 </div>
 
