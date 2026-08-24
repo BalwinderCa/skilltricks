@@ -48,12 +48,6 @@
                                         {{ localize('Finish your calibration to unlock the dashboard.') }}
                                         <a href="{{ route('onboarding.index') }}">{{ localize('Continue calibration') }}</a>
                                     </div>
-                                @elseif(!empty($user->user_type == 'customer'))
-                                    {{-- The only route back into the interview once calibrated. An owner
-                                         correcting the sole declarer downward leaves the organization with
-                                         no active context, and nothing else links here. --}}
-                                    <a class="btn btn-sm btn-outline-secondary"
-                                       href="{{ route('onboarding.index', ['recalibrate' => 1]) }}">{{ localize('Re-run calibration') }}</a>
                                 @endif
                             </div>
 

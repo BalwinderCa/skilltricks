@@ -65,7 +65,14 @@
 
                 <div class="card mb-4">
                     <div class="card-body">
-                        <h5 class="mb-2">{{ localize('Active strategic context') }}</h5>
+                        <div class="d-flex align-items-start justify-content-between">
+                            <h5 class="mb-2">{{ localize('Active strategic context') }}</h5>
+                            <a class="btn btn-sm btn-outline-secondary"
+                               href="{{ route('onboarding.index', ['recalibrate' => 1]) }}"
+                               onclick="return confirm('{{ localize('Re-run calibration? Your current context stays on record, and the new interview replaces what the platform works from.') }}')">
+                                {{ localize('Re-run calibration') }}
+                            </a>
+                        </div>
                         @if($activeContext)
                             <p class="text-muted small">
                                 {{ localize('Set by the highest-ranking member who has completed calibration. This is what the platform tailors its intelligence to.') }}

@@ -62,11 +62,13 @@
                     <x-navbar-notification />
 
 
-                     <li class="nav-item">
+                    <!-- Hidden on request: linked out to the public homepage.
+                    <li class="nav-item">
                         <a href="{{ route('home') }}" class="nav-link tt-visit-store" target="_blank">
                             <i data-feather="monitor" class="me-2"></i>
                         </a>
-                    </li> 
+                    </li> -->
+                    
                    <!--  <li class="nav-item">
                         <a href="https://aquamarine-rail-506472.hostingersite.com/login" class="nav-link tt-visit-store" target="_blank">
                             <i data-feather="monitor" class="me-2"></i>

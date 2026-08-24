@@ -216,6 +216,21 @@ class OrganizationPageTest extends TestCase
         $this->assertSame(1, SearchUserChat::where('user_id', $owner->id)->whereNotNull('response')->count());
     }
 
+    public function test_recalibration_is_offered_on_the_dashboard_not_the_profile(): void
+    {
+        [, $owner] = $this->orgWithOwnerAndMember();
+
+        $dashboard = $this->actingAs($owner)->get(route('writebot.dashboard'));
+        $dashboard->assertOk();
+        $dashboard->assertSee(route('onboarding.index', ['recalibrate' => 1]), false);
+        // Destructive enough to confirm first: it replaces what the platform works from.
+        $dashboard->assertSee('confirm(', false);
+
+        $profile = $this->actingAs($owner)->get(route('dashboard.profile'));
+        $profile->assertOk();
+        $profile->assertDontSee('recalibrate', false);
+    }
+
     public function test_a_user_without_an_organization_is_pointed_at_calibration(): void
     {
         $user = User::factory()->create([
