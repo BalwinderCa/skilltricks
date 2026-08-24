@@ -69,6 +69,20 @@ class OnboardingAgentTest extends TestCase
         $this->assertStringNotContainsString('budget', $question);
     }
 
+    public function test_a_failed_call_yields_a_usable_fallback_question(): void
+    {
+        // extractText() returns '' when the call fails. Without a fallback the
+        // controller stores an empty pending question and persists it into the
+        // transcript, the way summarize()'s deterministic fallback prevents.
+        $question = $this->agentReturning('')->nextQuestion(
+            [['question' => OnboardingAgentService::SEED_QUESTION, 'answer' => 'COO']],
+            null
+        );
+
+        $this->assertSame(OnboardingAgentService::FALLBACK_QUESTION, $question);
+        $this->assertNotSame('', $question);
+    }
+
     public function test_summarize_returns_a_validated_profile(): void
     {
         $agent = $this->agentReturning(json_encode([

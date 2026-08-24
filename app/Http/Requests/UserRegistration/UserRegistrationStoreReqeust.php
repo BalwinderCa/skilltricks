@@ -3,7 +3,6 @@
 namespace App\Http\Requests\UserRegistration;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class UserRegistrationStoreReqeust extends FormRequest
 {
@@ -27,10 +26,13 @@ class UserRegistrationStoreReqeust extends FormRequest
         $request = $this->request;
 
         return [
-            "name"  => "required",
-            "email" => "nullable",
-            "phone" => ["nullable"],
-            "score" => "required|numeric|min:0.9"
+            'name' => 'required',
+            // Must actually be an address: the domain becomes the user's
+            // organization, and "foo@bar@acme.com" would otherwise resolve into
+            // the real acme.com organization.
+            'email' => 'nullable|email',
+            'phone' => ['nullable'],
+            'score' => 'required|numeric|min:0.9',
         ];
     }
 
@@ -38,15 +40,14 @@ class UserRegistrationStoreReqeust extends FormRequest
     {
         $score = recaptchaValidation($this->request);
 
-        $this->merge([ "score" => $score ]);
+        $this->merge(['score' => $score]);
     }
 
     public function messages()
     {
         return [
-            "score.required" => localize("Google recaptcha is required"),
-            'score.min'      => localize('Google recaptcha validation error, seems like you are not a human.')
+            'score.required' => localize('Google recaptcha is required'),
+            'score.min' => localize('Google recaptcha validation error, seems like you are not a human.'),
         ];
     }
-
 }

@@ -116,7 +116,7 @@ class DocumentContextService
             'governance' => ['Governance model', self::ORG_FIELD_CHARS],
         ] as $key => [$label, $limit]) {
             if (! empty($profile[$key])) {
-                $block .= $label.': '.mb_substr((string) $profile[$key], 0, $limit)."\n";
+                $block .= $label.': '.mb_substr($this->sanitiseForPrompt((string) $profile[$key]), 0, $limit)."\n";
             }
         }
 
@@ -124,11 +124,26 @@ class DocumentContextService
             $block .= "Key execution friction:\n";
 
             foreach (array_slice($profile['frictions'], 0, self::ORG_MAX_FRICTIONS) as $friction) {
-                $block .= '- '.mb_substr((string) $friction, 0, self::ORG_FIELD_CHARS)."\n";
+                $block .= '- '.mb_substr($this->sanitiseForPrompt((string) $friction), 0, self::ORG_FIELD_CHARS)."\n";
             }
         }
 
         return $block."--- END ORGANIZATIONAL CONTEXT ---\n";
+    }
+
+    /**
+     * Neutralise a stored profile value before it is rendered into a prompt.
+     *
+     * The block is a fenced region in the system prompt. A value carrying a
+     * newline plus its own "---" fence would escape into the surrounding
+     * instructions, so both are neutralised before the value is rendered.
+     * The interview prompt is hardened too, but this is the render site: these
+     * rows are append-only and also written by the backfill, so a value that
+     * never passed through the agent still lands here.
+     */
+    private function sanitiseForPrompt(string $value): string
+    {
+        return trim((string) preg_replace('/-{3,}/', '--', str_replace(["\r", "\n"], ' ', $value)));
     }
 
     /**
@@ -140,7 +155,7 @@ class DocumentContextService
         $documents = $this->forUser($user);
         $context = $this->buildContext($documents);
 
-        return $base.$this->orgContextBlock($user).($context !== '' ? $context : '');
+        return $base.$this->orgContextBlock($user).$context;
     }
 
     /**

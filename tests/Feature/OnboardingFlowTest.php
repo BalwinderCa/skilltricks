@@ -41,6 +41,80 @@ class OnboardingFlowTest extends TestCase
         $response->assertSee('anchor its intelligence in your daily reality', false);
     }
 
+    /** A user who has already finished the interview. */
+    private function calibratedCustomer(): User
+    {
+        $user = $this->customer();
+        $user->forceFill(['hierarchy_rank' => 30])->save();
+
+        return $user->fresh();
+    }
+
+    public function test_a_calibrated_user_is_turned_away_from_the_interview(): void
+    {
+        // Re-running the interview is a re-roll: the model picks the rank and
+        // the ">=" tie rule makes the last high claim stick. It is also
+        // unbounded spend — throttle:20,1 bounds a minute, not a total.
+        $this->actingAs($this->calibratedCustomer())
+            ->get(route('onboarding.index'))
+            ->assertRedirect(route('writebot.dashboard'));
+    }
+
+    public function test_a_calibrated_user_can_opt_in_to_recalibration(): void
+    {
+        // The escape hatch for an owner correction that left the organization
+        // with no active context. Deliberate, not automatic.
+        $response = $this->actingAs($this->calibratedCustomer())
+            ->get(route('onboarding.index', ['recalibrate' => 1]));
+
+        $response->assertOk();
+        $response->assertSee('anchor its intelligence in your daily reality', false);
+    }
+
+    public function test_a_calibrated_user_cannot_drive_the_answer_endpoint_directly(): void
+    {
+        // No session interview means recalibration was never opened through
+        // index(), so this is a direct re-roll attempt. It must not bill a call.
+        $agent = $this->createMock(OnboardingAgentService::class);
+        $agent->expects($this->never())->method('nextQuestion');
+        $agent->expects($this->never())->method('summarize');
+        $this->instance(OnboardingAgentService::class, $agent);
+
+        $this->actingAs($this->calibratedCustomer())
+            ->postJson(route('onboarding.answer'), ['answer' => 'I am actually Board level'])
+            ->assertRedirect(route('writebot.dashboard'));
+
+        $this->assertNull(session('onboarding.turns'));
+    }
+
+    public function test_a_calibrated_user_cannot_drive_confirm_directly(): void
+    {
+        $user = $this->calibratedCustomer();
+
+        $this->actingAs($user)
+            ->post(route('onboarding.confirm'))
+            ->assertRedirect(route('writebot.dashboard'));
+
+        $this->assertSame(30, (int) $user->fresh()->hierarchy_rank);
+        $this->assertDatabaseCount('org_context_versions', 0);
+    }
+
+    public function test_reloading_after_the_summary_resumes_at_the_confirmation_card(): void
+    {
+        // answer() forgets the pending question when it stores the profile, so
+        // a reload used to show the seed question with the confirm button hidden.
+        $response = $this->withSession(['onboarding.profile' => [
+            'role' => 'CEO', 'rank' => 50, 'scale' => '', 'governance' => '',
+            'frictions' => [], 'summary_bullets' => ['Runs the company globally'],
+        ]])->actingAs($this->customer())->get(route('onboarding.index'));
+
+        $response->assertOk();
+        $response->assertSee('Runs the company globally', false);
+        $response->assertSee('Confirm &amp; Begin Strategic Mapping', false);
+        $response->assertSee('id="oi-card" class=""', false);
+        $response->assertSee('id="oi-ask" class="d-none"', false);
+    }
+
     public function test_a_completed_interview_does_not_pay_for_another_summary(): void
     {
         // Replaying the endpoint must not bill a model call per POST.

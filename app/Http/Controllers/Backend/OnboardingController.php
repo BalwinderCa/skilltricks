@@ -28,17 +28,60 @@ class OnboardingController extends Controller
         $this->middleware('auth');
     }
 
+    /**
+     * An already-calibrated user is out unless they asked to recalibrate.
+     *
+     * Re-running the interview is a re-roll: the model picks the rank, and the
+     * cascade's ">=" tie rule makes the last high claim stick, so an unbounded
+     * retry loop is both an escalation path and unbounded spend (throttle:20,1
+     * bounds a minute, not a total). The ?recalibrate=1 opt-in keeps the one
+     * legitimate case — an owner correction that left the organization with no
+     * active context — recoverable, as a deliberate act.
+     */
+    private function blockedFromInterview(Request $request): bool
+    {
+        return $request->user()?->hierarchy_rank !== null
+            && ! $request->boolean('recalibrate');
+    }
+
+    /**
+     * The same rule for the POST endpoints, which carry no ?recalibrate flag.
+     * A recalibration is opened through index(), which seeds the session — so
+     * an in-flight interview is the proof that opt-in happened. Without this,
+     * a calibrated user can drive answer() directly and re-roll their rank.
+     */
+    private function blockedFromPost(Request $request): bool
+    {
+        if ($request->user()?->hierarchy_rank === null) {
+            return false;
+        }
+
+        return ! $request->session()->hasAny([self::PENDING_KEY, self::TURNS_KEY, self::PROFILE_KEY]);
+    }
+
     /** Turn 1: fixed copy, no LLM call. */
     public function index(Request $request)
     {
+        if ($this->blockedFromInterview($request)) {
+            return redirect()->route('writebot.dashboard');
+        }
+
         $turns = $request->session()->get(self::TURNS_KEY, []);
+        $profile = $request->session()->get(self::PROFILE_KEY);
         $question = $request->session()->get(self::PENDING_KEY, OnboardingAgentService::SEED_QUESTION);
-        $request->session()->put(self::PENDING_KEY, $question);
+
+        // answer() forgets the pending question once it has a profile, so
+        // re-seeding it here would resurrect the seed question underneath the
+        // confirmation card. The view hides the question box when a profile is
+        // set; leave the session alone in that state.
+        if (! $profile) {
+            $request->session()->put(self::PENDING_KEY, $question);
+        }
 
         return view('backend.pages.onboarding', [
             'turns' => $turns,
             'question' => $question,
-            'profile' => $request->session()->get(self::PROFILE_KEY),
+            'profile' => $profile,
         ]);
     }
 
@@ -48,6 +91,10 @@ class OnboardingController extends Controller
      */
     public function answer(Request $request)
     {
+        if ($this->blockedFromPost($request)) {
+            return redirect()->route('writebot.dashboard');
+        }
+
         $validated = $request->validate([
             'answer' => 'required|string|max:4000',
         ]);
@@ -136,6 +183,10 @@ class OnboardingController extends Controller
      */
     public function confirm(Request $request)
     {
+        if ($this->blockedFromPost($request)) {
+            return redirect()->route('writebot.dashboard');
+        }
+
         $profile = $request->session()->get(self::PROFILE_KEY);
         $user = $request->user();
 

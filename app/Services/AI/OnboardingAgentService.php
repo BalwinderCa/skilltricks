@@ -19,6 +19,13 @@ class OnboardingAgentService
      */
     public const QUESTION_TURNS = 3;
 
+    /**
+     * Asked when the model returns nothing usable. summarize() already has a
+     * deterministic fallback; without one here a failed call stores an empty
+     * question, which the controller then persists into the transcript.
+     */
+    public const FALLBACK_QUESTION = 'Could you tell me a bit more about how decisions get made in your area?';
+
     public function __construct(protected AiProviderService $ai) {}
 
     /**
@@ -31,7 +38,7 @@ class OnboardingAgentService
 
         $text = $this->ai->extractText($this->ai->generate($this->systemPrompt($existing), $prompt, 200, 0.6));
 
-        return $this->firstLine($text);
+        return $this->firstLine($text) ?: self::FALLBACK_QUESTION;
     }
 
     /**

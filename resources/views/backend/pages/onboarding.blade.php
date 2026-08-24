@@ -22,16 +22,24 @@
                                 @endforeach
                             </div>
 
-                            <div id="oi-ask">
+                            {{-- $profile is set once the interview has been summarised. Rendering
+                                 the card server-side means a reload resumes at the confirmation
+                                 step instead of dropping back to the seed question. --}}
+                            <div id="oi-ask" class="{{ $profile ? 'd-none' : '' }}">
                                 <p id="oi-question" class="fw-semibold">{{ $question }}</p>
                                 <textarea id="oi-answer" class="form-control mb-2" rows="3"
                                           placeholder="{{ localize('Type your answer...') }}"></textarea>
                                 <button id="oi-send" class="btn btn-primary">{{ localize('Send') }}</button>
+                                <div id="oi-error" class="alert alert-danger mt-2 d-none" role="alert"></div>
                             </div>
 
-                            <div id="oi-card" class="d-none">
+                            <div id="oi-card" class="{{ $profile ? '' : 'd-none' }}">
                                 <h5 class="mb-2">{{ localize('Here is what we heard') }}</h5>
-                                <ul id="oi-bullets" class="mb-3"></ul>
+                                <ul id="oi-bullets" class="mb-3">
+                                    @foreach(($profile['summary_bullets'] ?? []) as $bullet)
+                                        <li>{{ $bullet }}</li>
+                                    @endforeach
+                                </ul>
                                 <form method="POST" action="{{ route('onboarding.confirm') }}">
                                     @csrf
                                     <button type="submit" class="btn btn-success">
@@ -57,6 +65,12 @@
     const questionEl = document.getElementById('oi-question');
     const answerEl = document.getElementById('oi-answer');
     const sendBtn  = document.getElementById('oi-send');
+    const errorEl  = document.getElementById('oi-error');
+
+    function showError(message) {
+        errorEl.textContent = message;
+        errorEl.classList.remove('d-none');
+    }
 
     function appendTurn(question, answer) {
         const block = document.createElement('div');
@@ -89,13 +103,29 @@
                 body: JSON.stringify({ answer: answer }),
             });
 
-            const data = await res.json();
+            // A 429 from the throttle, a 419 CSRF expiry, or a 500 all return a
+            // body with no question. Without these guards the literal string
+            // "undefined" was rendered as the next question.
+            if (!res.ok) {
+                showError("{{ localize('Something went wrong. Please try again in a moment.') }}");
+                return;
+            }
+
+            const data = await res.json().catch(function () { return null; });
+
+            if (!data || (!data.done && !data.question)) {
+                showError("{{ localize('Something went wrong. Please try again in a moment.') }}");
+                return;
+            }
+
+            errorEl.classList.add('d-none');
             appendTurn(question, answer);
             answerEl.value = '';
 
             if (data.done) {
                 askBox.classList.add('d-none');
-                (data.profile.summary_bullets || []).forEach(function (text) {
+                bullets.replaceChildren();
+                ((data.profile || {}).summary_bullets || []).forEach(function (text) {
                     const li = document.createElement('li');
                     li.textContent = text;
                     bullets.append(li);
@@ -104,6 +134,8 @@
             } else {
                 questionEl.textContent = data.question;
             }
+        } catch (e) {
+            showError("{{ localize('Something went wrong. Please try again in a moment.') }}");
         } finally {
             sendBtn.disabled = false;
         }

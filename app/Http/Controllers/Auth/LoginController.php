@@ -1,25 +1,16 @@
 <?php
 
-
-
 namespace App\Http\Controllers\Auth;
 
-
-
-use Socialite;
-
-use App\Models\User;
-
-use Illuminate\Http\Request;
-
-use App\Models\SubscribedUser;
-
-use App\Models\SubscriptionHistory;
-
-use App\Models\SubscriptionPackage;
-
 use App\Http\Controllers\Controller;
+use App\Models\SubscribedUser;
+use App\Models\SubscriptionHistory;
+use App\Models\SubscriptionPackage;
+use App\Models\User;
+use App\Services\OrganizationService;
 use Illuminate\Foundation\Auth\AuthenticatesUsers;
+use Illuminate\Http\Request;
+use Socialite;
 
 class LoginController extends Controller
 {
@@ -43,46 +34,32 @@ class LoginController extends Controller
      */
     protected $redirectTo = '/dashboard';
 
-
-
     /**
-
      * Create a new controller instance.
 
      *
 
      * @return void
-
      */
-
     public function __construct()
-
     {
 
         $this->middleware('guest')->except(['logout']);
 
     }
 
-
-
-
-
-    # social login redirection
+    // social login redirection
 
     public function redirectToProvider($provider)
-
     {
 
         return Socialite::driver($provider)->redirect();
 
     }
 
+    // obtain the user information from social media.
 
-
-    # obtain the user information from social media.
-
-    public function handleProviderCallback(Request $request, $provider)
-
+    public function handleProviderCallback(Request $request, $provider, OrganizationService $organizationService)
     {
 
         try {
@@ -99,37 +76,31 @@ class LoginController extends Controller
 
         } catch (\Exception $e) {
 
-            flash("Something Went wrong. Please try again.")->error();
+            flash('Something Went wrong. Please try again.')->error();
 
             return redirect()->route('home');
 
         }
 
-
-
-        //check if provider_id exist
+        // check if provider_id exist
 
         $existingUserByProviderId = User::where('provider_id', $user->id)->first();
 
-
-
         if ($existingUserByProviderId) {
 
-            //proceed to login
+            // proceed to login
 
             auth()->login($existingUserByProviderId, true);
 
         } else {
 
-            //check if email exist
+            // check if email exist
 
             $existingUser = User::where('email', $user->email)->whereNull('deleted_at')->first();
 
-
-
             if ($existingUser) {
 
-                //update provider_id
+                // update provider_id
 
                 $existing_User = $existingUser;
 
@@ -141,15 +112,13 @@ class LoginController extends Controller
 
                 $existing_User->save();
 
-
-
-                //proceed to login
+                // proceed to login
 
                 auth()->login($existing_User, true);
 
             } else {
 
-                //create a new user
+                // create a new user
 
                 $newUser = new User;
 
@@ -165,19 +134,23 @@ class LoginController extends Controller
 
                 $newUser->save();
 
+                // Organization membership is settled at creation, from the email
+                // domain, so ownership of a domain goes to whoever registered
+                // first rather than to whoever finishes calibrating first.
 
+                $organizationService->attachUser($newUser, $organizationService->resolveForUser($newUser));
 
-                # handle referral_code
+                // handle referral_code
 
                 if (getSetting('enable_affiliate_system') == '1') {
 
                     $referral_code = isset($_COOKIE['referral_code']) ? $_COOKIE['referral_code'] : null;
 
-                    if (!is_null($referral_code)) {
+                    if (! is_null($referral_code)) {
 
                         $referredByUser = User::where('referral_code', $referral_code)->first();
 
-                        if (!is_null($referredByUser)) {
+                        if (! is_null($referredByUser)) {
 
                             $newUser->referred_by = $referredByUser->id;
 
@@ -189,11 +162,11 @@ class LoginController extends Controller
 
                 }
 
-                # save to subscribe list
+                // save to subscribe list
 
                 try {
 
-                    $subscribe = new SubscribedUser();
+                    $subscribe = new SubscribedUser;
 
                     $subscribe->email = $user->email;
 
@@ -201,7 +174,7 @@ class LoginController extends Controller
 
                 } catch (\Throwable $th) {
 
-                    //throw $th;
+                    // throw $th;
 
                 }
 
@@ -213,25 +186,17 @@ class LoginController extends Controller
 
                     ->first();
 
-
-
-                if (!is_null($starter)) {
-
-
+                if (! is_null($starter)) {
 
                     if (getSetting('enable_affiliate_system') == '1') {
 
-                        $newUser->is_commission_calculated = 0; # referral user will get commission of paid subscription later
+                        $newUser->is_commission_calculated = 0; // referral user will get commission of paid subscription later
 
                     }
 
-
-
-                    $newUser->subscription_package_id      = $starter->id;
+                    $newUser->subscription_package_id = $starter->id;
 
                     $newUser->save();
-
-
 
                     $subscriptionHistory = new SubscriptionHistory;
 
@@ -245,27 +210,19 @@ class LoginController extends Controller
 
                     $subscriptionHistory->new_s2t_balance = $starter->total_speech_to_text_per_month;
 
+                    $subscriptionHistory->this_month_available_words = (int) $starter->total_words_per_month;
 
+                    $subscriptionHistory->this_month_available_images = (int) $starter->total_images_per_month;
 
-                    $subscriptionHistory->this_month_available_words   = (int) $starter->total_words_per_month;
+                    $subscriptionHistory->this_month_available_s2t = (int) $starter->total_speech_to_text_per_month;
 
-                    $subscriptionHistory->this_month_available_images  = (int) $starter->total_images_per_month;
+                    $subscriptionHistory->subscription_status = 1;
 
-                    $subscriptionHistory->this_month_available_s2t     = (int) $starter->total_speech_to_text_per_month;
-
-
-
-                    $subscriptionHistory->subscription_status     = 1;
-
-                    $subscriptionHistory->payment_status     = 1;
-
-
+                    $subscriptionHistory->payment_status = 1;
 
                     $subscriptionHistory->save();
 
                 }
-
-
 
                 // send welcome email if enabled
 
@@ -277,17 +234,15 @@ class LoginController extends Controller
 
                     } catch (\Throwable $th) {
 
-                        //throw $th;
+                        // throw $th;
 
                     }
 
                 }
 
-
-
                 saveNotification('New User Register', 'dashboard/customers', 'admin', null, null, null, null);
 
-                //proceed to login
+                // proceed to login
 
                 auth()->login($newUser, true);
 
@@ -295,93 +250,83 @@ class LoginController extends Controller
 
         }
 
-
-
         return $this->redirectCustomer();
 
     }
 
-
-
-    # validate login
+    // validate login
 
     protected function validateLogin(Request $request)
-
     {
 
         $request->validate([
 
-            'email'    => 'required_without:phone',
+            'email' => 'required_without:phone',
 
-            'phone'    => 'required_without:email',
+            'phone' => 'required_without:email',
 
             'password' => 'required|string',
 
         ]);
 
-        if($request->email){
+        if ($request->email) {
 
             $user = User::where('email', $request->email)->whereNull('deleted_at')->first();
 
-        }else if($request->phone){ 
+        } elseif ($request->phone) {
 
             $user = User::where('phone', $request->phone)->whereNull('deleted_at')->first();
 
         }
 
-        if(!is_null($user) && $user->user_type =='customer'){ 
+        if (! is_null($user) && $user->user_type == 'customer') {
 
-            $score = recaptchaValidation($request);  
-
-            $request->request->add([
-
-                'score' => $score
-
-            ]);
-
-            $data['score'] = 'required|numeric|min:0.9';  
-
-        }else{ 
+            $score = recaptchaValidation($request);
 
             $request->request->add([
 
-                'score' => 1
+                'score' => $score,
 
             ]);
 
-            $data['score'] = 'nullable|numeric|min:0.9';  
+            $data['score'] = 'required|numeric|min:0.9';
+
+        } else {
+
+            $request->request->add([
+
+                'score' => 1,
+
+            ]);
+
+            $data['score'] = 'nullable|numeric|min:0.9';
 
         }
 
-            
+        $request->validate($data, [
 
-        $request->validate($data,[
-
-            'score.min' => localize('Google recaptcha validation error, seems like you are not a human.')
+            'score.min' => localize('Google recaptcha validation error, seems like you are not a human.'),
 
         ]);
 
     }
 
-
-
-    # set credentials for phone/email login
+    // set credentials for phone/email login
 
     protected function credentials(Request $request)
-
     {
 
-        if ($request->get('login_with') == "phone" && $request->get('phone') != null) {
+        if ($request->get('login_with') == 'phone' && $request->get('phone') != null) {
 
-            session(['login_with' => "phone"]);
+            session(['login_with' => 'phone']);
 
-            $phone =  validatePhone($request->get('phone'));
+            $phone = validatePhone($request->get('phone'));
 
             return ['phone' => $phone, 'password' => $request->get('password')];
 
         } elseif ($request->get('email') != null) {
 
-            session(['login_with' => "email"]);
+            session(['login_with' => 'email']);
 
             return $request->only($this->username(), 'password');
 
@@ -389,12 +334,9 @@ class LoginController extends Controller
 
     }
 
-
-
-    # Where to redirect users after login.
+    // Where to redirect users after login.
 
     public function authenticated()
-
     {
 
         if (auth()->user()->user_type == 'admin' || auth()->user()->user_type == 'staff') {
@@ -411,26 +353,19 @@ class LoginController extends Controller
 
         } elseif (auth()->user()->user_type == 'vendor' || auth()->user()->user_type == 'vendor_staff') {
 
-
-
             flash(localize('Vendor panel is unavailable'))->error();
 
             return redirect()->route('logout');
 
         }
 
-
-
         return $this->redirectCustomer();
 
     }
 
-
-
-    # redirect customer
+    // redirect customer
 
     protected function redirectCustomer()
-
     {
 
         if (session('link') != null) {
@@ -449,12 +384,9 @@ class LoginController extends Controller
 
     }
 
-
-
-    # Get the failed login response instance.  
+    // Get the failed login response instance.
 
     protected function sendFailedLoginResponse(Request $request)
-
     {
 
         flash(localize('Invalid login credentials.'))->error();
@@ -463,17 +395,12 @@ class LoginController extends Controller
 
     }
 
-
-
-    # logged out
+    // logged out
 
     protected function loggedOut(Request $request)
-
     {
 
         session()->forget('link');
 
     }
-
 }
-

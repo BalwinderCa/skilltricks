@@ -2,10 +2,15 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\Backend\CustomersController;
 use App\Models\Organization;
+use App\Models\SubscriptionPackage;
 use App\Models\User;
 use App\Services\OrganizationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Socialite\Facades\Socialite;
+use Laravel\Socialite\Two\GithubProvider;
+use Laravel\Socialite\Two\User as SocialiteUser;
 use Tests\TestCase;
 
 class OrgRegistrationTest extends TestCase
@@ -98,6 +103,100 @@ class OrgRegistrationTest extends TestCase
         $this->assertNotNull($user, 'Phone-only registration did not create the user.');
         $this->assertNotNull($user->organization_id, 'Phone-only user got no organization.');
         $this->assertSame('user:'.$user->id, Organization::find($user->organization_id)->domain);
+    }
+
+    public function test_a_social_login_signup_is_attached_to_an_organization(): void
+    {
+        // OnboardingController::confirm() would catch an unattached user, but by
+        // then ownership of the domain has gone to whoever finished calibrating
+        // first — not to whoever registered first, which is the spec's rule.
+        $earlier = User::factory()->create(['email' => 'earlier@socialco.com', 'user_type' => 'customer']);
+        app(OrganizationService::class)->attachUser($earlier, app(OrganizationService::class)->resolveForUser($earlier));
+
+        $socialUser = new SocialiteUser;
+        $socialUser->id = 'provider-abc';
+        $socialUser->name = 'Social Sam';
+        $socialUser->email = 'sam@socialco.com';
+
+        $driver = \Mockery::mock(GithubProvider::class);
+        $driver->shouldReceive('stateless')->andReturnSelf();
+        $driver->shouldReceive('user')->andReturn($socialUser);
+        Socialite::shouldReceive('driver')->with('github')->andReturn($driver);
+
+        $this->get(route('social.callback', 'github'));
+
+        $user = User::where('email', 'sam@socialco.com')->first();
+
+        $this->assertNotNull($user, 'Social login did not create the user.');
+        $this->assertNotNull($user->organization_id, 'Social login did not attach an organization.');
+        $this->assertSame('socialco.com', Organization::find($user->organization_id)->domain);
+        $this->assertSame(
+            $earlier->id,
+            (int) Organization::find($user->organization_id)->owner_user_id,
+            'Ownership must stay with the earlier registrant.'
+        );
+    }
+
+    public function test_an_admin_created_customer_is_attached_to_an_organization(): void
+    {
+        $earlier = User::factory()->create(['email' => 'earlier@adminco.com', 'user_type' => 'customer']);
+        app(OrganizationService::class)->attachUser($earlier, app(OrganizationService::class)->resolveForUser($earlier));
+
+        $admin = User::factory()->create(['user_type' => 'admin', 'email_verified_at' => now()]);
+
+        $package = SubscriptionPackage::create([
+            'title' => 'Starter',
+            'slug' => 'starter-'.time(),
+            'description' => 'Test',
+            'package_type' => 'monthly',
+            'price' => 0,
+            'is_active' => 1,
+            'openai_model_id' => 5,
+        ]);
+
+        // The subscription-history side of store() is stubbed: it fails on a
+        // freshly migrated database for an unrelated, pre-existing reason
+        // (subscription_histories.active_by is NOT NULL with no default and is
+        // never written). Everything else in store(), including the attach, is real.
+        $controller = \Mockery::mock(CustomersController::class.'[subscriptionHistoryStore,paymentApprove]')
+            ->shouldAllowMockingProtectedMethods()
+            ->makePartial();
+        $controller->shouldReceive('subscriptionHistoryStore')->andReturn(1);
+        $controller->shouldReceive('paymentApprove')->andReturn(true);
+        $this->instance(CustomersController::class, $controller);
+
+        $this->actingAs($admin)->post(route('admin.customers.store'), [
+            'name' => 'Managed Mia',
+            'email' => 'mia@adminco.com',
+            'phone' => '+15550300',
+            'password' => 'secret123',
+            'package' => $package->id,
+        ]);
+
+        $user = User::where('email', 'mia@adminco.com')->first();
+
+        $this->assertNotNull($user, 'Admin customer creation did not create the user.');
+        $this->assertNotNull($user->organization_id, 'Admin customer creation did not attach an organization.');
+        $this->assertSame('adminco.com', Organization::find($user->organization_id)->domain);
+        $this->assertSame(
+            $earlier->id,
+            (int) Organization::find($user->organization_id)->owner_user_id,
+            'Ownership must stay with the earlier registrant.'
+        );
+    }
+
+    public function test_a_malformed_address_cannot_resolve_into_a_real_organization(): void
+    {
+        // "foo@bar@acme.com" has acme.com as its last domain segment, so an
+        // unvalidated address would join the real acme.com organization.
+        $this->post(route('register'), [
+            'name' => 'Impostor',
+            'email' => 'foo@bar@acme.com',
+            'password' => 'secret123',
+            'password_confirmation' => 'secret123',
+        ])->assertSessionHasErrors('email');
+
+        $this->assertNull(Organization::where('domain', 'acme.com')->first());
     }
 
     public function test_a_registered_user_is_attached_to_an_organization(): void

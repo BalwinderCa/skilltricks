@@ -22,6 +22,11 @@ class OrganizationService
      * A shared email domain is the trust boundary: you cannot join an
      * organization whose email you cannot receive. Free consumer domains are
      * keyed to the full address so their users stay isolated.
+     *
+     * That boundary is only as strong as the site's
+     * `registration_verification_with` setting. With verification disabled,
+     * addresses are never confirmed, so organization membership is effectively
+     * self-assigned — anyone can claim any domain by typing it at signup.
      */
     public function resolveForEmail(string $email): Organization
     {
@@ -89,6 +94,16 @@ class OrganizationService
     ): OrgContextVersion {
         if (! in_array($rank, self::VALID_RANKS, true)) {
             throw new \InvalidArgumentException("Unrecognised hierarchy rank: {$rank}");
+        }
+
+        // Every caller today passes a matched pair, but this method is the
+        // enforcement point for the tenancy boundary: a mismatched pair would
+        // write one organization's baseline from another organization's member,
+        // into a row that can never be deleted.
+        if ((int) $user->organization_id !== (int) $org->id) {
+            throw new \InvalidArgumentException(
+                "User {$user->id} does not belong to organization {$org->id}."
+            );
         }
 
         return DB::transaction(function () use ($org, $user, $rank, $profile, $transcript) {
