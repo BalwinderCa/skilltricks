@@ -75,9 +75,16 @@ return new class extends Migration
     public function down()
     {
         Schema::dropIfExists('ai_content_detectors');
-        Schema::table('pages', function (Blueprint $table) {
-            $columns = ['show_ai_detector','show_ai_plagiarism','allow_ai_plagiarism','allow_ai_detector'];
-            $table->dropColumn($columns);
+
+        // up() adds these columns to subscription_packages. down() dropped them
+        // from `pages`, which never had them, so any rollback across this
+        // migration threw "no such column". Guarded to match up().
+        Schema::table('subscription_packages', function (Blueprint $table) {
+            foreach (['show_ai_detector', 'show_ai_plagiarism', 'allow_ai_plagiarism', 'allow_ai_detector'] as $column) {
+                if (Schema::hasColumn($table->getTable(), $column)) {
+                    $table->dropColumn($column);
+                }
+            }
         });
     }
 };
