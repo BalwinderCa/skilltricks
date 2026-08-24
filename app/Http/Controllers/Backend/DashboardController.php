@@ -155,21 +155,20 @@ class DashboardController extends Controller
 
     }
 
-    // organization page: who is in this organization, and who governs its context
+    // organization page: who is in this organization and what rank each holds
 
     public function organization()
     {
         $user = auth()->user();
         $org = $user->organization;
 
-        // Every member sees the roster and who sets the active baseline. Only
-        // the owner may change a rank; the view branches on $isOwner.
+        // Roster only. The active context is the dashboard's job — this page
+        // answers "who is here", not "what are we working from".
         return view('backend.pages.organization', [
             'user' => $user,
             'org' => $org,
             'isOwner' => $org && (int) $org->owner_user_id === (int) $user->id,
             'orgMembers' => $org ? $org->members()->orderBy('name')->get() : collect(),
-            'activeContext' => $org ? $org->activeContext : null,
         ]);
     }
 
