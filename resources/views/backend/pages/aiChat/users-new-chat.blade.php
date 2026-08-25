@@ -486,6 +486,15 @@
       color: #0066cc;
     }
     .chat-messages .btn svg { width: 24px; height: 24px; font-size: 9px; }
+    /* Anything the JS appends after a Studio reply -- the recommended-action
+       table, the export button, the strategy blocks -- is a sibling of the
+       bubble, so it starts where the bubble's bottom margin starts and lands
+       flush against the meta line sitting in it. Clear the meta line, and line
+       up with the bubble's own gutter instead of the card's left edge. */
+    .chat-container .main-content .chat-messages .bot-message ~ * {
+      margin-left: 44px;
+      margin-top: 18px;
+    }
     .chat-container .main-content .chat-messages .copy-btn {
       margin-left: 44px;
     }
