@@ -349,13 +349,15 @@ hidden;
     <div class="login-page">
         <div class="container-fluid p-0">
             <div class="row">
-                <div class="col-lg-6">
+                {{-- Column stretches to the row height (set by the image panel), so the
+                     form can center against it rather than hanging off the logo. --}}
+                <div class="col-lg-6 d-flex flex-column">
                     <div class="img-wrap d-flex">
                        <a href="{{ route('home') }}" class="navbar-brand d-flex justify-content-center mb-5 text-decoration-none">
                         <img src="{{ uploadedAsset(getSetting('navbar_logo_dark')) }}" alt="">
                       </a>
                     </div>
-                    <div class="flex-grow d-flex flex-md-column align-items-md-center justify-content-md-center w-md-50 mt-5 pt-5">
+                    <div class="flex-grow-1 d-flex flex-md-column align-items-md-center justify-content-md-center w-md-50">
                         <div class="w-100 px-4 text-center text-extra-small w-lg-50">
                             <div class="container-tight">
                                  @if (session('status'))
