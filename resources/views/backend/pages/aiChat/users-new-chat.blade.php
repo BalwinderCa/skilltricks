@@ -42,7 +42,7 @@
       --st-canvas: #f5f6fa;
       --st-accent: #4f46e5;
       --st-accent-soft: #eef2ff;
-      --st-them: #f4f5f7;
+      --st-them: #f7f8f9;
 
       display: flex;
       gap: 16px;
@@ -265,9 +265,13 @@
     .chat-container .main-content .chat-header .header-actions {
       display: flex;
       align-items: center;
-      gap: 6px;
-      flex-wrap: wrap;
+      gap: 8px;
+      flex-wrap: nowrap;
       justify-content: flex-end;
+      min-width: 0;
+    }
+    .chat-container .main-content .chat-header .header-actions .badge {
+      white-space: nowrap;
     }
 
     /* The messages list and the composer live inside #ask-form, not directly
@@ -279,6 +283,43 @@
       min-height: 0;
       display: flex;
       flex-direction: column;
+    }
+
+    /* Message search sits in the header beside the Intelligence Effort badge
+       and reuses the Chats field's styling at a smaller size. */
+    /* .chats-search's own position:relative is scoped to .sidebar, so without
+       re-declaring it here the magnifier escapes the field and drops onto its
+       own line. */
+    .chat-container .main-content .chat-header .msg-search {
+      position: relative;
+      width: 190px;
+      flex: none;
+    }
+    .chat-container .main-content .chat-header .msg-search input {
+      width: 100%;
+      border: 1px solid var(--st-line);
+      border-radius: 8px;
+      padding: 7px 30px 7px 11px;
+      font-size: 12.5px;
+      color: var(--st-ink);
+      background: var(--st-panel);
+      outline: none;
+    }
+    .chat-container .main-content .chat-header .msg-search input:focus {
+      border-color: #c7cbf5;
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, .10);
+    }
+    .chat-container .main-content .chat-header .msg-search i {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--st-muted);
+      font-size: 13px;
+      pointer-events: none;
+    }
+    @media (max-width: 1200px) {
+      .chat-container .main-content .chat-header .msg-search { width: 150px; }
     }
 
     /* ---------------- Messages ---------------- */
@@ -315,8 +356,8 @@
       background: var(--st-accent);
       color: #fff;
       padding: 11px 15px;
-      border-radius: 12px 12px 4px 12px;
-      margin: 24px 52px 4px auto;
+      border-radius: 8px;
+      margin: 24px 44px 26px auto;
       max-width: 72%;
       width: fit-content;
       font-size: 13.5px;
@@ -325,10 +366,10 @@
     .chat-container .main-content .chat-messages .user-message::after {
       content: "";
       position: absolute;
-      right: -46px;
-      bottom: 0;
-      width: 34px;
-      height: 34px;
+      right: -44px;
+      bottom: -32px;
+      width: 28px;
+      height: 28px;
       border-radius: 50%;
       background: var(--st-user-avatar, var(--st-accent-soft)) center/cover no-repeat;
       border: 1px solid var(--st-line);
@@ -339,7 +380,7 @@
       content: attr(data-time) " • You";
       position: absolute;
       right: 0;
-      bottom: -19px;
+      bottom: -25px;
       font-size: 11px;
       color: var(--st-muted);
       white-space: nowrap;
@@ -347,33 +388,37 @@
 
     /* StrategiStudio side: left card. Kept wide -- these replies are long
        structured briefs, not one-liners, and a 70% bubble would shred them. */
+    /* Flat fill, no border -- the reference's received bubble is a plain
+       near-white block, and the 1px outline read as a card instead. The avatar
+       belongs in the meta row under the bubble, next to the name, not beside
+       its top corner. */
     .chat-container .main-content .chat-messages .bot-message {
       position: relative;
       background: var(--st-them);
-      border: 1px solid var(--st-line);
-      border-radius: 12px 12px 12px 4px;
-      padding: 14px 18px;
-      margin: 30px auto 26px 52px;
-      max-width: calc(100% - 52px);
+      border: 0;
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin: 30px auto 34px 44px;
+      max-width: calc(100% - 44px);
       font-size: 13.5px;
       color: var(--st-ink);
     }
     .chat-container .main-content .chat-messages .bot-message::after {
       content: "";
       position: absolute;
-      left: -46px;
-      top: 0;
-      width: 34px;
-      height: 34px;
+      left: -44px;
+      bottom: -32px;
+      width: 28px;
+      height: 28px;
       border-radius: 50%;
-      background: #fff var(--st-bot-avatar) center/22px no-repeat;
+      background: #fff var(--st-bot-avatar) center/19px no-repeat;
       border: 1px solid var(--st-line);
     }
     .chat-container .main-content .chat-messages .bot-message::before {
       content: "StrategiStudio" attr(data-time);
       position: absolute;
       left: 0;
-      bottom: -19px;
+      bottom: -25px;
       font-size: 11px;
       color: var(--st-muted);
       white-space: nowrap;
@@ -435,7 +480,7 @@
     }
     .chat-messages .btn svg { width: 24px; height: 24px; font-size: 9px; }
     .chat-container .main-content .chat-messages .copy-btn {
-      margin-left: 52px;
+      margin-left: 44px;
     }
 
     /* ---------------- Composer ---------------- */
@@ -1077,6 +1122,12 @@
                         <i data-feather="activity" class="icon-14 me-1"></i>
                         <span id="token-usage-text">{{ localize('Intelligence Effort') }} - {{ number_format($chatTotalTokens) }}</span>
                     </span>
+                    <div class="chats-search msg-search">
+                        <input type="text" id="message-search" autocomplete="off"
+                               placeholder="{{ localize('Search messages') }}"
+                               aria-label="{{ localize('Search messages') }}">
+                        <i class="bi bi-search"></i>
+                    </div>
                     </div>
                 </div>
                 
@@ -1436,6 +1487,55 @@
 @section('scripts')
 
 <script>
+// Shared by the live message nodes: the same "09:14 PM" the blade prints.
+function stNowLabel() {
+    return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+// Emit today's divider once, so a chat whose first message is sent live is not
+// left without the date header every stored conversation has.
+function stEnsureTodayDivider(container) {
+    if (!container || container.querySelector('.chat-day-divider[data-today]')) return;
+
+    const dividers = container.querySelectorAll('.chat-day-divider');
+    const today = new Date();
+    const label = '{{ localize('Today') }}, ' +
+        today.toLocaleDateString([], { month: 'long', day: 'numeric' });
+
+    // A stored message from today already produced it.
+    if ([...dividers].some(d => d.textContent.trim() === label)) return;
+
+    const divider = document.createElement('div');
+    divider.className = 'chat-day-divider';
+    divider.dataset.today = '1';
+    divider.innerHTML = '<span></span>';
+    divider.querySelector('span').textContent = label;
+    container.appendChild(divider);
+}
+
+// Message search: filters the message cards already rendered. Same deal as the
+// Chats field -- no request, no endpoint.
+(function () {
+    const box = document.getElementById('message-search');
+
+    if (!box) return;
+
+    box.addEventListener('input', function () {
+        const term = this.value.trim().toLowerCase();
+        const cards = document.querySelectorAll('#chat-messages .tt-template-carddads');
+
+        cards.forEach(function (card) {
+            card.style.display = !term || card.textContent.toLowerCase().includes(term) ? '' : 'none';
+        });
+
+        // Date headers belong to the messages under them; while filtering they
+        // would otherwise float above nothing.
+        document.querySelectorAll('#chat-messages .chat-day-divider').forEach(function (d) {
+            d.style.display = term ? 'none' : '';
+        });
+    });
+})();
+
 // Chats search: filters the rows already on the page. Deliberately client-side
 // only -- no request, no new endpoint, the list is fully rendered anyway. A
 // date group whose rows all hide goes with them, so no orphan headings.
@@ -2366,8 +2466,11 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
     userCard.className = 'tt-template-carddads';
     // Same data-time the server-rendered bubbles carry -- the CSS renders it
     // through attr(), so this is all the JS has to know about timestamps.
-    const nowLabel = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const nowLabel = stNowLabel();
     userCard.innerHTML = `<div class="user-message" data-time="${nowLabel}">${question}</div>`;
+    // A chat whose first message is sent live had no divider at all: the blade
+    // only emits one per stored message, and there were none to loop over.
+    stEnsureTodayDivider(chatContainer);
     chatContainer.appendChild(userCard);
 
     // Show context options buttons instead of immediately sending
@@ -2425,6 +2528,9 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
         // Show loading
         const loadingDiv = document.createElement('div');
         loadingDiv.className = 'bot-message';
+        // Without this the live reply renders "StrategiStudio" with no time,
+        // while every stored one beside it shows "StrategiStudio - 09:14 PM".
+        loadingDiv.dataset.time = ' \u2022 ' + stNowLabel();
         loadingDiv.innerHTML = `
             <div class="gs-transition-card">
                 <div class="d-flex align-items-center mb-2">
