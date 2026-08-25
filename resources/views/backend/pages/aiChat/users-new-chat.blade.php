@@ -43,6 +43,13 @@
       --st-accent: #4f46e5;
       --st-accent-soft: #eef2ff;
       --st-them: #f7f8f9;
+      /* The avatar and meta line hang below each bubble on negative offsets, so
+         every bubble has to reserve at least this much clear space under it.
+         The bubbles are adjacent siblings and these margins collapse to the
+         larger of the two -- which is why setting only one of them is not
+         enough, and why 26px under a 32px avatar let the next message land on
+         top of it. */
+      --st-meta-gap: 44px;
 
       display: flex;
       gap: 16px;
@@ -357,7 +364,7 @@
       color: #fff;
       padding: 11px 15px;
       border-radius: 8px;
-      margin: 24px 44px 26px auto;
+      margin: 24px 44px var(--st-meta-gap) auto;
       max-width: 72%;
       width: fit-content;
       font-size: 13.5px;
@@ -398,7 +405,7 @@
       border: 0;
       border-radius: 8px;
       padding: 12px 16px;
-      margin: 30px auto 34px 44px;
+      margin: var(--st-meta-gap) auto var(--st-meta-gap) 44px;
       max-width: calc(100% - 44px);
       font-size: 13.5px;
       color: var(--st-ink);
