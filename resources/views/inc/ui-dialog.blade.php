@@ -10,7 +10,9 @@
     do not all load the same bundles.
 
     Colours come from the theme's own tokens with hardcoded fallbacks, so the
-    dialog stays on-brand if --bs-primary is ever retuned.
+    dialog follows whatever --bs-primary is in scope: the backend orange on
+    most pages, the teal the chat page rebinds on body. Either way it matches
+    the .btn-primary sitting next to it.
 --}}
 <style>
     .st-dialog-backdrop {
@@ -52,11 +54,13 @@
         font-size: 26px;
         line-height: 1;
     }
-    /* Tinted from --bs-primary itself, not --bs-primary-rgb: the theme
-       overrides --bs-primary to the teal #36839b at body scope but leaves
-       --bs-primary-rgb on the old orange 255,143,59, so the rgba() form would
-       paint an orange halo behind a teal button. Plain colour first as the
-       fallback for anything without color-mix(). */
+    /* Tinted from --bs-primary itself rather than rgba(var(--bs-primary-rgb)).
+       Both tokens are correctly paired today -- :root carries the orange
+       #ff8f3b with 255,143,59, and the chat page rebinds both to the teal
+       #36839b with 54,131,155 on body -- but deriving the halo from the one
+       colour the button already uses means a future retune cannot desync the
+       two. Plain colour first as the fallback for anything without
+       color-mix(). */
     .st-dialog[data-variant="primary"] .st-dialog-icon {
         background: #eef4f6;
         background: color-mix(in srgb, var(--bs-primary, #36839b) 14%, #fff);
