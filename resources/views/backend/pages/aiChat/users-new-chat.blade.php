@@ -1,7 +1,4 @@
 @extends('backend.layouts.master')
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
-
-
 
 @section('title')
 
@@ -9,6 +6,11 @@
 
 @endsection
 
+{{-- Pushed into <head>. Sitting loose in the body of the view, these were
+     echoed before the layout's doctype, which put the whole page into quirks
+     mode -- document.compatMode read "BackCompat". --}}
+@push('styles')
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
 <style>
   /* .custom-loder{  mix-blend-mode: luminosity;} */
     /* .template-actions {
@@ -24,262 +26,477 @@
         left: -25px;
     } */
      /* Parent - Container */
+    /* ------------------------------------------------------------------
+       Chat shell. Restyled to the messenger reference: a Chats panel on the
+       left, a conversation column on the right, bubbles with avatars, times
+       and date dividers. Class names are unchanged on purpose -- the page's
+       JS builds .tt-template-carddads / .user-message / .bot-message by hand
+       in a dozen places, so the look is carried by CSS rather than by new
+       wrapper markup those code paths would never produce.
+       ------------------------------------------------------------------ */
     .chat-container {
+      --st-ink: #1c1d22;
+      --st-muted: #8a8f9c;
+      --st-line: #e9ebf0;
+      --st-panel: #ffffff;
+      --st-canvas: #f5f6fa;
+      --st-accent: #4f46e5;
+      --st-accent-soft: #eef2ff;
+      --st-them: #f4f5f7;
+
       display: flex;
-      min-height: 100vh;
+      gap: 16px;
+      align-items: stretch;
+      /* Fixed height, so the message list scrolls inside the column and the
+         composer stays pinned -- measured against the real chrome: 88px of
+         navbar above, 55px of footer below. */
+      height: calc(100vh - 160px);
+      min-height: 480px;
+      background: var(--st-canvas);
+      padding: 16px;
+      border-radius: 14px;
     }
 
-    /* Parent - Sidebar */
-    .sidebar {
-      width: 260px;
-      /* background-color: #f7f7f7; */
-      background-color: --bs-card-bg: var(--bs-body-bg);
-      border-right: 1px solid var(--bs-border-color-translucent);
-      --bs-card-border-width: var(--bs-border-width);
-      /* Child elements will inherit these properties */
+    /* ---------------- Chats panel ---------------- */
+    .chat-container .sidebar {
+      width: 300px;
+      flex: 0 0 300px;
+      background: var(--st-panel);
+      border: 1px solid var(--st-line);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
     }
-      /* Child - Sidebar Header */
-      .sidebar .sidebar-header {
-        padding: 15px;
-        border-bottom: 1px solid #e0e0e0;
-        display: flex;
-        justify-content: space-between;
-      }
-        /* Grandchild - Sidebar Header Buttons */
-        .sidebar .sidebar-header .btn-icon {
-          color: #666;
-          background-color: transparent;
-          border: none;
-          border-radius: 4px;
-          padding: 8px;
-        }
-          /* Great-grandchild - Icon hover state */
-          .sidebar .sidebar-header .btn-icon:hover {
-            background-color: #e0e0e0;
-          }
 
-      /* Child - Sidebar Content */
-      .sidebar .sidebar-content {
-        overflow-y: auto;
-        height: calc(100vh - 60px);margin-right: 10px;
-      }
-        /* Grandchild - Sidebar Sections */
-        .sidebar .sidebar-content .sidebar-section {
-          padding: 5px 0px;
-          /* border-bottom: 1px solid #e0e0e0; */
-        }
-          /* Great-grandchild - Section Title */
-          .sidebar .sidebar-content .sidebar-section .section-title {
-            font-size: 12px;
-            color: #000;
-            margin-bottom: 10px;
-            font-weight: 500;
-          }
-          /* Great-grandchild - Sidebar Items */
-          .sidebar .sidebar-content .sidebar-section .sidebar-item {
-            padding: 8px 8px;
-            border-radius: 4px;
-            margin-bottom: 4px;
-            font-size: 14px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-          }
-            /* Great-great-grandchild - Sidebar Item Hover */
-            .sidebar .sidebar-content .sidebar-section .sidebar-item:hover {
-              background-color: #e0e0e0;
-            }
-            .sidebar .sidebar-content .sidebar-section .section-title a{display: -webkit-box;
-  -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 12px;}
-            /* Great-great-grandchild - Sidebar Item Icon */
-            .sidebar .sidebar-content .sidebar-section .sidebar-item i {
-              margin-right: 10px;
-              color: #666;
-            }
+    .chat-container .sidebar .chats-panel-head {
+      padding: 16px 16px 12px;
+    }
+    .chat-container .sidebar .chats-panel-head h2 {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--st-ink);
+      margin: 0 0 12px;
+    }
+    /* Search field: filters the rows already on the page, nothing more. */
+    .chat-container .sidebar .chats-search {
+      position: relative;
+    }
+    .chat-container .sidebar .chats-search input {
+      width: 100%;
+      border: 1px solid var(--st-line);
+      border-radius: 8px;
+      padding: 9px 34px 9px 12px;
+      font-size: 13px;
+      color: var(--st-ink);
+      background: var(--st-panel);
+      outline: none;
+    }
+    .chat-container .sidebar .chats-search input:focus {
+      border-color: #c7cbf5;
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, .10);
+    }
+    .chat-container .sidebar .chats-search i {
+      position: absolute;
+      right: 11px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--st-muted);
+      font-size: 14px;
+      pointer-events: none;
+    }
 
-
-           .chat-messages .btn svg{width: 24px;
-  height: 24px;
-  font-size: 9px;}
-
-    /* Parent - Main Content */
-    .main-content {
+    .chat-container .sidebar .sidebar-content {
+      overflow-y: auto;
       flex: 1;
-      display: flex;
-      flex-direction: column;background:#fff;
+      padding: 0 8px 12px;
+      margin-right: 0;
+      height: auto;
     }
-      /* Child - Chat Header */
-      .main-content .chat-header {
-        padding: 15px;
-        border-bottom: 1px solid #e0e0e0;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-      }
-        /* Grandchild - Header Title */
-        .main-content .chat-header .header-title {
-          font-weight: 600;
-          display: flex;
-          align-items: center;
-        }
-        /* Grandchild - Header Actions */
-        .main-content .chat-header .header-actions {
-          display: flex;
-          align-items: center;
-        }
-          /* Great-grandchild - Action Button */
-          .main-content .chat-header .header-actions .btn-action {
-            padding: 6px 12px;
-            border-radius: 4px;
-            border: none;
-            background-color: transparent;
-            display: flex;
-            align-items: center;
-            color: #666;
-            font-size: 14px;
-          }
-            /* Great-great-grandchild - Button Hover */
-            .main-content .chat-header .header-actions .btn-action:hover {
-              background-color: #f0f0f0;
-            }
-            /* Great-great-grandchild - Button Icon */
-            .main-content .chat-header .header-actions .btn-action i {
-              margin-right: 5px;
-            }
-  
-            .chat-container .sidebar-content .sidebar-section .sidebar-item a{display: -webkit-box;
-  -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  text-overflow: ellipsis;color: #484848;
-  font-size: 13px;width: 80%;}
+    .chat-container .sidebar .sidebar-content .sidebar-section {
+      padding: 6px 0;
+    }
+    .chat-container .sidebar .sidebar-content .sidebar-section .section-title {
+      font-size: 11px;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      color: var(--st-muted);
+      font-weight: 600;
+      margin: 6px 8px 6px;
+    }
 
-      /* Child - Chat Messages */
-      .main-content .chat-messages {
-        flex: 1;
-        padding: 0 20px;
-        overflow-y: auto;
-      }
-        /* Grandchild - User Message */
-        .main-content .chat-messages .user-message {
-          background-color: #f0f0f0;
-          padding: 12px 16px;
-          border-radius: 8px;
-          margin-bottom: 20px;
-          max-width: 80%;
-          margin-left: auto;margin-top:20px;
-        }
-        /* Grandchild - Bot Message */
-        .main-content .chat-messages .bot-message {
-          margin-bottom: 20px;
-        }
-          /* Great-grandchild - Message Paragraph */
-          .main-content .chat-messages .bot-message p {
-            margin-bottom: 15px;
-            line-height: 1.5;
-          }
-          /* Great-grandchild - Message Heading */
-          .main-content .chat-messages .bot-message h5 {
-            font-weight: 600;
-            margin-top: 20px;
-            margin-bottom: 10px;
-          }
-          /* Uniform heading sizing across ALL messages.
-             Markdown #/## render as h1/h2 (big + bold) which made follow-up
-             messages look different from the first. Normalize every level so
-             every message follows the same font/CSS. */
-          .main-content .chat-messages .response-text h1,
-          .main-content .chat-messages .response-text h2,
-          .main-content .chat-messages .response-text h3,
-          .main-content .chat-messages .response-text h4,
-          .main-content .chat-messages .response-text h5,
-          .main-content .chat-messages .response-text h6,
-          .main-content .chat-messages .bot-message h1,
-          .main-content .chat-messages .bot-message h2,
-          .main-content .chat-messages .bot-message h3,
-          .main-content .chat-messages .bot-message h4,
-          .main-content .chat-messages .bot-message h6 {
-            font-size: 1.05rem;
-            font-weight: 600;
-            line-height: 1.5;
-            margin-top: 18px;
-            margin-bottom: 8px;
-          }
-          /* Great-grandchild - Message List */
-          .main-content .chat-messages .bot-message ul {
-            padding-left: 20px;
-            margin-bottom: 20px;
-          }
-            /* Great-great-grandchild - List Item */
-            .main-content .chat-messages .bot-message ul li {
-              margin-bottom: 8px;
-            }
-          /* Great-grandchild - Code Block */
-          .main-content .chat-messages .bot-message .code-block {
-            background-color: #f7f7f7;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 15px;
-          }
-            /* Great-great-grandchild - Code Header */
-            .main-content .chat-messages .bot-message .code-block .code-header {
-              display: flex;
-              justify-content: space-between;
-              color: #666;
-              font-size: 12px;
-              margin-bottom: 10px;
-            }
-            /* Great-great-grandchild - Code Content */
-            .main-content .chat-messages .bot-message .code-block pre {
-              margin-bottom: 0;
-              color: #0066cc;
-            }
+    /* One conversation row: avatar, title over preview, time on the right. */
+    .chat-container .sidebar-content .sidebar-section .sidebar-item {
+      display: grid;
+      grid-template-columns: 40px 1fr auto;
+      grid-template-rows: auto auto;
+      column-gap: 10px;
+      align-items: center;
+      padding: 10px;
+      border-radius: 10px;
+      margin-bottom: 2px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .chat-container .sidebar-content .sidebar-section .sidebar-item:hover {
+      background: #f7f8fb;
+    }
+    .chat-container .sidebar-content .sidebar-section .sidebar-item.is-active {
+      background: var(--st-accent-soft);
+    }
+    .chat-container .sidebar-content .sidebar-section .sidebar-item .chat-avatar {
+      grid-row: 1 / span 2;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--st-accent-soft) center/cover no-repeat;
+      color: var(--st-accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      flex: none;
+    }
+    /* The <a> is the row title; the JS-free preview line sits under it. */
+    .chat-container .sidebar-content .sidebar-section .sidebar-item a {
+      grid-column: 2;
+      grid-row: 1;
+      display: -webkit-box;
+      -webkit-line-clamp: 1;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--st-ink);
+      font-size: 13.5px;
+      font-weight: 600;
+      width: auto;
+      text-decoration: none;
+    }
+    .chat-container .sidebar-content .sidebar-section .sidebar-item .chat-preview {
+      grid-column: 2;
+      grid-row: 2;
+      font-size: 12px;
+      color: var(--st-muted);
+      display: -webkit-box;
+      -webkit-line-clamp: 1;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .chat-container .sidebar-content .sidebar-section .sidebar-item .chat-time {
+      grid-column: 3;
+      grid-row: 1;
+      font-size: 11px;
+      color: var(--st-muted);
+      white-space: nowrap;
+    }
+    .chat-container .sidebar-content .sidebar-section .sidebar-item form {
+      grid-column: 3;
+      grid-row: 2;
+      justify-self: end;
+      opacity: 0;
+      transition: opacity .15s;
+    }
+    .chat-container .sidebar-content .sidebar-section .sidebar-item:hover form {
+      opacity: 1;
+    }
+    .chat-container .sidebar-content .sidebar-section .sidebar-item i {
+      margin-right: 0;
+      color: var(--st-muted);
+    }
 
-      /* Child - Chat Input */
-      .main-content .chat-input {
-        padding: 15px;
-        border-top: 1px solid #e0e0e0;
-      }
-        /* Grandchild - Input Container */
-        .main-content .chat-input .input-container {
-          display: flex;
-          border: 1px solid #e0e0e0;
-          border-radius: 8px;
-          padding: 8px 12px;
-          background-color: #f7f7f7;
-        }
-          /* Great-grandchild - Text Input */
-          .main-content .chat-input .input-container input {
-            flex: 1;
-            border: none;
-            background-color: transparent;
-            outline: none;
-            padding: 8px;
-          }
-          /* Great-grandchild - Input Buttons */
-          .main-content .chat-input .input-container .input-btn {
-            background-color: transparent;
-            border: none;
-            color: #666;
-            padding: 8px;
-            border-radius: 4px;
-          }
-            /* Great-great-grandchild - Button Hover */
-            .main-content .chat-input .input-container .input-btn:hover {
-              background-color: #e0e0e0;
-            }
-        /* Grandchild - Input Footer */
-        .main-content .chat-input .input-footer {
-          text-align: center;
-          font-size: 12px;
-          color: #666;
-          margin-top: 8px;
-        }
+    /* "New Chat" keeps the plain single-line row it always had. */
+    .chat-container .sidebar .new-chat-row .sidebar-item {
+      display: flex;
+      gap: 10px;
+      color: var(--st-accent);
+      font-weight: 600;
+      font-size: 13.5px;
+    }
+
+    /* ---------------- Conversation column ---------------- */
+    .chat-container .main-content {
+      flex: 1;
+      min-width: 0;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      background: var(--st-panel);
+      border: 1px solid var(--st-line);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .chat-container .main-content .chat-header {
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--st-line);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+    .chat-container .main-content .chat-header .header-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      min-width: 0;
+    }
+    .chat-container .main-content .chat-header .header-title .st-avatar {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      object-fit: contain;
+      background: #fff;
+      border: 1px solid var(--st-line);
+      padding: 3px;
+      flex: none;
+    }
+    .chat-container .main-content .chat-header .header-title .st-name {
+      font-size: 14.5px;
+      color: var(--st-ink);
+      line-height: 1.2;
+    }
+    .chat-container .main-content .chat-header .header-title .st-status {
+      font-size: 11.5px;
+      color: #22b07d;
+      font-weight: 500;
+    }
+    .chat-container .main-content .chat-header .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    /* The messages list and the composer live inside #ask-form, not directly
+       under .main-content, so the form is what has to carry the column -- put
+       flex only on .main-content and .chat-messages never gets a height to
+       shrink into, and the composer is clipped away by overflow:hidden. */
+    .chat-container .main-content #ask-form {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ---------------- Messages ---------------- */
+    .chat-container .main-content .chat-messages {
+      flex: 1;
+      min-height: 0;
+      padding: 20px 24px;
+      overflow-y: auto;
+      background: var(--st-panel);
+    }
+
+    /* A date divider pill, e.g. "Today, July 24". */
+    .chat-container .chat-day-divider {
+      display: flex;
+      justify-content: center;
+      margin: 18px 0 22px;
+    }
+    .chat-container .chat-day-divider span {
+      background: var(--st-accent-soft);
+      color: var(--st-accent);
+      font-size: 11.5px;
+      font-weight: 600;
+      padding: 5px 14px;
+      border-radius: 999px;
+    }
+
+    .chat-container .main-content .chat-messages .tt-template-carddads {
+      position: relative;
+    }
+
+    /* Your side: indigo bubble on the right, avatar beside it, time beneath. */
+    .chat-container .main-content .chat-messages .user-message {
+      position: relative;
+      background: var(--st-accent);
+      color: #fff;
+      padding: 11px 15px;
+      border-radius: 12px 12px 4px 12px;
+      margin: 24px 52px 4px auto;
+      max-width: 72%;
+      width: fit-content;
+      font-size: 13.5px;
+      line-height: 1.5;
+    }
+    .chat-container .main-content .chat-messages .user-message::after {
+      content: "";
+      position: absolute;
+      right: -46px;
+      bottom: 0;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: var(--st-user-avatar, var(--st-accent-soft)) center/cover no-repeat;
+      border: 1px solid var(--st-line);
+    }
+    /* attr() on a data attribute keeps the timestamp out of the JS that
+       builds these nodes -- it only has to set data-time. */
+    .chat-container .main-content .chat-messages .user-message[data-time]::before {
+      content: attr(data-time) " • You";
+      position: absolute;
+      right: 0;
+      bottom: -19px;
+      font-size: 11px;
+      color: var(--st-muted);
+      white-space: nowrap;
+    }
+
+    /* StrategiStudio side: left card. Kept wide -- these replies are long
+       structured briefs, not one-liners, and a 70% bubble would shred them. */
+    .chat-container .main-content .chat-messages .bot-message {
+      position: relative;
+      background: var(--st-them);
+      border: 1px solid var(--st-line);
+      border-radius: 12px 12px 12px 4px;
+      padding: 14px 18px;
+      margin: 30px auto 26px 52px;
+      max-width: calc(100% - 52px);
+      font-size: 13.5px;
+      color: var(--st-ink);
+    }
+    .chat-container .main-content .chat-messages .bot-message::after {
+      content: "";
+      position: absolute;
+      left: -46px;
+      top: 0;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: #fff var(--st-bot-avatar) center/22px no-repeat;
+      border: 1px solid var(--st-line);
+    }
+    .chat-container .main-content .chat-messages .bot-message::before {
+      content: "StrategiStudio" attr(data-time);
+      position: absolute;
+      left: 0;
+      bottom: -19px;
+      font-size: 11px;
+      color: var(--st-muted);
+      white-space: nowrap;
+    }
+    .chat-container .main-content .chat-messages .bot-message p {
+      margin-bottom: 12px;
+      line-height: 1.6;
+    }
+    .chat-container .main-content .chat-messages .bot-message h5 {
+      font-weight: 600;
+      margin-top: 18px;
+      margin-bottom: 8px;
+    }
+    /* Uniform heading sizing across ALL messages.
+       Markdown #/## render as h1/h2 (big + bold) which made follow-up
+       messages look different from the first. Normalize every level so
+       every message follows the same font/CSS. */
+    .chat-container .main-content .chat-messages .response-text h1,
+    .chat-container .main-content .chat-messages .response-text h2,
+    .chat-container .main-content .chat-messages .response-text h3,
+    .chat-container .main-content .chat-messages .response-text h4,
+    .chat-container .main-content .chat-messages .response-text h5,
+    .chat-container .main-content .chat-messages .response-text h6,
+    .chat-container .main-content .chat-messages .bot-message h1,
+    .chat-container .main-content .chat-messages .bot-message h2,
+    .chat-container .main-content .chat-messages .bot-message h3,
+    .chat-container .main-content .chat-messages .bot-message h4,
+    .chat-container .main-content .chat-messages .bot-message h6 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      line-height: 1.5;
+      margin-top: 18px;
+      margin-bottom: 8px;
+    }
+    .chat-container .main-content .chat-messages .bot-message ul {
+      padding-left: 20px;
+      margin-bottom: 16px;
+    }
+    .chat-container .main-content .chat-messages .bot-message ul li {
+      margin-bottom: 8px;
+    }
+    .chat-container .main-content .chat-messages .bot-message .code-block {
+      background-color: #fff;
+      border: 1px solid var(--st-line);
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 15px;
+    }
+    .chat-container .main-content .chat-messages .bot-message .code-block .code-header {
+      display: flex;
+      justify-content: space-between;
+      color: var(--st-muted);
+      font-size: 12px;
+      margin-bottom: 10px;
+    }
+    .chat-container .main-content .chat-messages .bot-message .code-block pre {
+      margin-bottom: 0;
+      color: #0066cc;
+    }
+    .chat-messages .btn svg { width: 24px; height: 24px; font-size: 9px; }
+    .chat-container .main-content .chat-messages .copy-btn {
+      margin-left: 52px;
+    }
+
+    /* ---------------- Composer ---------------- */
+    /* Prompt above the input; JS hides it as soon as you start typing. It used
+       to carry an inline margin-top:110px, which only made sense back when the
+       whole page scrolled and the composer sat at the end of it. */
+    .chat-container .main-content .chat-input .textcheck {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--st-muted);
+      margin: 0 0 10px;
+    }
+    .chat-container .main-content .chat-input .textcheck b { font-weight: 600; }
+
+    .chat-container .main-content .chat-input {
+      padding: 14px 18px 16px;
+      border-top: 1px solid var(--st-line);
+      background: var(--st-panel);
+    }
+    .chat-container .main-content .chat-input .input-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid var(--st-line);
+      border-radius: 10px;
+      padding: 6px 8px 6px 14px;
+      background: #fafbfd;
+    }
+    .chat-container .main-content .chat-input .input-container input {
+      flex: 1;
+      border: none;
+      background: transparent;
+      outline: none;
+      padding: 9px 0;
+      font-size: 13.5px;
+      color: var(--st-ink);
+    }
+    .chat-container .main-content .chat-input .input-container input::placeholder {
+      color: var(--st-muted);
+    }
+    .chat-container .main-content .chat-input .input-container .input-btn {
+      background: var(--st-accent);
+      border: none;
+      color: #fff;
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: none;
+    }
+    .chat-container .main-content .chat-input .input-container .input-btn:hover {
+      background: #4338ca;
+    }
+    .chat-container .main-content .chat-input .input-footer {
+      text-align: center;
+      font-size: 12px;
+      color: var(--st-muted);
+      margin-top: 8px;
+    }
 
     /* Avatar element */
     .avatar {
@@ -291,14 +508,25 @@
       margin-right: 10px;
     }
 
-    [data-bs-theme="dark"] .main-content {background-color:#161C24;}
-    [data-bs-theme="dark"] .main-content .chat-input .input-container{background-color: #161C24;border: 1px solid #454545;}
-    [data-bs-theme="dark"] .main-content .chat-input{border-top: 1px solid #454545}
-    [data-bs-theme="dark"] .sidebar .sidebar-content .sidebar-section .section-title,
-    [data-bs-theme="dark"] .chat-container .sidebar-content .sidebar-section .sidebar-item a,
-    [data-bs-theme="dark"] .sidebar .sidebar-content .sidebar-section .sidebar-item{color: #fff;}
-    [data-bs-theme="dark"] .sidebar .sidebar-content .sidebar-section .sidebar-item:hover,
-    [data-bs-theme="dark"] .main-content .chat-messages .user-message{background-color: #242424;}
+    @media (max-width: 991px) {
+      .chat-container { flex-direction: column; }
+      .chat-container .sidebar { width: 100%; flex: none; }
+      .chat-container .main-content .chat-messages .bot-message,
+      .chat-container .main-content .chat-messages .user-message { max-width: 100%; }
+    }
+
+    [data-bs-theme="dark"] .chat-container {
+      --st-ink: #e6e8ee;
+      --st-muted: #9aa0ad;
+      --st-line: #33383f;
+      --st-panel: #161C24;
+      --st-canvas: #0f1319;
+      --st-accent-soft: #232a44;
+      --st-them: #1e242c;
+    }
+    [data-bs-theme="dark"] .chat-container .sidebar .chats-search input,
+    [data-bs-theme="dark"] .chat-container .main-content .chat-input .input-container { background: #161C24; }
+    [data-bs-theme="dark"] .chat-container .sidebar-content .sidebar-section .sidebar-item:hover { background: #1e242c; }
 
     /* Strategy Map Radio Buttons */
     .strategy-map-section {
@@ -668,6 +896,7 @@
         color: #36839b !important;
     }
 </style>
+@endpush
 
 
 @section('contents')
@@ -716,7 +945,16 @@
             </div> -->
 
 
-            <div class="chat-container">
+            @php
+                // Both avatars ride on the container as CSS variables: the message
+                // nodes are built by JS in a dozen places, so nothing per-message
+                // has to know about them.
+                $stBotAvatar = staticAsset('newfronted/Assets/Logo-si.webp');
+                $stUserAvatar = ! empty($user->avatar) ? uploadedAsset($user->avatar) : null;
+            @endphp
+
+            <div class="chat-container"
+                 style="--st-bot-avatar: url('{{ $stBotAvatar }}');{{ $stUserAvatar ? " --st-user-avatar: url('".$stUserAvatar."');" : '' }}">
                 <!-- Sidebar -->
                 <div class="sidebar">
                 <!-- Sidebar Header -->
@@ -727,8 +965,17 @@
                 </div>
                 
                 <!-- Sidebar Content -->
+                <div class="chats-panel-head">
+                    <h2>{{ localize('Chats') }}</h2>
+                    <div class="chats-search">
+                        <input type="text" id="chat-search" autocomplete="off"
+                               placeholder="{{ localize('Search') }}"
+                               aria-label="{{ localize('Search chats') }}">
+                        <i class="bi bi-search"></i>
+                    </div>
+                </div>
                 <div class="sidebar-content">
-                    <div class="sidebar-section">
+                    <div class="sidebar-section new-chat-row">
                 {{--<!-- <a href="{{url('dashboard/newusers-new-chat/'.$id)}}" style="color:black;"> -->--}}
                 <a href="{{url('dashboard/newchat')}}" style="color:black;">
                     <div class="sidebar-item">
@@ -753,15 +1000,33 @@
                         });
                     @endphp
 
+                    <div class="section-title px-2">{{ localize('All Chats') }}</div>
+
                     @foreach ($sortedGroups as $group => $chats)
                         <div class="sidebar-section">
                             <div class="section-title">{{ $group }}</div>
 
                             @foreach ($chats->sortByDesc('created_at')->unique('search_user_chat_id') as $chat)
-                                <div class="sidebar-item d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                @php
+                                    $rowTitle = \Illuminate\Support\Str::words(strip_tags($chat->search), 8, '...');
+                                    // Responses are stored as the Studio's JSON payload. Its
+                                    // acknowledgement is the one human sentence in there; without
+                                    // this the row preview renders a raw "{" and the JSON keys.
+                                    $stResponse = json_decode((string) ($chat->response ?? ''), true);
+                                    $stPreviewText = is_array($stResponse)
+                                        ? (string) ($stResponse['acknowledgement'] ?? '')
+                                        : strip_tags((string) ($chat->response ?? ''));
+                                    $rowPreview = \Illuminate\Support\Str::words($stPreviewText, 6, '...');
+                                    $rowInitial = strtoupper(mb_substr(trim(strip_tags($chat->search)) ?: 'S', 0, 1));
+                                @endphp
+                                <div class="sidebar-item{{ (int) $chat->search_user_chat_id === (int) $id ? ' is-active' : '' }}"
+                                     data-search="{{ \Illuminate\Support\Str::lower(strip_tags($chat->search)) }}">
+                                    <span class="chat-avatar">{{ $rowInitial }}</span>
                                     <a href="{{ url('dashboard/users-new-chat/' . $chat->search_user_chat_id) }}">
-                                        {{ \Illuminate\Support\Str::words(strip_tags($chat->search), 8, '...') }}
+                                        {{ $rowTitle }}
                                     </a>
+                                    <span class="chat-preview">{{ $rowPreview !== '' ? $rowPreview : localize('No reply yet') }}</span>
+                                    <span class="chat-time">{{ optional($chat->created_at)->format('h:i A') }}</span>
 
                                    <form class="mb-0" action="{{ url('dashboard/users-chat-search-delete', $chat->search_user_chat_id) }}" method="get" onsubmit="return confirm('Are you sure you want to delete this chat?')">
                                     @csrf
@@ -788,7 +1053,11 @@
                 <!-- Chat Header -->
                 <div class="chat-header">
                     <div class="header-title">
-                    <span>StrategiStudio</span>
+                        <img class="st-avatar" src="{{ $stBotAvatar }}" alt="StrategiStudio">
+                        <span>
+                            <span class="st-name d-block">StrategiStudio</span>
+                            <span class="st-status">{{ localize('Online') }}</span>
+                        </span>
                     </div>
                     <div class="header-actions">
                     @if(isset($documentCount) && $documentCount > 0)
@@ -818,10 +1087,21 @@
                     <input type="hidden" name="id" id="chat_id" value="{{ $id }}">
                     
                     <div class="chat-messages" id="chat-messages">
+                        @php $stLastDay = null; @endphp
                         @foreach ($searchuserchatdata as $index => $chat)
+                           @php
+                                $stAt = $chat->created_at;
+                                $stDay = optional($stAt)->toDateString();
+                           @endphp
+                           @if($stDay && $stDay !== $stLastDay)
+                                <div class="chat-day-divider">
+                                    <span>{{ $stAt->isToday() ? localize('Today').', '.$stAt->format('F j') : $stAt->format('l, F j') }}</span>
+                                </div>
+                                @php $stLastDay = $stDay; @endphp
+                           @endif
                            <div class="tt-template-carddads">
-                            <div class="user-message">{{ $chat->search ?? '' }}</div>
-                            <div class="bot-message  response-text" data-md="{{ base64_encode($chat->response ?? '') }}"></div>
+                            <div class="user-message" data-time="{{ optional($stAt)->format('h:i A') }}">{{ $chat->search ?? '' }}</div>
+                            <div class="bot-message  response-text" data-time="{{ $stAt ? ' • '.$stAt->format('h:i A') : '' }}" data-md="{{ base64_encode($chat->response ?? '') }}"></div>
                             <!-- Copy Button -->
                                 <button type="button" class="btn btn-sm text-success me-2 copy-btn" data-bs-toggle="tooltip" data-bs-title="Copy Answer">
                                     <!-- <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"
@@ -853,7 +1133,7 @@
 
                     <!-- Chat Input -->
                     <div class="chat-input">
-                        <h3 class="text-center textcheck" style="margin-top: 110px;"><b>Tell Us Your Final Goal To Conclude</b></h3>
+                        <h3 class="text-center textcheck"><b>{{ localize('Tell Us Your Final Goal To Conclude') }}</b></h3>
                         <div class="input-container mt-4">
                             <input type="text" id="question" placeholder="Ask anything">
                             <button type="submit" class="input-btn">
@@ -1154,6 +1434,34 @@
 
 
 @section('scripts')
+
+<script>
+// Chats search: filters the rows already on the page. Deliberately client-side
+// only -- no request, no new endpoint, the list is fully rendered anyway. A
+// date group whose rows all hide goes with them, so no orphan headings.
+(function () {
+    const box = document.getElementById('chat-search');
+
+    if (!box) return;
+
+    box.addEventListener('input', function () {
+        const term = this.value.trim().toLowerCase();
+
+        document.querySelectorAll('.chat-container .sidebar-item[data-search]').forEach(function (row) {
+            row.style.display = !term || row.dataset.search.includes(term) ? '' : 'none';
+        });
+
+        document.querySelectorAll('.chat-container .sidebar-content .sidebar-section').forEach(function (section) {
+            const rows = section.querySelectorAll('.sidebar-item[data-search]');
+
+            if (!rows.length) return; // the "New Chat" section has none
+
+            const anyVisible = [...rows].some(r => r.style.display !== 'none');
+            section.style.display = anyVisible ? '' : 'none';
+        });
+    });
+})();
+</script>
 
 <script>
     // Pre-render loader image URL to avoid pending requests
@@ -2056,7 +2364,10 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
 
     const userCard = document.createElement('div');
     userCard.className = 'tt-template-carddads';
-    userCard.innerHTML = `<div class="user-message">${question}</div>`;
+    // Same data-time the server-rendered bubbles carry -- the CSS renders it
+    // through attr(), so this is all the JS has to know about timestamps.
+    const nowLabel = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    userCard.innerHTML = `<div class="user-message" data-time="${nowLabel}">${question}</div>`;
     chatContainer.appendChild(userCard);
 
     // Show context options buttons instead of immediately sending
