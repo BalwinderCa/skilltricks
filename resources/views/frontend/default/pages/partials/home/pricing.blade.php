@@ -226,30 +226,33 @@
         "use strict";
 
         // handle package payment
-        function handlePackagePayment($this) {
+        async function handlePackagePayment($this) {
             let package_type = $($this).data('package-type');
             let subscribed_package_type = $($this).data('previous-package-type');
 
             let check = true;
-            let packageChangeCheck;
+            let packageChangeCheck = true;
             let user_type = $($this).data('user-type') == "customer" ? 'customer' : 'admin';
 
             let carryForward = '{{ getSetting('carry_forward ')? 1: 0 }}';
 
             if ((subscribed_package_type == "prepaid" || subscribed_package_type == "lifetime") && (
                     package_type != "prepaid" && package_type != "lifetime")) {
-                packageChangeCheck = confirm(
+                packageChangeCheck = await stConfirm(
                     `{{ localize('You current package ${subscribed_package_type} will be expired if you want to subscribe to ${package_type}. Do you want to continue?') }}`
                 )
 
             }
             if (subscribed_package_type != package_type && user_type == "customer" && carryForward == "0") {
-                check = confirm(
+                check = await stConfirm(
                     `{{ localize('You are changing your subscription package type to ${package_type}, your balance will be reset with new package balance. Want to continue?') }}`
                 )
             }
 
-            if (check || packageChangeCheck) {
+            // Every confirmation that was shown has to be accepted. This was ||,
+            // so declining the expiry prompt still went ahead whenever the reset
+            // branch had not run and left `check` at its initial true.
+            if (check && packageChangeCheck) {
                 let package_id = $($this).data('package-id');
                 let price = parseFloat($($this).data('price'));
                 $('.payment_package_id').val(package_id);

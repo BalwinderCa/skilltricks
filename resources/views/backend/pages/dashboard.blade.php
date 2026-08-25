@@ -69,7 +69,9 @@
                             <h5 class="mb-2">{{ localize('Active strategic context') }}</h5>
                             <a class="btn btn-sm btn-outline-secondary"
                                href="{{ route('onboarding.index', ['recalibrate' => 1]) }}"
-                               onclick="return confirm('{{ localize('Re-run calibration? Your current context stays on record, and the new interview replaces what the platform works from.') }}')">
+                               data-confirm="{{ localize('Your current context stays on record, and the new interview replaces what the platform works from.') }}"
+                               data-confirm-title="{{ localize('Re-run calibration?') }}"
+                               data-confirm-ok="{{ localize('Re-run it') }}">
                                 {{ localize('Re-run calibration') }}
                             </a>
                         </div>

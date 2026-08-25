@@ -33,11 +33,12 @@
         $('#stopBtn').on('click', function () {
             if (source !== null) {
                 source.close();
-                alert('Total Words Streamed: ' + wordCount);
+                stAlert('Total Words Streamed: ' + wordCount);
             }
         });
     });
 </script>
 
+@include('inc.ui-dialog')
 </body>
 </html>

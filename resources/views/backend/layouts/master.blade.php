@@ -215,6 +215,9 @@
         echo getSetting('footer_custom_scripts');
     @endphp
 
+    {{-- stAlert / stConfirm, and the [data-confirm] hook --}}
+    @include('inc.ui-dialog')
+
 </body>
 
 </html>

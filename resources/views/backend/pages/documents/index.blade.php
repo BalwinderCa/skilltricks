@@ -128,7 +128,10 @@
                                                                 <i data-feather="refresh-cw" class="icon-14"></i>
                                                             </a>
                                                         @endif
-                                                        <a href="{{ route('documents.delete', $document->id) }}" class="btn btn-sm btn-danger" onclick="return confirm('{{ localize('Are you sure you want to delete this document?') }}')" title="{{ localize('Delete') }}">
+                                                        <a href="{{ route('documents.delete', $document->id) }}" class="btn btn-sm btn-danger" data-confirm="{{ localize('This document will no longer be used as context for AI responses.') }}"
+                                                           data-confirm-title="{{ localize('Delete this document?') }}"
+                                                           data-confirm-ok="{{ localize('Delete') }}"
+                                                           data-confirm-variant="danger" title="{{ localize('Delete') }}">
                                                             <i data-feather="trash-2" class="icon-14"></i>
                                                         </a>
                                                     </td>

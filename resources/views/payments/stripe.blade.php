@@ -77,7 +77,7 @@
                     // error, you should display the localized error message to your
                     // customer using `error.message`.
                     if (result.error) {
-                        alert(result.error.message);
+                        stAlert(result.error.message, { variant: 'danger', title: "{{ localize('Payment failed') }}" });
                     }
                 })
                 .catch(function(error) {
@@ -87,6 +87,7 @@
 
         document.getElementById("checkout-button").click();
     </script>
+@include('inc.ui-dialog')
 </body>
 
 </html>

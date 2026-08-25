@@ -1089,7 +1089,11 @@
                                     <span class="chat-preview">{{ $rowPreview !== '' ? $rowPreview : localize('No reply yet') }}</span>
                                     <span class="chat-time">{{ optional($chat->created_at)->format('h:i A') }}</span>
 
-                                   <form class="mb-0" action="{{ url('dashboard/users-chat-search-delete', $chat->search_user_chat_id) }}" method="get" onsubmit="return confirm('Are you sure you want to delete this chat?')">
+                                   <form class="mb-0" action="{{ url('dashboard/users-chat-search-delete', $chat->search_user_chat_id) }}" method="get"
+                                         data-confirm="{{ localize('This conversation and its replies will be removed for good.') }}"
+                                         data-confirm-title="{{ localize('Delete this chat?') }}"
+                                         data-confirm-ok="{{ localize('Delete') }}"
+                                         data-confirm-variant="danger">
                                     @csrf
                                     <button type="submit" class="btn btn-sm p-0" data-bs-toggle="tooltip" data-bs-title="Delete">
                                       <i class="feather feather-trash bi bi-trash text-danger m-0"></i>
@@ -2350,7 +2354,7 @@ async function submitContextFromModal() {
 
     // Check if field has content
     if (!contextField) {
-        alert('Please enter some context before submitting.');
+        stAlert('Please enter some context before submitting.');
         return;
     }
 
@@ -2461,20 +2465,20 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
 
     // Validate question before proceeding
     if (!question) {
-        alert("Please enter a question or goal.");
+        stAlert("Please enter a question or goal.");
         questionInput.focus();
         return;
     }
     
     // Validate chat_id
     if (!chat_id) {
-        alert("Chat ID is missing. Please refresh the page and try again.");
+        stAlert("Chat ID is missing. Please refresh the page and try again.");
         return;
     }
     
     // Validate user_id
     if (!user_id) {
-        alert("User ID is missing. Please refresh the page and try again.");
+        stAlert("User ID is missing. Please refresh the page and try again.");
         return;
     }
 
@@ -2522,17 +2526,17 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
     const sendToChatGPT = async function(contextData = null) {
         // Validate required fields
         if (!currentQuestion || !currentQuestion.trim()) {
-            alert('Please enter a question or goal.');
+            stAlert('Please enter a question or goal.');
             return;
         }
         
         if (!currentChat_id) {
-            alert('Chat ID is missing. Please refresh the page and try again.');
+            stAlert('Chat ID is missing. Please refresh the page and try again.');
             return;
         }
         
         if (!currentUser_id) {
-            alert('User ID is missing. Please refresh the page and try again.');
+            stAlert('User ID is missing. Please refresh the page and try again.');
             return;
         }
         
@@ -3924,8 +3928,8 @@ document.addEventListener('click', function (e) {
             ? Array.from(sections).map(section => section.innerText.trim()).filter(Boolean).join('\n\n')
             : '';
         navigator.clipboard.writeText(text)
-            .then(() => alert('Answer copied!'))
-            .catch(err => alert('Copy failed: ' + err));
+            .then(() => stAlert('Answer copied!', { variant: 'success', title: 'Copied' }))
+            .catch(err => stAlert('Copy failed: ' + err, { variant: 'danger', title: 'Something went wrong' }));
     }
 });
 </script>
@@ -4006,7 +4010,7 @@ document.addEventListener('click', function (e) {
         .catch(error => {
             if (loadingMsg) loadingMsg.remove();
             if (exportBtn) exportBtn.disabled = false;
-            alert('Failed to export role goals: ' + error.message + '\n\nPlease check the browser console for details.');
+            stAlert('Failed to export role goals: ' + error.message + '\n\nPlease check the browser console for details.', { variant: 'danger', title: 'Something went wrong' });
         });
     };
 
@@ -4562,12 +4566,12 @@ document.addEventListener('click', function (e) {
                 }
                 if (callback) callback(true, data.expected_state);
             } else {
-                alert('Failed to save decision: ' + (data.error || 'unknown error'));
+                stAlert('Failed to save decision: ' + (data.error || 'unknown error'), { variant: 'danger', title: 'Something went wrong' });
                 if (callback) callback(false);
             }
         })
         .catch(err => {
-            alert('Error saving decision: ' + err.message);
+            stAlert('Error saving decision: ' + err.message, { variant: 'danger', title: 'Something went wrong' });
             if (callback) callback(false);
         });
     }
@@ -4848,13 +4852,13 @@ document.addEventListener('click', function (e) {
                         // Dynamic update: refresh the progress tile
                         window.refreshProgressTile();
                     } else {
-                        alert('Failed to save progress update: ' + (data.error || 'unknown error'));
+                        stAlert('Failed to save progress update: ' + (data.error || 'unknown error'), { variant: 'danger', title: 'Something went wrong' });
                     }
                 })
                 .catch(err => {
                     saveProgressBtn.disabled = false;
                     saveProgressBtn.innerHTML = '<i class="bi bi-save me-1"></i> Save Progress Update';
-                    alert('Error saving progress update: ' + err.message);
+                    stAlert('Error saving progress update: ' + err.message, { variant: 'danger', title: 'Something went wrong' });
                 });
             });
         }
@@ -5142,13 +5146,13 @@ document.addEventListener('click', function (e) {
                                 } else {
                                     this.disabled = false;
                                     this.innerHTML = '<i class="bi bi-play-circle me-1"></i> Activate Intervention';
-                                    alert('Failed to activate intervention: ' + (data.error || 'unknown error'));
+                                    stAlert('Failed to activate intervention: ' + (data.error || 'unknown error'), { variant: 'danger', title: 'Something went wrong' });
                                 }
                             })
                             .catch(err => {
                                 this.disabled = false;
                                 this.innerHTML = '<i class="bi bi-play-circle me-1"></i> Activate Intervention';
-                                alert('Error activating intervention: ' + err.message);
+                                stAlert('Error activating intervention: ' + err.message, { variant: 'danger', title: 'Something went wrong' });
                             });
                         });
                     }

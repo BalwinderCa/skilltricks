@@ -69,19 +69,21 @@
                 },
                 onPending: function(result) {
                     /* You may add your own implementation here */
-                    alert("wating your payment!");
+                    // alert() blocked until dismissed, so the message was read before
+                    // the redirect. stAlert does not block -- chain it instead.
                     let url = '{{ route('midtrans.success') }}';
-                    updateProcces(result, url);
+                    stAlert("{{ localize('We are still waiting on your payment.') }}")
+                        .then(function () { updateProcces(result, url); });
                 },
                 onError: function(result) {
                     /* You may add your own implementation here */
-                    alert("payment failed!");
                     let url = '{{ route('midtrans.failed') }}';
-                    updateProcces(result, url);
+                    stAlert("{{ localize('That payment did not go through.') }}", { variant: 'danger', title: "{{ localize('Payment failed') }}" })
+                        .then(function () { updateProcces(result, url); });
                 },
                 onClose: function() {
                     /* You may add your own implementation here */
-                    alert('you closed the popup without finishing the payment');
+                    stAlert("{{ localize('You closed the window before the payment finished.') }}");
                 }
             })
         });
@@ -118,6 +120,7 @@
 
 
 
+@include('inc.ui-dialog')
 </body>
 
 </html>
