@@ -9,7 +9,14 @@
 
 
 
-@if($user->organization_id && $user->hierarchy_rank)
+{{-- Seniority is no longer a gate: it is declared by the Role field on the
+     profile form, which a new signup has not filled in yet.
+
+     must_change_password is a gate: an invited member on a temporary password
+     is redirected back to the password form by every one of these links, so the
+     menu is gated here rather than at each include — the navbar's offcanvas
+     pulls in this same file. --}}
+@if($user->organization_id && ! $user->must_change_password)
 
 
 
@@ -397,6 +404,47 @@
     @endif
 
 </ul>
+
+@php
+    // One query per render, in the same spirit as the package lookup above.
+    // withCount so the sidebar can show how many people are in each.
+    $sidebarOrg = $user->organization;
+    $sidebarDepartments = $sidebarOrg
+        ? $sidebarOrg->departments()->withCount('members')->orderBy('name')->get()
+        : collect();
+    $sidebarIsOwner = $sidebarOrg && (int) $sidebarOrg->owner_user_id === (int) $user->id;
+    $activeDepartmentId = (int) request()->query('department');
+@endphp
+
+@if($sidebarOrg)
+    <div class="tt-dept-section">
+        <div class="tt-dept-head">
+            <span class="tt-nav-title-text text-muted">{{ localize('Department') }}</span>
+            @if($sidebarIsOwner)
+                {{-- Owner-only, like every other write on the organization. --}}
+                <button type="button" class="tt-dept-add" data-department-add
+                        title="{{ localize('Add department') }}"
+                        aria-label="{{ localize('Add department') }}">+</button>
+            @endif
+        </div>
+
+        <ul class="tt-side-nav tt-dept-list">
+            @forelse($sidebarDepartments as $department)
+                <li class="side-nav-item nav-item {{ $activeDepartmentId === (int) $department->id ? 'tt-menu-item-active' : '' }}">
+                    <a href="{{ route('organization.index', ['department' => $department->id]) }}" class="side-nav-link">
+                        <span class="tt-dept-swatch" style="background: {{ $department->color }}"></span>
+                        <span class="tt-nav-link-text">{{ $department->name }}</span>
+                        <span class="tt-dept-count text-muted">{{ $department->members_count }}</span>
+                    </a>
+                </li>
+            @empty
+                <li class="tt-dept-empty text-muted">
+                    {{ $sidebarIsOwner ? localize('None yet — add one with +') : localize('None yet') }}
+                </li>
+            @endforelse
+        </ul>
+    </div>
+@endif
 
 
 @else

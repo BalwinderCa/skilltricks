@@ -42,14 +42,6 @@
 
                             </div>
 
-                            <div class="tt-action">
-                                @if(!empty($user->user_type == 'customer') && ! ($user->organization_id && $user->hierarchy_rank))
-                                    <div class="alert alert-info mb-0">
-                                        {{ localize('Finish your calibration to unlock the dashboard.') }}
-                                        <a href="{{ route('onboarding.index') }}">{{ localize('Continue calibration') }}</a>
-                                    </div>
-                                @endif
-                            </div>
 
                         </div>
 
@@ -295,14 +287,15 @@
                                 </div>
 
                                  <div class="mb-3">
-                                    <label for="name" class="form-label">{{ localize('Role') }}<span class="text-danger">*</span></label>
-                                    
-                                    <select  class="form-control" name="chat_role_categories" required>
-                                        <option value="">Select</option>
-                                    @foreach($chatrolecategories as $vlaue)
-                                        <option value="{{$vlaue->id}}" {{ $user->chat_role_categories == $vlaue->id ? 'selected' : '' }}>{{$vlaue->name}}</option>
-                                    @endforeach
-                                    </select>
+
+                                    <label for="department" class="form-label">{{ localize('Department') }}</label>
+
+                                    <input class="form-control" type="text" id="department"
+
+                                        placeholder="{{ localize('e.g. Marketing') }}" name="department"
+
+                                        value="{{ old('department', $user->department ?? '') }}">
+
                                 </div>
 
                                 <div class="mb-3">

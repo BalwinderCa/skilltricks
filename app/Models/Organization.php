@@ -27,6 +27,12 @@ class Organization extends Model
         return $this->hasMany(OrgContextVersion::class);
     }
 
+    /** @return HasMany<Department, $this> */
+    public function departments(): HasMany
+    {
+        return $this->hasMany(Department::class);
+    }
+
     /** @return HasMany<User, $this> */
     public function members(): HasMany
     {

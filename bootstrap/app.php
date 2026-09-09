@@ -11,6 +11,7 @@ use App\Http\Middleware\IsCustomer;
 use App\Http\Middleware\IsFrontendEnable;
 use App\Http\Middleware\IsInMaintenance;
 use App\Http\Middleware\LanguageMiddleware;
+use App\Http\Middleware\MustChangePassword;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -53,6 +54,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin' => IsAdmin::class,
             'customer' => IsCustomer::class,
             'isBanned' => IsBanned::class,
+            'mustChangePassword' => MustChangePassword::class,
             'affiliate' => AffiliateMiddleWare::class,
             'demo' => DemoMiddleware::class,
             'ensureDemoMode' => EnsureDemoMode::class,

@@ -78,7 +78,12 @@
     <!--preloader end-->
 
     <!--sidebar section start-->
-    @include('backend.inc.leftSidebar')
+    {{-- An invited member on a temporary password gets no navigation: the
+         middleware already sends every route to the password form, and leaving
+         a menu up would only offer links that bounce straight back. --}}
+    @unless(auth()->check() && auth()->user()->must_change_password)
+        @include('backend.inc.leftSidebar')
+    @endunless
     <!--sidebar section end-->
 
     <!--main content wrapper start-->
@@ -99,6 +104,14 @@
         <!--Google AdSense End-->
         @include('backend.inc.footer')
         <!--footer section end-->
+
+        {{-- Once per page: the sidebar menu partial renders twice (rail and
+             mobile offcanvas), and a <dialog> with a fixed id cannot. --}}
+        @auth
+            @if(auth()->user()->user_type === 'customer')
+                @include('backend.inc.department-dialog')
+            @endif
+        @endauth
 
         <!-- media-manager -->
         @include('backend.inc.media-manager.media-manager')

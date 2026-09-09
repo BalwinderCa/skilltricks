@@ -14,6 +14,25 @@ use Laravel\Cashier\Billable;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
+/**
+ * The profile and organization columns, declared so static analysis can see
+ * them. They were added out of band and every read of one was an "undefined
+ * property" until now.
+ *
+ * @property string|null $company
+ * @property string|null $company_name
+ * @property string|null $company_address
+ * @property string|null $number_employess
+ * @property string|null $chat_role_categories
+ * @property int|null $department_id
+ * @property int|null $manager_id
+ * @property int $sort_order
+ * @property string|null $company_category
+ * @property string|null $about_company
+ * @property int|null $organization_id
+ * @property int|null $hierarchy_rank
+ * @property bool $must_change_password
+ */
 class User extends Authenticatable implements MustVerifyEmail
 {
     use Billable, HasApiTokens, HasFactory, HasRoles, Notifiable,SoftDeletes;
@@ -47,10 +66,14 @@ class User extends Authenticatable implements MustVerifyEmail
         'company',
         'organization_id',
         'hierarchy_rank',
+        'must_change_password',
         'company_name',
         'company_address',
         'number_employess',
         'chat_role_categories',
+        'department_id',
+        'manager_id',
+        'sort_order',
         'company_category',
         'about_company',
         'referral_code',
@@ -65,12 +88,27 @@ class User extends Authenticatable implements MustVerifyEmail
     // should be casted
     protected $casts = [
         'email_verified_at' => 'datetime',
+        'must_change_password' => 'boolean',
     ];
 
     // role
     public function role()
     {
         return $this->belongsTo(SpatieRole::class);
+    }
+
+    // who this person reports to
+    /** @return BelongsTo<User, $this> */
+    public function manager(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'manager_id');
+    }
+
+    // department
+    /** @return BelongsTo<Department, $this> */
+    public function department(): BelongsTo
+    {
+        return $this->belongsTo(Department::class);
     }
 
     // organization

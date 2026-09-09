@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
@@ -127,5 +129,43 @@ class ProfileUpdateTest extends TestCase
         ]);
 
         $this->assertNull($user->fresh()->about_company);
+    }
+
+    /**
+     * The profile form no longer carries a Role, and a save must not touch the
+     * rank the organization owner set on the Teams page — recomputing it from a
+     * stale chat_role_categories would silently undo their correction.
+     */
+    public function test_saving_the_profile_leaves_the_rank_alone(): void
+    {
+        $org = Organization::create(['domain' => 'analytical.test']);
+        $user = $this->customer(['email' => 'ada@analytical.test', 'organization_id' => $org->id]);
+        $org->forceFill(['owner_user_id' => $user->id])->save();
+
+        $ranked = DB::table('chat_role_categories')->insertGetId([
+            'name' => 'CEO', 'rank' => 50, 'status' => 1, 'created_at' => now(),
+        ]);
+
+        // A rank an owner set, next to a stale category that implies a different one.
+        $user->forceFill(['hierarchy_rank' => 20, 'chat_role_categories' => $ranked])->save();
+
+        $this->actingAs($user)->post(route('dashboard.profile.update'), [
+            'company_name' => 'Analytical Engines',
+            'number_employess' => '20-50',
+            'company_category' => 'Software',
+        ]);
+
+        $this->assertSame(20, (int) $user->fresh()->hierarchy_rank);
+        $this->assertSame(0, DB::table('org_context_versions')->where('user_id', $user->id)->count());
+    }
+
+    public function test_the_profile_page_no_longer_offers_a_role_field(): void
+    {
+        $user = $this->customer();
+
+        $response = $this->actingAs($user)->get(route('dashboard.profile'));
+
+        $response->assertOk();
+        $response->assertDontSee('name="chat_role_categories"', false);
     }
 }

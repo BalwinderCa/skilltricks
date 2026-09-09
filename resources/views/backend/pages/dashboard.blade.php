@@ -21,10 +21,41 @@
 
             @if(! $org)
                 <div class="alert alert-info">
-                    {{ localize('You are not part of an organization yet. Finish your calibration to set one up.') }}
-                    <a href="{{ route('onboarding.index') }}">{{ localize('Start calibration') }}</a>
+                    {{ localize('You are not part of an organization yet.') }}
+                    <a href="{{ route('dashboard.profile') }}">{{ localize('Add your company information') }}</a>
                 </div>
             @else
+
+                {{-- Setup progress. Hidden once there is nothing left to fill in. --}}
+                @if($profileCompletion['percent'] < 100)
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <h5 class="mb-0">{{ localize('Finish setting up') }}</h5>
+                                <span class="text-muted small">{{ $profileCompletion['percent'] }}%</span>
+                            </div>
+
+                            <div class="progress mb-3" style="height: 8px;">
+                                <div class="progress-bar" role="progressbar"
+                                     style="width: {{ $profileCompletion['percent'] }}%"
+                                     aria-valuenow="{{ $profileCompletion['percent'] }}"
+                                     aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+
+                            <p class="text-muted small mb-3">
+                                {{ localize('Still missing') }}:
+                                {{ implode(', ', array_map('localize', $profileCompletion['missing'])) }}
+                            </p>
+
+                            <a class="btn btn-primary btn-sm" href="{{ route('dashboard.profile') }}">
+                                {{ localize('Complete profile & company information') }}
+                            </a>
+                            <a class="btn btn-outline-primary btn-sm" href="{{ route('organization.index') }}">
+                                {{ localize('Add your team') }}
+                            </a>
+                        </div>
+                    </div>
+                @endif
 
                 {{-- Org-wide totals, same card shape the dashboard already used --}}
                 <div class="row g-3 mb-3">
@@ -65,19 +96,10 @@
 
                 <div class="card mb-4">
                     <div class="card-body">
-                        <div class="d-flex align-items-start justify-content-between">
-                            <h5 class="mb-2">{{ localize('Active strategic context') }}</h5>
-                            <a class="btn btn-sm btn-outline-secondary"
-                               href="{{ route('onboarding.index', ['recalibrate' => 1]) }}"
-                               data-confirm="{{ localize('Your current context stays on record, and the new interview replaces what the platform works from.') }}"
-                               data-confirm-title="{{ localize('Re-run calibration?') }}"
-                               data-confirm-ok="{{ localize('Re-run it') }}">
-                                {{ localize('Re-run calibration') }}
-                            </a>
-                        </div>
+                        <h5 class="mb-2">{{ localize('Active strategic context') }}</h5>
                         @if($activeContext)
                             <p class="text-muted small">
-                                {{ localize('Set by the highest-ranking member who has completed calibration. This is what the platform tailors its intelligence to.') }}
+                                {{ localize('Set by the highest-ranking member of this organization. This is what the platform tailors its intelligence to.') }}
                             </p>
                             <dl class="row mb-0">
                                 <dt class="col-sm-3">{{ localize('Declared by') }}</dt>
@@ -109,7 +131,7 @@
                             </dl>
                         @else
                             <p class="mb-0 text-muted">
-                                {{ localize('No active context yet. It is set when a member completes calibration.') }}
+                                {{ localize('No active context yet. It is set once a member holds a role.') }}
                             </p>
                         @endif
                     </div>

@@ -21,8 +21,10 @@ class OnboardingGateTest extends TestCase
         ]);
     }
 
-    public function test_an_uncalibrated_customer_is_sent_to_onboarding(): void
+    public function test_an_uncalibrated_customer_reaches_the_dashboard(): void
     {
+        // Signup lands here now. The old redirect sent every new user into the
+        // ranking interview before they could see anything.
         $org = Organization::create(['domain' => 'acme.com']);
         $user = User::factory()->create([
             'user_type' => 'customer',
@@ -31,9 +33,10 @@ class OnboardingGateTest extends TestCase
             'hierarchy_rank' => null,
         ]);
 
-        $this->actingAs($user)
-            ->get(route('writebot.dashboard'))
-            ->assertRedirect(route('onboarding.index'));
+        $response = $this->actingAs($user)->get(route('writebot.dashboard'));
+
+        $response->assertOk();
+        $response->assertSee('progress-bar', false);
     }
 
     public function test_a_calibrated_customer_reaches_the_dashboard(): void

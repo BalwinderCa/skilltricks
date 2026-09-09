@@ -147,10 +147,14 @@ Route::group(
     ['prefix' => '', 'middleware' => ['isBanned']],
     function () {
         Route::group(
-            ['prefix' => 'dashboard', 'middleware' => ['auth', 'verified']],
+            ['prefix' => 'dashboard', 'middleware' => ['auth', 'verified', 'mustChangePassword']],
             function () {
                 // dashboard
                 Route::get('/', [DashboardController::class, 'index'])->name('writebot.dashboard');
+                // invited members land here and go nowhere else until they set a password
+                Route::get('/set-password', [DashboardController::class, 'showPasswordChange'])->name('password.change');
+                Route::post('/set-password', [DashboardController::class, 'storePasswordChange'])->name('password.change.store');
+
                 Route::get('/profile', [DashboardController::class, 'profile'])->name('dashboard.profile');
                 Route::post('/profile', [DashboardController::class, 'updateProfile'])->name('dashboard.profile.update')->middleware('demo');
 
@@ -292,9 +296,20 @@ Route::group(
                     ->name('onboarding.answer');
                 Route::post('/onboarding/confirm', [OnboardingController::class, 'confirm'])->name('onboarding.confirm');
 
-                // organization owner corrects a member's declared rank
+                // organization roster
                 Route::get('/organization', [DashboardController::class, 'organization'])->name('organization.index');
-                Route::post('/organization/member-rank', [DashboardController::class, 'updateMemberRank'])->name('organization.member-rank');
+
+                // team roster: add, edit, remove, and the bulk CSV add
+                Route::get('/organization/sample-team-csv', [DashboardController::class, 'sampleTeamCsv'])->name('organization.sample-csv');
+                Route::post('/organization/members', [DashboardController::class, 'importMembers'])->name('organization.members.import');
+                Route::post('/organization/members/store', [DashboardController::class, 'storeMember'])->name('organization.members.store');
+                Route::post('/organization/members/update', [DashboardController::class, 'updateMember'])->name('organization.members.update');
+                Route::post('/organization/members/remove', [DashboardController::class, 'removeMember'])->name('organization.members.remove');
+                Route::post('/organization/members/invite', [DashboardController::class, 'inviteMembers'])->name('organization.members.invite');
+                Route::post('/organization/departments', [DashboardController::class, 'storeDepartment'])->name('organization.departments.store');
+                Route::post('/organization/departments/delete', [DashboardController::class, 'destroyDepartment'])->name('organization.departments.destroy');
+                Route::post('/organization/departments/head', [DashboardController::class, 'updateDepartmentHead'])->name('organization.departments.head');
+                Route::post('/organization/chart/move', [DashboardController::class, 'moveMember'])->name('organization.chart.move');
 
                 // chat
                 /* Route::get('/newusers-new-chat/{id}', [AiChatController::class, 'newusers_new_chat'])->name('newusers-new-chat.index'); */

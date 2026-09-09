@@ -17,6 +17,19 @@ class OrganizationService
     public const VALID_RANKS = [10, 20, 30, 40, 50, 60];
 
     /**
+     * The six-rung ladder, named. Lives here rather than in a Blade file so the
+     * roster and the CSV import can never disagree about what a rank is called.
+     */
+    public const RANK_LABELS = [
+        10 => 'Individual Contributor',
+        20 => 'Manager',
+        30 => 'Director',
+        40 => 'Vice President',
+        50 => 'C-Suite',
+        60 => 'Board',
+    ];
+
+    /**
      * Find or create the organization an email address belongs to.
      *
      * A shared email domain is the trust boundary: you cannot join an
@@ -158,8 +171,7 @@ class OrganizationService
      * Put a user in an organization, claiming ownership if it is unowned.
      *
      * Ownership goes to whoever registers first on the domain, independent of
-     * who finishes calibrating first — so it is settled here, not in the
-     * interview.
+     * who fills in their role first — so it is settled here, not by rank.
      */
     public function attachUser(User $user, Organization $org): void
     {
@@ -193,8 +205,8 @@ class OrganizationService
      */
     public function setMemberRank(User $owner, User $member, int $rank): void
     {
-        // Known limitation: a corrected member who runs the interview again can
-        // re-declare the higher rank, and recordContext() will take it. The owner
+        // Known limitation: a corrected member who re-saves their profile Role
+        // re-declares the higher rank, and recordContext() will take it. The owner
         // can correct it again, and every claim stays on record. Locking a
         // corrected rank is deferred until it is actually asked for.
         if (! in_array($rank, self::VALID_RANKS, true)) {
@@ -220,8 +232,45 @@ class OrganizationService
     }
 
     /**
+     * Take a member off an organization's roster.
+     *
+     * The account survives — only the membership is cleared, so the person can
+     * register or be re-added later, and their context versions stay on record.
+     *
+     * Detach first, re-elect second, both inside the lock: recomputeActiveContext()
+     * elects from the members the organization still has, so a version declared
+     * by someone who has just left can no longer win. Doing it the other way
+     * round leaves an evicted member's declaration governing.
+     */
+    public function detachMember(User $owner, User $member): void
+    {
+        $org = $member->organization;
+
+        if (! $org || (int) $org->owner_user_id !== (int) $owner->id) {
+            throw new \RuntimeException('Only the organization owner can remove a member.');
+        }
+
+        if ((int) $member->id === (int) $org->owner_user_id) {
+            throw new \RuntimeException('The organization owner cannot be removed.');
+        }
+
+        DB::transaction(function () use ($org, $member) {
+            Organization::whereKey($org->id)->lockForUpdate()->first();
+
+            $member->forceFill([
+                'organization_id' => null,
+                'hierarchy_rank' => null,
+                'department_id' => null,
+            ])->save();
+
+            $this->recomputeActiveContext($org);
+        });
+    }
+
+    /**
      * Re-elect the governing context after a rank correction: the highest-ranked
-     * version whose declarer still holds at least that rank today.
+     * version whose declarer still holds at least that rank today. Demotion is
+     * why this exists — recordContext() only ever raises the active pointer.
      */
     private function recomputeActiveContext(Organization $org): void
     {

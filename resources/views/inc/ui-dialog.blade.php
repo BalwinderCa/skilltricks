@@ -133,6 +133,44 @@
         color: #e6e8ee;
     }
 
+
+    /* Shell for a <dialog> that carries a form, dressed to match the dialogs
+       built above. Lives here because three pages now use it and a fourth copy
+       of the same block is how they drift apart.
+
+       .st-dialog-ok gets its background from .st-dialog[data-variant="..."],
+       an ancestor a native <dialog> has not got, so both buttons are painted
+       again here — without it Save is white text on a white card. */
+    .st-modal {
+        width: 100%;
+        max-width: 460px;
+        border: 0;
+        border-radius: 14px;
+        padding: 26px;
+        background: var(--bs-body-bg, #fff);
+        color: var(--bs-body-color, #212B36);
+        box-shadow: 0 18px 60px rgba(22, 28, 36, .28);
+    }
+    .st-modal::backdrop { background: rgba(22, 28, 36, .55); }
+    .st-modal .st-dialog-title { text-align: center; }
+    .st-modal .st-dialog-actions { margin-top: 22px; }
+    .st-modal .st-dialog-ok {
+        background: var(--bs-primary, #36839b);
+        color: #fff;
+    }
+    .st-modal .st-dialog-cancel {
+        background: var(--bs-secondary, #F4F6F8);
+        color: var(--bs-body-color, #212B36);
+    }
+    [data-bs-theme="dark"] .st-modal {
+        background: var(--bs-gray-900, #161C24);
+        color: #e6e8ee;
+    }
+    [data-bs-theme="dark"] .st-modal .st-dialog-cancel {
+        background: #2a323b;
+        color: #e6e8ee;
+    }
+
     @media (max-width: 480px) {
         .st-dialog { padding: 22px 18px 16px; }
         .st-dialog-actions { flex-direction: column-reverse; }
@@ -212,6 +250,15 @@
     function show(message, options, withCancel) {
         var base = withCancel ? DEFAULTS.confirm : DEFAULTS.alert;
         var opts = Object.assign({}, base, options || {});
+
+        // Object.assign copies a key whose value is undefined, clobbering the
+        // default -- and `textContent = undefined` on a nullable DOMString
+        // becomes "", not "undefined". optionsFor() below hands us exactly that
+        // for every attribute the markup leaves off, so any [data-confirm]
+        // without data-confirm-cancel rendered an unlabelled Cancel button.
+        Object.keys(opts).forEach(function (key) {
+            if (opts[key] === undefined) opts[key] = base[key];
+        });
         var parts = build(message, opts, withCancel);
         var previouslyFocused = document.activeElement;
 

@@ -91,7 +91,7 @@ class OrgRankOverrideTest extends TestCase
         $this->service->setMemberRank($owner, $member, 77);
     }
 
-    public function test_the_endpoint_rejects_a_non_owner(): void
+    public function test_the_edit_endpoint_rejects_a_non_owner(): void
     {
         [$org, , $member] = $this->orgWithOwnerAndMember();
         $impostor = User::factory()->create([
@@ -102,7 +102,11 @@ class OrgRankOverrideTest extends TestCase
         ]);
 
         $this->actingAs($impostor)
-            ->post(route('organization.member-rank'), ['user_id' => $member->id, 'rank' => 60])
+            ->post(route('organization.members.update'), [
+                'user_id' => $member->id, 'name' => $member->name, 'rank' => 60,
+            ])
             ->assertForbidden();
+
+        $this->assertNotSame(60, (int) $member->fresh()->hierarchy_rank);
     }
 }
