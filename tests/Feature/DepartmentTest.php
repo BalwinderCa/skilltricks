@@ -903,6 +903,42 @@ class DepartmentTest extends TestCase
         $response->assertSee('data-drop-after', false);
     }
 
+    /**
+     * A brand-new organization has exactly one member — the owner — and the
+     * owner is kept off the roster, so every row is gone. Say the page is empty
+     * rather than leaving a headed table with nothing under it.
+     */
+    public function test_a_solo_owner_is_told_the_roster_is_empty(): void
+    {
+        [, $owner] = $this->ownedOrg();
+
+        $members = $this->actingAs($owner)->get(route('organization.index'));
+        $members->assertOk();
+        $members->assertSee('It is just you so far', false);
+        // The controls are still offered — nothing is hidden by being empty.
+        $members->assertSee('data-member-add', false);
+        $members->assertSee('data-bulk-open', false);
+
+        $chart = $this->actingAs($owner)->get(route('organization.index', ['view' => 'chart']));
+        $chart->assertOk();
+        $chart->assertSee('It is just you so far', false);
+    }
+
+    public function test_an_empty_department_filter_says_so(): void
+    {
+        [$org, $owner] = $this->ownedOrg();
+
+        $empty = Department::create([
+            'organization_id' => $org->id, 'name' => 'Nobody Here', 'color' => Department::PALETTE[0],
+        ]);
+
+        $response = $this->actingAs($owner)
+            ->get(route('organization.index', ['department' => $empty->id]));
+
+        $response->assertOk();
+        $response->assertSee('Nobody is in this department yet', false);
+    }
+
     public function test_the_members_tab_is_still_the_default(): void
     {
         [, $owner] = $this->orgWithChart();

@@ -128,7 +128,7 @@
                 </tr>
             </thead>
             <tbody>
-            @foreach($orgMembers as $member)
+            @forelse($orgMembers as $member)
                 @php $isOrgOwner = $org && (int) $org->owner_user_id === (int) $member->id; @endphp
                 <tr>
                     @if($isOwner)
@@ -190,7 +190,22 @@
                         </td>
                     @endif
                 </tr>
-            @endforeach
+            @empty
+                {{-- An organization of one renders no rows at all, because the
+                     owner is kept off the roster. Without this the page looks
+                     broken rather than empty. --}}
+                <tr>
+                    <td colspan="{{ $isOwner ? 6 : 4 }}" class="text-center text-muted py-4">
+                        @if($activeDepartment)
+                            {{ localize('Nobody is in this department yet.') }}
+                        @elseif($isOwner)
+                            {{ localize('It is just you so far. Add your team with the buttons above, or upload a CSV.') }}
+                        @else
+                            {{ localize('Nobody else is in this organization yet.') }}
+                        @endif
+                    </td>
+                </tr>
+            @endforelse
             </tbody>
         </table>
         </div>

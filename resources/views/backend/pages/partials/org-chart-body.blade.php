@@ -23,6 +23,14 @@
         </div>
     </div>
 
+    @if(! count($chart['branches']))
+        {{-- Root only: an organization of one, with no departments. Say so
+             rather than drawing a lone card under a heading. --}}
+        <p class="text-muted small text-center mt-3 mb-0">
+            {{ localize('It is just you so far. Add people on the Members tab, and departments with the + beside Department in the sidebar.') }}
+        </p>
+    @endif
+
     @if(count($chart['branches']))
         <div class="tt-chart-branches">
             @foreach($chart['branches'] as $branch)
