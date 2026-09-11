@@ -89,8 +89,10 @@ class OrgRoleTest extends TestCase
         // The permission checkboxes and the add/edit dialog both render.
         $response->assertSee('data-role-permission', false);
         $response->assertSee('roleDialog', false);
-        // Roles carry no seniority: there is nowhere to set a level.
+        // Roles carry no seniority: there is nowhere to set a level, and nothing
+        // should point at the Hierarchy page that was removed with it.
         $response->assertDontSee('roleLevel', false);
+        $response->assertDontSee('Hierarchy', false);
     }
 
     public function test_the_teams_page_still_renders_with_the_role_select(): void

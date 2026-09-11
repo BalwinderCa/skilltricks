@@ -25,7 +25,7 @@
                         <div>
                             <h5 class="mb-1">{{ localize('Roles') }}</h5>
                             <p class="text-muted small mb-0">
-                                {{ localize('Permissions are recorded here but are not enforced yet. Seniority is set on the Hierarchy page.') }}
+                                {{ localize('Permissions are recorded here but are not enforced yet.') }}
                             </p>
                         </div>
                         <button type="button" class="btn btn-sm btn-primary" data-role-add>
