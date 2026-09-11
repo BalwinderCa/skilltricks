@@ -39,6 +39,12 @@ class Organization extends Model
         return $this->hasMany(User::class);
     }
 
+    /** @return HasMany<OrgRole, $this> */
+    public function roles(): HasMany
+    {
+        return $this->hasMany(OrgRole::class);
+    }
+
     /** @return BelongsTo<User, $this> */
     public function owner(): BelongsTo
     {

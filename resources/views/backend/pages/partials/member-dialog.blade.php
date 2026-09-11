@@ -1,9 +1,3 @@
-@php
-    // Its own copy now that two tabs include this file — the Members roster is
-    // no longer the only place it is rendered from.
-    $rankLabels = \App\Services\OrganizationService::RANK_LABELS;
-@endphp
-
 @if($isOwner)
     {{-- Dialogs.
 
@@ -34,13 +28,18 @@
                 <small class="text-muted" id="memberEmailNote"></small>
             </div>
 
+            {{-- The organization's own roles, not the rank ladder: the role
+                 carries the level, and the server derives hierarchy_rank from it. --}}
             <div class="mb-3">
-                <label class="form-label" for="memberRank">{{ localize('Role') }}<span class="text-danger">*</span></label>
-                <select class="form-control" id="memberRank" name="rank" required>
-                    @foreach($rankLabels as $value => $label)
-                        <option value="{{ $value }}">{{ localize($label) }}</option>
+                <label class="form-label" for="memberRole">{{ localize('Role') }}<span class="text-danger">*</span></label>
+                <select class="form-control" id="memberRole" name="org_role_id" required>
+                    @foreach($orgRoles as $role)
+                        <option value="{{ $role->id }}">{{ $role->name }}</option>
                     @endforeach
                 </select>
+                @if($orgRoles->isEmpty())
+                    <small class="text-muted">{{ localize('Add one on the Roles page in the sidebar.') }}</small>
+                @endif
             </div>
 
             <div class="mb-3">
@@ -79,11 +78,9 @@
             <h2 class="st-dialog-title" id="bulkDialogTitle">{{ localize('Bulk add team') }}</h2>
 
             <p class="text-muted small mb-2">
-                {{ localize('Upload a CSV with one person per row and these four columns') }}:
-                <code>name,email,role,department</code>.
-                {{ localize('Role must be one of') }}
-                {{ implode(', ', array_map('localize', array_values($rankLabels))) }}.
-                {{ localize('Anything else counts as Individual Contributor. A department name that does not exist yet is created, and it may be left blank.') }}
+                {{ localize('Upload a CSV with one person per row and these three columns') }}:
+                <code>name,email,department</code>.
+                {{ localize('Imported members arrive without a role — assign one from the roster. A department name that does not exist yet is created, and it may be left blank.') }}
             </p>
 
             <p class="text-muted small mb-2">
@@ -158,7 +155,8 @@
             document.getElementById('memberId').value = editing ? member.id : '';
             document.getElementById('memberName').value = editing ? member.name : '';
             document.getElementById('memberDepartment').value = (editing && member.department) ? member.department : '';
-            document.getElementById('memberRank').value = (editing && member.rank) ? member.rank : '10';
+            var roleSelect = document.getElementById('memberRole');
+            roleSelect.value = (editing && member.role) ? member.role : (roleSelect.options[0] ? roleSelect.options[0].value : '');
 
             emailInput.value = editing ? member.email : '';
             emailNote.textContent = editing ? EMAIL_NOTE : '';
@@ -183,7 +181,7 @@
                     id: edit.dataset.id,
                     name: edit.dataset.name,
                     email: edit.dataset.email,
-                    rank: edit.dataset.rank,
+                    role: edit.dataset.role,
                     department: edit.dataset.department
                 });
                 return;

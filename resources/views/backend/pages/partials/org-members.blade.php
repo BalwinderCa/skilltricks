@@ -1,9 +1,3 @@
-@php
-    // The six-rung role ladder, from the service that also validates it — the
-    // CSV importer and the dialog's Role select read the same list.
-    $rankLabels = \App\Services\OrganizationService::RANK_LABELS;
-@endphp
-
 <div class="card">
     <div class="card-body">
 
@@ -151,7 +145,7 @@
                     </td>
                     <td>{{ $member->email }}</td>
                     <td>
-                        {{ $member->hierarchy_rank ? localize($rankLabels[(int) $member->hierarchy_rank] ?? '—') : localize('Role not set') }}
+                        {{ $member->orgRole?->name ?? localize('Role not set') }}
                     </td>
                     <td>
                         @if($member->department)
@@ -169,7 +163,7 @@
                                     data-id="{{ $member->id }}"
                                     data-name="{{ $member->name }}"
                                     data-email="{{ $member->email }}"
-                                    data-rank="{{ $member->hierarchy_rank }}"
+                                    data-role="{{ $member->org_role_id }}"
                                     data-department="{{ $member->department_id }}">
                                 {{ localize('Edit') }}
                             </button>

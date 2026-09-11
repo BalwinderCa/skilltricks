@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Mail\User\TeamInvitationMail;
 use App\Models\Department;
 use App\Models\Organization;
+use App\Models\OrgRole;
 use App\Models\User;
 use App\Services\OrganizationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -30,6 +31,7 @@ class TeamImportTest extends TestCase
     private function ownedOrg(): array
     {
         $org = Organization::create(['domain' => 'acme.com', 'name' => 'Acme']);
+        app(OrganizationService::class)->seedDefaultRoles($org);
 
         $owner = User::factory()->create([
             'email' => 'owner@acme.com', 'user_type' => 'customer',
@@ -39,6 +41,14 @@ class TeamImportTest extends TestCase
         $org->forceFill(['owner_user_id' => $owner->id])->save();
 
         return [$org, $owner];
+    }
+
+    /** One of the fixture organization's seeded roles, by name. */
+    private function roleId(string $name): int
+    {
+        return (int) OrgRole::whereHas('organization', fn ($q) => $q->where('domain', 'acme.com'))
+            ->where('name', $name)
+            ->value('id');
     }
 
     private function department(Organization $org, string $name): Department
@@ -61,9 +71,9 @@ class TeamImportTest extends TestCase
         [$org, $owner] = $this->ownedOrg();
 
         $file = $this->csv(
-            "name,email,role,department\n".
-            "Jane Doe,jane@acme.com,Manager,Marketing\n".
-            "John Smith,JOHN@acme.com,Individual Contributor,\n"
+            "name,email,department\n".
+            "Jane Doe,jane@acme.com,Marketing\n".
+            "John Smith,JOHN@acme.com,\n"
         );
 
         $this->actingAs($owner)
@@ -74,7 +84,9 @@ class TeamImportTest extends TestCase
         $john = User::where('email', 'john@acme.com')->first();
 
         $this->assertNotNull($jane);
-        $this->assertSame(20, (int) $jane->hierarchy_rank);
+        // No role column any more: they arrive unassigned, at the floor rung.
+        $this->assertNull($jane->org_role_id);
+        $this->assertSame(10, (int) $jane->hierarchy_rank);
         // The CSV named a department that did not exist; it was created.
         $this->assertSame('Marketing', $jane->department->name);
         $this->assertContains($jane->department->color, Department::PALETTE);
@@ -101,11 +113,11 @@ class TeamImportTest extends TestCase
         $before = User::count();
 
         $file = $this->csv(
-            "name,email,role,department\n".
-            "No Email,,Manager,Ops\n".
-            "Bad Address,not-an-email,Manager,Ops\n".
-            ",jane@acme.com,Manager,Ops\n".
-            "Already Here,owner@acme.com,Board,Ops\n"
+            "name,email,department\n".
+            "No Email,,Ops\n".
+            "Bad Address,not-an-email,Ops\n".
+            ",jane@acme.com,Ops\n".
+            "Already Here,owner@acme.com,Ops\n"
         );
 
         $this->actingAs($owner)->post(route('organization.members.import'), ['members' => $file]);
@@ -125,7 +137,7 @@ class TeamImportTest extends TestCase
         ]);
 
         $this->actingAs($member)
-            ->post(route('organization.members.import'), ['members' => $this->csv("name,email,role,department\nJane,jane@acme.com,Manager,Ops\n")])
+            ->post(route('organization.members.import'), ['members' => $this->csv("name,email,department\nJane,jane@acme.com,Ops\n")])
             ->assertForbidden();
 
         $this->assertNull(User::where('email', 'jane@acme.com')->first());
@@ -140,7 +152,7 @@ class TeamImportTest extends TestCase
         $this->actingAs($owner)->post(route('organization.members.store'), [
             'name' => 'Grace Hopper',
             'email' => 'GRACE@acme.com',
-            'rank' => 40,
+            'org_role_id' => $this->roleId('Vice President'),
             'department_id' => $this->department($org, 'Engineering')->id,
             'send_invite' => 1,
         ])->assertRedirect();
@@ -148,7 +160,9 @@ class TeamImportTest extends TestCase
         $grace = User::where('email', 'grace@acme.com')->first();
 
         $this->assertNotNull($grace);
-        $this->assertSame(40, (int) $grace->hierarchy_rank);
+        $this->assertSame('Vice President', $grace->orgRole->name);
+        // Roles carry no seniority, so everyone added starts at the floor rung.
+        $this->assertSame(10, (int) $grace->hierarchy_rank);
         $this->assertSame('Engineering', $grace->department->name);
         $this->assertSame((int) $org->id, (int) $grace->organization_id);
         Mail::assertSent(TeamInvitationMail::class);
@@ -162,7 +176,7 @@ class TeamImportTest extends TestCase
         $before = User::count();
 
         $this->actingAs($owner)->post(route('organization.members.store'), [
-            'name' => 'Impostor', 'email' => 'owner@acme.com', 'rank' => 60,
+            'name' => 'Impostor', 'email' => 'owner@acme.com', 'org_role_id' => $this->roleId('Board'),
         ])->assertRedirect();
 
         $this->assertSame($before, User::count());
@@ -183,14 +197,16 @@ class TeamImportTest extends TestCase
             'user_id' => $member->id,
             'name' => 'Grace Hopper',
             'email' => 'grace@acme.com',
-            'rank' => 40,
+            'org_role_id' => $this->roleId('Vice President'),
             'department_id' => $this->department($org, 'Engineering')->id,
         ])->assertRedirect();
 
         $fresh = $member->fresh();
 
         $this->assertSame('Grace Hopper', $fresh->name);
-        $this->assertSame(40, (int) $fresh->hierarchy_rank);
+        $this->assertSame('Vice President', $fresh->orgRole->name);
+        // Changing a role must not move the rank the governance election reads.
+        $this->assertSame(20, (int) $fresh->hierarchy_rank);
         $this->assertSame('Engineering', $fresh->department->name);
         // The address is never taken from the edit form.
         $this->assertSame('grace@acme.com', $fresh->email);
@@ -209,7 +225,7 @@ class TeamImportTest extends TestCase
 
         $this->actingAs($owner)->post(route('organization.members.update'), [
             'user_id' => $outsider->id, 'name' => 'Hijacked',
-            'email' => 'someone@globex.com', 'rank' => 60,
+            'email' => 'someone@globex.com', 'org_role_id' => $this->roleId('Board'),
         ])->assertNotFound();
 
         $this->assertSame('Outsider', $outsider->fresh()->name);
@@ -280,12 +296,12 @@ class TeamImportTest extends TestCase
         ]);
 
         $this->actingAs($member)->post(route('organization.members.store'), [
-            'name' => 'Sneaky', 'email' => 'sneaky@acme.com', 'rank' => 60,
+            'name' => 'Sneaky', 'email' => 'sneaky@acme.com', 'org_role_id' => $this->roleId('Board'),
         ])->assertForbidden();
 
         $this->actingAs($member)->post(route('organization.members.update'), [
             'user_id' => $member->id, 'name' => 'Promoted',
-            'email' => $member->email, 'rank' => 60,
+            'email' => $member->email, 'org_role_id' => $this->roleId('Board'),
         ])->assertForbidden();
 
         $this->actingAs($member)->post(route('organization.members.remove'), [
@@ -308,7 +324,7 @@ class TeamImportTest extends TestCase
 
         $this->actingAs($owner)->post(route('organization.members.update'), [
             'user_id' => $member->id, 'name' => 'Grace Hopper',
-            'email' => 'GRACE@acme.com', 'rank' => 20,
+            'email' => 'GRACE@acme.com', 'org_role_id' => $this->roleId('Manager'),
         ])->assertRedirect();
 
         $fresh = $member->fresh();
@@ -331,7 +347,7 @@ class TeamImportTest extends TestCase
 
         $this->actingAs($owner)->post(route('organization.members.update'), [
             'user_id' => $member->id, 'name' => 'Grace Hopper',
-            'email' => 'grace@acme.com', 'rank' => 30,
+            'email' => 'grace@acme.com', 'org_role_id' => $this->roleId('Director'),
         ])->assertRedirect();
 
         $this->assertNotNull($member->fresh()->email_verified_at);
@@ -348,7 +364,7 @@ class TeamImportTest extends TestCase
 
         $this->actingAs($owner)->post(route('organization.members.update'), [
             'user_id' => $member->id, 'name' => 'Grace',
-            'email' => 'owner@acme.com', 'rank' => 20,
+            'email' => 'owner@acme.com', 'org_role_id' => $this->roleId('Manager'),
         ])->assertRedirect();
 
         $this->assertSame('grace@acme.com', $member->fresh()->email);
@@ -497,7 +513,7 @@ class TeamImportTest extends TestCase
 
         $response->assertOk();
         $response->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
-        $response->assertSee('name,email,role,department', false);
+        $response->assertSee('name,email,department', false);
         $response->assertSee('jane@acme.com', false);
     }
 }

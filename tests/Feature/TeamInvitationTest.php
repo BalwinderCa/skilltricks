@@ -4,7 +4,9 @@ namespace Tests\Feature;
 
 use App\Mail\User\TeamInvitationMail;
 use App\Models\Organization;
+use App\Models\OrgRole;
 use App\Models\User;
+use App\Services\OrganizationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
@@ -31,9 +33,18 @@ class TeamInvitationTest extends TestCase
     }
 
     /** @return array{0: Organization, 1: User} */
+    /** The seeded role at one rung of the fixture organization's ladder. */
+    private function roleId(string $name): int
+    {
+        return (int) OrgRole::whereHas('organization', fn ($q) => $q->where('domain', 'acme.com'))
+            ->where('name', $name)
+            ->value('id');
+    }
+
     private function ownedOrg(): array
     {
         $org = Organization::create(['domain' => 'acme.com', 'name' => 'Acme']);
+        app(OrganizationService::class)->seedDefaultRoles($org);
 
         $owner = User::factory()->create([
             'email' => 'owner@acme.com', 'user_type' => 'customer',
@@ -58,7 +69,7 @@ class TeamInvitationTest extends TestCase
         [, $owner] = $this->ownedOrg();
 
         $this->actingAs($owner)->post(route('organization.members.store'), [
-            'name' => 'Grace Hopper', 'email' => 'grace@acme.com', 'rank' => 20,
+            'name' => 'Grace Hopper', 'email' => 'grace@acme.com', 'org_role_id' => $this->roleId('Manager'),
         ])->assertRedirect();
 
         $grace = User::where('email', 'grace@acme.com')->first();

@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers\Backend;
 
+use App\Http\Controllers\Concerns\ResolvesOwnedOrganization;
 use App\Http\Controllers\Controller;
 use App\Jobs\User\EmailConfirmationJob;
 use App\Mail\User\TeamInvitationMail;
 use App\Models\Department;
 use App\Models\Document;
 use App\Models\Organization;
+use App\Models\OrgRole;
 use App\Models\Project;
 use App\Models\SearchUserChat;
 use App\Models\SystemSetting;
@@ -25,6 +27,8 @@ use Illuminate\Support\Str;
 
 class DashboardController extends Controller
 {
+    use ResolvesOwnedOrganization;
+
     /** Roster page size. */
     private const MEMBERS_PER_PAGE = 10;
 
@@ -217,7 +221,7 @@ class DashboardController extends Controller
         $activeDepartment = $departmentId && $org ? $org->departments()->find($departmentId) : null;
 
         $roster = $org
-            ? $org->members()->with('department')
+            ? $org->members()->with(['department', 'orgRole'])
                 ->where('id', '!=', (int) $org->owner_user_id)
                 ->when($departmentId, fn ($q) => $q->where('department_id', $departmentId))
                 ->orderBy('name')
@@ -244,6 +248,8 @@ class DashboardController extends Controller
                 ? $roster->paginate(self::MEMBERS_PER_PAGE)
                 : new LengthAwarePaginator([], 0, self::MEMBERS_PER_PAGE),
             'departments' => $org ? $org->departments()->orderBy('name')->get() : collect(),
+            // The dialog's Role select and the CSV help text both read this.
+            'orgRoles' => $org ? $org->roles()->orderBy('name')->get() : collect(),
             'activeDepartment' => $activeDepartment,
             // Candidates for head: everyone in that department, not just the
             // page being shown. The owner is not among them — they head the
@@ -272,7 +278,7 @@ class DashboardController extends Controller
     {
         // sort_order first, so a card dragged into place stays there; rank and
         // name still decide among everyone who has never been moved (all zero).
-        $members = $org->members()->with('department')
+        $members = $org->members()->with(['department', 'orgRole'])
             ->orderBy('sort_order')->orderByDesc('hierarchy_rank')->orderBy('name')->get();
 
         // The owner heads the chart whether or not they hold the highest rank —
@@ -401,9 +407,9 @@ class DashboardController extends Controller
         // a domain anyone can be at — fall back to a placeholder there.
         $domain = $org && ! str_contains((string) $org->domain, '@') ? $org->domain : 'example.com';
 
-        $csv = "name,email,role,department\n"
-            ."Jane Doe,jane@{$domain},Manager,Marketing\n"
-            ."John Smith,john@{$domain},Individual Contributor,Engineering\n";
+        $csv = "name,email,department\n"
+            ."Jane Doe,jane@{$domain},Marketing\n"
+            ."John Smith,john@{$domain},Engineering\n";
 
         return response($csv, 200, [
             'Content-Type' => 'text/csv',
@@ -443,8 +449,10 @@ class DashboardController extends Controller
         // longer request timeout.
         $rows = array_slice($rows, 0, 200);
 
-        // The role column carries a ladder label; anything unrecognised is a floor-rank IC.
-        $ranks = array_change_key_case(array_flip(OrganizationService::RANK_LABELS));
+        // No role column: an imported member arrives without one and the owner
+        // assigns it from the roster. Rank still has to be something, so they
+        // start at the bottom of the ladder.
+        $floorRank = min(OrganizationService::VALID_RANKS);
 
         $added = 0;
         $skipped = 0;
@@ -453,8 +461,7 @@ class DashboardController extends Controller
         foreach ($rows as $row) {
             $name = trim((string) ($row[0] ?? ''));
             $email = strtolower(trim((string) ($row[1] ?? '')));
-            $role = strtolower(trim((string) ($row[2] ?? '')));
-            $department = trim((string) ($row[3] ?? ''));
+            $department = trim((string) ($row[2] ?? ''));
 
             if ($name === '' || ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 $skipped++;
@@ -471,7 +478,7 @@ class DashboardController extends Controller
             }
 
             $member = $this->createMember(
-                $org, $name, $email, $ranks[$role] ?? 10, $this->departmentIdFor($org, $department)
+                $org, $name, $email, null, $floorRank, $this->departmentIdFor($org, $department)
             );
 
             if ($invite) {
@@ -489,43 +496,44 @@ class DashboardController extends Controller
     }
 
     /**
-     * The caller's organization, or a 403.
-     *
-     * Every write on the Teams page is owner-only, and this is the single place
-     * that says so — a per-action copy of the check is a per-action chance to
-     * forget it.
-     */
-    private function ownedOrganization(): Organization
-    {
-        $user = auth()->user();
-        $org = $user->organization;
-
-        if (! $org || (int) $org->owner_user_id !== (int) $user->id) {
-            abort(403);
-        }
-
-        return $org;
-    }
-
-    /**
      * Create one member of an organization.
      *
      * Shared by the CSV import and the Add dialog so the invite path — unusable
      * password, unverified address, best-effort reset link — cannot drift apart
      * between them.
      */
-    private function createMember(Organization $org, string $name, string $email, int $rank, ?int $departmentId): User
+    private function createMember(Organization $org, string $name, string $email, ?OrgRole $role, int $rank, ?int $departmentId): User
     {
         // No password anyone can use and no mail: an account only becomes
         // reachable through sendInvitation(), which the caller decides on.
+        //
+        // A member may arrive without a role (the CSV import does not carry one),
+        // so rank is passed rather than read off the role. Callers that do have a
+        // role pass its level, which is what keeps the two in step.
         return User::create([
             'name' => $name,
             'email' => $email,
             'password' => Hash::make(Str::random(32)),
             'organization_id' => $org->id,
+            'org_role_id' => $role?->id,
             'hierarchy_rank' => $rank,
             'department_id' => $departmentId,
         ]);
+    }
+
+    /**
+     * A role belonging to this organization, or null.
+     *
+     * Scoped exactly like ownDepartmentId(): an id from another organization is
+     * simply not found, so one tenant cannot assign another's role.
+     */
+    private function ownRole(Organization $org, mixed $roleId): ?OrgRole
+    {
+        if (! $roleId) {
+            return null;
+        }
+
+        return OrgRole::where('organization_id', $org->id)->find((int) $roleId);
     }
 
     /**
@@ -977,7 +985,7 @@ class DashboardController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|max:255',
-            'rank' => 'required|integer|in:'.implode(',', OrganizationService::VALID_RANKS),
+            'org_role_id' => 'required|integer',
             'department_id' => 'nullable|integer',
             'send_invite' => 'nullable|boolean',
         ]);
@@ -992,8 +1000,18 @@ class DashboardController extends Controller
             return back();
         }
 
+        $role = $this->ownRole($org, $validated['org_role_id']);
+
+        if (! $role) {
+            flash(localize('Pick a role from your organization.'))->error();
+
+            return back();
+        }
+
         $member = $this->createMember(
-            $org, $validated['name'], $email, (int) $validated['rank'],
+            // Roles carry no seniority, so a new member starts at the bottom of
+            // the ladder however they were added -- dialog or CSV alike.
+            $org, $validated['name'], $email, $role, min(OrganizationService::VALID_RANKS),
             $this->ownDepartmentId($org, $validated['department_id'] ?? null)
         );
 
@@ -1020,7 +1038,7 @@ class DashboardController extends Controller
             'user_id' => 'required|integer',
             'name' => 'required|string|max:255',
             'email' => 'required|email|max:255',
-            'rank' => 'required|integer|in:'.implode(',', OrganizationService::VALID_RANKS),
+            'org_role_id' => 'required|integer',
             'department_id' => 'nullable|integer',
         ]);
 
@@ -1058,12 +1076,18 @@ class DashboardController extends Controller
             }
         }
 
-        // Rank goes through the service rather than a forceFill here: lowering a
-        // rank has to re-elect the organization's active context, and
-        // recordContext() only ever raises the pointer.
-        if ((int) $member->hierarchy_rank !== (int) $validated['rank']) {
-            $organizations->setMemberRank(auth()->user(), $member, (int) $validated['rank']);
+        $role = $this->ownRole($org, $validated['org_role_id']);
+
+        if (! $role) {
+            flash(localize('Pick a role from your organization.'))->error();
+
+            return back();
         }
+
+        // Role only. It carries no level, so changing it cannot move the
+        // member's rank -- and rank is what the context-governance election
+        // reads, so nothing here needs re-electing.
+        $member->forceFill(['org_role_id' => $role->id])->save();
 
         flash(localize('Team member updated.').($emailChanged
             ? ' '.localize('The new address has to be verified before they can sign in again.')

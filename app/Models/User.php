@@ -31,6 +31,7 @@ use Spatie\Permission\Traits\HasRoles;
  * @property string|null $about_company
  * @property int|null $organization_id
  * @property int|null $hierarchy_rank
+ * @property int|null $org_role_id
  * @property bool $must_change_password
  */
 class User extends Authenticatable implements MustVerifyEmail
@@ -66,6 +67,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'company',
         'organization_id',
         'hierarchy_rank',
+        'org_role_id',
         'must_change_password',
         'company_name',
         'company_address',
@@ -109,6 +111,12 @@ class User extends Authenticatable implements MustVerifyEmail
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class);
+    }
+
+    /** @return BelongsTo<OrgRole, $this> */
+    public function orgRole(): BelongsTo
+    {
+        return $this->belongsTo(OrgRole::class, 'org_role_id');
     }
 
     // organization

@@ -47,6 +47,16 @@
         </a>
     </li>
 
+    <!-- organization roles: owner-only, like every other write on the org -->
+    @if(user()?->organization && (int) user()->organization->owner_user_id === (int) user()->id)
+    <li class="side-nav-item nav-item {{ areActiveRoutes(['organization.roles.index'], 'tt-menu-item-active') }}">
+        <a href="{{ route('organization.roles.index') }}" class="side-nav-link">
+            <span class="tt-nav-link-icon"><i data-feather="shield"></i></span>
+            <span class="tt-nav-link-text">{{ localize('Roles') }}</span>
+        </a>
+    </li>
+    @endif
+
 {{-- Hidden on request. Nothing removed: delete these two comment markers to restore. --}}
 {{--
     <!-- subscriptions -->

@@ -85,10 +85,13 @@
                                 <div class="mb-3">
                                     <label for="name" class="form-label">{{ localize('Role') }}<span class="text-danger">*</span></label>
                                     
-                                    <select  class="form-control" name="chat_role_categories" required style="pointer-events: none;background-color: #e7e5e7;">
+                                    {{-- Locked only when the organization already decides the role. With
+                                         nothing to show, greying out an empty box would strand the user, so
+                                         the picker stays live and the categories below load from it. --}}
+                                    <select  class="form-control" name="chat_role_categories" id="chat_role_categories" required @if($roleId) style="pointer-events: none;background-color: #e7e5e7;" @endif>
                                         <option value="">Select</option>
                                     @foreach($chatrolecategories as $vlaue)
-                                        <option value="{{$vlaue->id}}" {{ $user->chat_role_categories == $vlaue->id ? 'selected' : '' }}>{{$vlaue->name}}</option>
+                                        <option value="{{$vlaue->id}}" {{ (string) $roleId === (string) $vlaue->id ? 'selected' : '' }}>{{$vlaue->name}}</option>
                                     @endforeach
                                     </select>
                                 </div>
@@ -201,6 +204,27 @@
  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
 <script>
+    // Only live when the role is unlocked; a locked select never fires change.
+    $('#chat_role_categories').on('change', function () {
+        let roleId = $(this).val();
+
+        $('#category').empty().append('<option value="">Select</option>');
+        $('#subcategories').empty().append('<option value="">Select</option>');
+
+        if (roleId) {
+            $.ajax({
+                url: "{{ url('dashboard/getcategories') }}",
+                type: "GET",
+                data: { role_id: roleId },
+                success: function (data) {
+                    $.each(data, function (key, category) {
+                        $('#category').append('<option value="' + category.id + '">' + category.name + '</option>');
+                    });
+                }
+            });
+        }
+    });
+
     $('#category').on('change', function () {
         let categoryId = $(this).val();
 

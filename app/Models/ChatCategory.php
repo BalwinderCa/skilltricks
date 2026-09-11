@@ -25,8 +25,16 @@ class ChatCategory extends Model
         return $query->where('status', 1);
     }
 
-    public function scopeForRole($query, string $roleName)
+    /**
+     * Nullable on purpose: a user with no role resolves to null, and the honest
+     * answer for "categories for no role" is none. where('role_name', null)
+     * would compile to "role_name is null" and hand back the rows that happen to
+     * carry no role, which is a different question.
+     */
+    public function scopeForRole($query, ?string $roleName)
     {
-        return $query->where('role_name', $roleName);
+        return $roleName === null
+            ? $query->whereRaw('1 = 0')
+            : $query->where('role_name', $roleName);
     }
 }

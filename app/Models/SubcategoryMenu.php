@@ -20,14 +20,24 @@ class SubcategoryMenu extends Model
         return $this->hasMany(SubcategoryMenuQuestion::class, 'subcategorymenu_id')->where('status', 1);
     }
 
-    public function scopeForRole($query, string $role)
+    /**
+     * Nullable for the same reason as ChatCategory::scopeForRole, and more
+     * pressingly: chatsearch_question() passes raw request input straight in, so
+     * a submission missing either field used to be a 500 rather than the
+     * "No Question Found" the caller already handles.
+     */
+    public function scopeForRole($query, ?string $role)
     {
-        return $query->where('role', $role);
+        return $role === null
+            ? $query->whereRaw('1 = 0')
+            : $query->where('role', $role);
     }
 
-    public function scopeForCategory($query, string $category)
+    public function scopeForCategory($query, ?string $category)
     {
-        return $query->where('categories', $category);
+        return $category === null
+            ? $query->whereRaw('1 = 0')
+            : $query->where('categories', $category);
     }
 
     public function scopeForSubcategory($query, ?string $subcategory)

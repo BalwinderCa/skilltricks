@@ -430,9 +430,56 @@ EOT;
     {
         $user = auth()->user();
         $chatrolecategories = ChatRoleCategory::active()->get();
-        $chatcategories = ChatCategory::active()->forRole($user->chat_role_categories)->get();
+        $roleId = $this->chatRoleIdFor($user);
 
-        return view('backend.pages.aiChat.newchat', compact('user', 'chatrolecategories', 'chatcategories'));
+        // No role resolves for a brand-new account, and the view then offers the
+        // picker instead of a locked box -- so an empty list here is a real state,
+        // not a failure.
+        $chatcategories = $roleId
+            ? ChatCategory::active()->forRole($roleId)->get()
+            : collect();
+
+        return view('backend.pages.aiChat.newchat', compact('user', 'chatrolecategories', 'chatcategories', 'roleId'));
+    }
+
+    /**
+     * Which chat role category a user counts as, or null if nothing says.
+     *
+     * users.chat_role_categories used to be set by a Role picker on the profile
+     * form. 9fdf538 replaced that picker with Department, so nothing writes the
+     * column any more and it is null on every account created since -- which used
+     * to reach scopeForRole() as a null and fatal.
+     *
+     * hierarchy_rank is what the organization manages now, and chat_role_categories
+     * gained a matching `rank` column (2026_08_22_000003, backfilled by
+     * 2026_08_24_000000) precisely so the two line up: rank 50 is role 5, C-Suite.
+     * Rank wins because the roster keeps it current; the legacy column is only a
+     * fallback for accounts written before the swap, and may be stale.
+     */
+    private function chatRoleIdFor($user): ?string
+    {
+        $byRank = $user->hierarchy_rank
+            ? ChatRoleCategory::where('rank', $user->hierarchy_rank)->value('id')
+            : null;
+
+        $roleId = $byRank ?: $user->chat_role_categories;
+
+        return in_array($roleId, [null, ''], true) ? null : (string) $roleId;
+    }
+
+    /**
+     * Categories for one role, for the picker on the New Chat page.
+     *
+     * The role -> category half of the same chain FaqsController::getSubcategories
+     * finishes; it only ever ran for a user whose role was already set.
+     */
+    public function getCategories(Request $request)
+    {
+        $roleId = trim((string) $request->input('role_id'));
+
+        return response()->json(
+            $roleId === '' ? [] : ChatCategory::active()->forRole($roleId)->get()
+        );
     }
 
     public function userchathistory(Request $request)

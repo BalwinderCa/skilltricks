@@ -21,7 +21,7 @@
         <span class="tt-chart-who">
             <strong>{{ $person->name }}</strong>
             <small class="text-muted">
-                {{ $person->hierarchy_rank ? localize($rankLabels[(int) $person->hierarchy_rank] ?? '') : localize('Role not set') }}
+                {{ $person->orgRole?->name ?? localize('Role not set') }}
                 @if($isHead && ! $chosen)
                     <span class="tt-chart-auto">{{ localize('auto') }}</span>
                 @endif

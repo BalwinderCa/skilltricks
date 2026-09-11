@@ -1,5 +1,4 @@
 @php
-    $rankLabels = \App\Services\OrganizationService::RANK_LABELS;
 
     // Initials rather than avatars: the avatar column holds a media id, and a
     // roster built by CSV import has none of them.
@@ -17,7 +16,7 @@
             <span class="tt-chart-who">
                 <strong>{{ $chart['root']->name }}</strong>
                 <small class="text-muted">
-                    {{ $chart['root']->hierarchy_rank ? localize($rankLabels[(int) $chart['root']->hierarchy_rank] ?? '') : localize('Owner') }}
+                    {{ $chart['root']->orgRole?->name ?? localize('Owner') }}
                 </small>
             </span>
         </div>

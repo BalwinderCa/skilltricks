@@ -152,6 +152,28 @@
         box-shadow: 0 18px 60px rgba(22, 28, 36, .28);
     }
     .st-modal::backdrop { background: rgba(22, 28, 36, .55); }
+    /* The dialog itself is the positioning context for the close button. */
+    .st-modal { position: relative; }
+    .st-dialog-close {
+        position: absolute;
+        top: 10px;
+        inset-inline-end: 12px;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--bs-secondary-color, #637381);
+        font-size: 22px;
+        line-height: 1;
+        cursor: pointer;
+    }
+    .st-dialog-close:hover { background: var(--bs-secondary-bg, #F4F6F8); }
+    [data-bs-theme="dark"] .st-dialog-close { color: #9aa4b2; }
+    [data-bs-theme="dark"] .st-dialog-close:hover { background: #2a323b; }
     .st-modal .st-dialog-title { text-align: center; }
     .st-modal .st-dialog-actions { margin-top: 22px; }
     .st-modal .st-dialog-ok {
@@ -310,6 +332,54 @@
             cancel: el.dataset.confirmCancel || undefined,
             variant: el.dataset.confirmVariant || 'primary'
         };
+    }
+
+    /**
+     * Give every dismissible <dialog class="st-modal"> the two ways out people
+     * expect: a close button and a click on the backdrop. Escape already works —
+     * native dialogs handle it.
+     *
+     * "Dismissible" is read off the markup rather than a new flag: a dialog with
+     * a Cancel button has somewhere to cancel to. The set-password dialog has
+     * none on purpose — there is nothing behind it until a password is chosen,
+     * and it already blocks Escape for the same reason — so it is skipped here
+     * and stays modal.
+     */
+    function makeDismissible(dialog) {
+        if (!dialog.querySelector('.st-dialog-cancel') || dialog.dataset.stDismissible === '1') return;
+
+        dialog.dataset.stDismissible = '1';
+
+        var close = document.createElement('button');
+        close.type = 'button';
+        close.className = 'st-dialog-close';
+        close.setAttribute('aria-label', @json(localize('Close')));
+        close.innerHTML = '&times;';
+        close.addEventListener('click', function () { dialog.close(); });
+        dialog.prepend(close);
+
+        dialog.addEventListener('click', function (e) {
+            // A click on a child is never the backdrop. A click on the dialog
+            // itself still might be its own padding, so the point has to fall
+            // outside the box before this counts as "outside".
+            if (e.target !== dialog) return;
+
+            var box = dialog.getBoundingClientRect();
+            var inside = e.clientX >= box.left && e.clientX <= box.right
+                && e.clientY >= box.top && e.clientY <= box.bottom;
+
+            if (!inside) dialog.close();
+        });
+    }
+
+    function wireDialogs() {
+        document.querySelectorAll('dialog.st-modal').forEach(makeDismissible);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', wireDialogs);
+    } else {
+        wireDialogs();
     }
 
     document.addEventListener('click', function (e) {

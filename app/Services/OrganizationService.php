@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Organization;
 use App\Models\OrgContextVersion;
+use App\Models\OrgRole;
 use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -78,7 +79,15 @@ class OrganizationService
     private function firstOrCreateDomain(string $domain): Organization
     {
         try {
-            return Organization::firstOrCreate(['domain' => $domain]);
+            $org = Organization::firstOrCreate(['domain' => $domain]);
+
+            // Only on the create half: seeding is idempotent anyway, but running
+            // it on every lookup would be six queries on every registration.
+            if ($org->wasRecentlyCreated) {
+                $this->seedDefaultRoles($org);
+            }
+
+            return $org;
         } catch (QueryException $e) {
             $existing = Organization::where('domain', $domain)->first();
 
@@ -87,6 +96,30 @@ class OrganizationService
             }
 
             throw $e;
+        }
+    }
+
+    /**
+     * Give an organization the six default roles.
+     *
+     * Named exactly after RANK_LABELS so the ladder an organization starts with
+     * is the one it already had: a CSV whose role column says "Manager" keeps
+     * importing, and a backfilled member lands on the role matching the rank they
+     * already held.
+     *
+     * Least privilege: readable, not writable. Nothing enforces either flag yet,
+     * and a default that grants write would be the wrong habit to start.
+     *
+     * Idempotent -- firstOrCreate on the same unique key the table carries, so
+     * the backfill and a re-registration can both call it safely.
+     */
+    public function seedDefaultRoles(Organization $org): void
+    {
+        foreach (self::RANK_LABELS as $level => $name) {
+            OrgRole::firstOrCreate(
+                ['organization_id' => $org->id, 'name' => $name],
+                ['level' => $level, 'can_read' => true, 'can_write' => false],
+            );
         }
     }
 

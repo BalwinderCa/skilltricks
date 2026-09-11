@@ -57,6 +57,7 @@ use App\Http\Controllers\Backend\Offline\CustomerReSubmitRequestController;
 use App\Http\Controllers\Backend\Offline\OfflinePaymentMethodController;
 use App\Http\Controllers\Backend\Offline\PaymentRequestController;
 use App\Http\Controllers\Backend\OnboardingController;
+use App\Http\Controllers\Backend\OrgRoleController;
 use App\Http\Controllers\Backend\Pages\PagesController;
 use App\Http\Controllers\Backend\PaymentGateway\PaymentGatewayController;
 use App\Http\Controllers\Backend\Payments\Midtrans\MidtransController;
@@ -296,6 +297,14 @@ Route::group(
                     ->name('onboarding.answer');
                 Route::post('/onboarding/confirm', [OnboardingController::class, 'confirm'])->name('onboarding.confirm');
 
+                // organization roles: owner-managed, and the source for every
+                // role dropdown in the dashboard
+                Route::get('/organization/roles', [OrgRoleController::class, 'index'])->name('organization.roles.index');
+                Route::post('/organization/roles', [OrgRoleController::class, 'store'])->name('organization.roles.store');
+                Route::post('/organization/roles/update', [OrgRoleController::class, 'update'])->name('organization.roles.update');
+                Route::post('/organization/roles/delete', [OrgRoleController::class, 'destroy'])->name('organization.roles.destroy');
+                Route::post('/organization/roles/permission', [OrgRoleController::class, 'togglePermission'])->name('organization.roles.permission');
+
                 // organization roster
                 Route::get('/organization', [DashboardController::class, 'organization'])->name('organization.index');
 
@@ -334,6 +343,8 @@ Route::group(
                 Route::get('/user-view-chathistory/{id}', [AiChatController::class, 'user_view_chathistory'])->name('user-view-chathistory.index');
                 Route::get('/users-chat-search-delete/{id}', [AiChatController::class, 'userschat_search_delete'])->name('users-chat-search-delete.index');
                 Route::post('/chat-search-question', [AiChatController::class, 'chatsearch_question'])->name('chat-search-question');
+                // role -> categories, for the New Chat picker when no role is set yet
+                Route::get('/getcategories', [AiChatController::class, 'getCategories'])->name('getcategories.index');
                 Route::post('/chat-question-store', [AiChatController::class, 'chat_question_store'])->name('chat-question-store');
                 Route::get('/ai-chat', [AiChatController::class, 'index'])->name('chat.index');
                 Route::post('/ai-chat', [AiChatController::class, 'store'])->name('chat.store');
