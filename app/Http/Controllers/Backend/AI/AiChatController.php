@@ -1091,11 +1091,12 @@ EOT;
         }
 
         $label = null;
+        $strategyName = null;
 
-        // The label is read out of the stored contract rather than taken from the
-        // request: it ends up in a prompt, and the id is the only part of this the
-        // client needs to be trusted for.
-        $this->persistContractMutation($validated['chat_id'], $user->id, function (array &$data) use ($validated, &$label) {
+        // Both names are read out of the stored contract rather than taken from
+        // the request: they end up in a prompt, and the ids are the only part of
+        // this the client needs to be trusted for.
+        $this->persistContractMutation($validated['chat_id'], $user->id, function (array &$data) use ($validated, &$label, &$strategyName) {
             $strategyId = $validated['strategy_id'];
 
             if (! isset($data['strategyVariants'][$strategyId]) || ! is_array($data['strategyVariants'][$strategyId])) {
@@ -1111,13 +1112,29 @@ EOT;
                     break;
                 }
             }
+
+            foreach ($data['strategyMap'] ?? [] as $strategy) {
+                if (is_array($strategy) && ($strategy['id'] ?? null) === $strategyId) {
+                    $strategyName = $strategy['name'] ?? null;
+                    break;
+                }
+            }
         });
 
+        // Only when a scenario was actually matched: a pathway name on its own
+        // would describe a selection the user has not finished making.
         if ($label) {
-            SearchUserChat::where('id', $validated['chat_id'])->update(['selected_scenario' => $label]);
+            SearchUserChat::where('id', $validated['chat_id'])->update(array_filter([
+                'selected_scenario' => $label,
+                'selected_strategy' => $strategyName,
+            ]));
         }
 
-        return response()->json(['ok' => true, 'selected_scenario' => $label]);
+        return response()->json([
+            'ok' => true,
+            'selected_scenario' => $label,
+            'selected_strategy' => $strategyName,
+        ]);
     }
 
     public function users_new_chat_add_context(Request $request)

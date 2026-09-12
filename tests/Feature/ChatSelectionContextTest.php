@@ -127,10 +127,14 @@ class ChatSelectionContextTest extends TestCase
 
         $this->actingAs($user)->postJson(route('users-new-chat-select-scenario.index'), [
             'chat_id' => $chat->id, 'strategy_id' => 's1', 'scenario_id' => 'sc2',
-        ])->assertOk()->assertJson(['selected_scenario' => 'Risk Case']);
+        ])->assertOk()->assertJson([
+            'selected_scenario' => 'Risk Case',
+            'selected_strategy' => 'Aggressive Expansion',
+        ]);
 
-        // The label, for the prompt block.
+        // Both names, for the prompt block.
         $this->assertSame('Risk Case', $chat->fresh()->selected_scenario);
+        $this->assertSame('Aggressive Expansion', $chat->fresh()->selected_strategy);
 
         // ...and the id, where resolveSelectionFromContract() looks. Without this
         // it falls through to scenarios[0], which is always a best case.
@@ -151,6 +155,7 @@ class ChatSelectionContextTest extends TestCase
         $systemMessage = $this->captureSystemMessage($user, $chat->fresh(), 'and then?');
 
         $this->assertStringContainsString('Risk Case', $systemMessage);
+        $this->assertStringContainsString('Aggressive Expansion', $systemMessage);
         $this->assertStringNotContainsString('Best Case', $systemMessage);
     }
 
@@ -176,8 +181,10 @@ class ChatSelectionContextTest extends TestCase
             'chat_id' => $chat->id, 'strategy_id' => 's1', 'scenario_id' => 'nope',
         ])->assertOk();
 
-        // No label means no pick worth recording; guessing one would be worse.
+        // No label means no pick worth recording; guessing one would be worse,
+        // and the pathway name alone would describe a half-made selection.
         $this->assertNull($chat->fresh()->selected_scenario);
+        $this->assertNull($chat->fresh()->selected_strategy);
     }
 
     public function test_a_chat_with_no_selection_adds_nothing(): void
