@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\SearchUserChat;
+use App\Models\SearchUserChatData;
 use App\Models\User;
 use App\Services\AI\AiProviderService;
 use GuzzleHttp\Psr7\Response as PsrResponse;
@@ -95,6 +96,88 @@ class ChatSelectionContextTest extends TestCase
             'ACTIVE SELECTION',
             $this->captureSystemMessage($user, $chat, 'what should we do next?')
         );
+    }
+
+    /** A chat holding a GoalSync contract with two scenarios on one pathway. */
+    private function chatWithContract(User $user): SearchUserChat
+    {
+        $chat = SearchUserChat::create(['user_id' => $user->id, 'status1' => 0, 'response' => 'first answer']);
+
+        SearchUserChatData::create([
+            'search_user_chat_id' => $chat->id,
+            'user_id' => $user->id,
+            'response' => json_encode([
+                'strategyMap' => [['id' => 's1', 'name' => 'Aggressive Expansion']],
+                'strategyVariants' => [
+                    's1' => ['scenarios' => [
+                        ['id' => 'sc1', 'label' => 'Best Case'],
+                        ['id' => 'sc2', 'label' => 'Risk Case'],
+                    ]],
+                ],
+            ]),
+        ]);
+
+        return $chat;
+    }
+
+    public function test_picking_a_scenario_is_recorded_on_the_chat_and_the_contract(): void
+    {
+        $user = User::factory()->create(['user_type' => 'customer']);
+        $chat = $this->chatWithContract($user);
+
+        $this->actingAs($user)->postJson(route('users-new-chat-select-scenario.index'), [
+            'chat_id' => $chat->id, 'strategy_id' => 's1', 'scenario_id' => 'sc2',
+        ])->assertOk()->assertJson(['selected_scenario' => 'Risk Case']);
+
+        // The label, for the prompt block.
+        $this->assertSame('Risk Case', $chat->fresh()->selected_scenario);
+
+        // ...and the id, where resolveSelectionFromContract() looks. Without this
+        // it falls through to scenarios[0], which is always a best case.
+        $contract = json_decode(SearchUserChatData::where('search_user_chat_id', $chat->id)->value('response'), true);
+        $this->assertSame('sc2', $contract['strategyVariants']['s1']['selectedScenarioId']);
+        $this->assertSame('s1', $contract['selectedStrategyId']);
+    }
+
+    public function test_the_pick_then_reaches_the_next_message(): void
+    {
+        $user = User::factory()->create(['user_type' => 'customer']);
+        $chat = $this->chatWithContract($user);
+
+        $this->actingAs($user)->postJson(route('users-new-chat-select-scenario.index'), [
+            'chat_id' => $chat->id, 'strategy_id' => 's1', 'scenario_id' => 'sc2',
+        ])->assertOk();
+
+        $systemMessage = $this->captureSystemMessage($user, $chat->fresh(), 'and then?');
+
+        $this->assertStringContainsString('Risk Case', $systemMessage);
+        $this->assertStringNotContainsString('Best Case', $systemMessage);
+    }
+
+    public function test_another_users_chat_cannot_be_touched(): void
+    {
+        $owner = User::factory()->create(['user_type' => 'customer']);
+        $outsider = User::factory()->create(['user_type' => 'customer']);
+        $chat = $this->chatWithContract($owner);
+
+        $this->actingAs($outsider)->postJson(route('users-new-chat-select-scenario.index'), [
+            'chat_id' => $chat->id, 'strategy_id' => 's1', 'scenario_id' => 'sc2',
+        ])->assertNotFound();
+
+        $this->assertNull($chat->fresh()->selected_scenario);
+    }
+
+    public function test_an_unknown_scenario_id_records_nothing(): void
+    {
+        $user = User::factory()->create(['user_type' => 'customer']);
+        $chat = $this->chatWithContract($user);
+
+        $this->actingAs($user)->postJson(route('users-new-chat-select-scenario.index'), [
+            'chat_id' => $chat->id, 'strategy_id' => 's1', 'scenario_id' => 'nope',
+        ])->assertOk();
+
+        // No label means no pick worth recording; guessing one would be worse.
+        $this->assertNull($chat->fresh()->selected_scenario);
     }
 
     public function test_a_chat_with_no_selection_adds_nothing(): void

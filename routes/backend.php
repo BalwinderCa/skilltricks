@@ -327,6 +327,8 @@ Route::group(
                 Route::get('/users-new-chat/{id}', [AiChatController::class, 'users_new_chat'])->name('users-new-chat.index');
                 Route::post('/users-new-chat-ask', [AiChatController::class, 'users_new_chat_ask'])->name('users-new-chat-ask.index');
                 Route::post('/users-new-chat-update-strategy', [AiChatController::class, 'users_new_chat_update_strategy'])->name('users-new-chat-update-strategy.index');
+                // records the scenario the user picked; it used to live only in the browser
+                Route::post('/users-new-chat-select-scenario', [AiChatController::class, 'users_new_chat_select_scenario'])->name('users-new-chat-select-scenario.index');
                 Route::post('/users-new-chat-generate-strategy-variant', [AiChatController::class, 'generate_strategy_variant'])->name('users-new-chat-generate-strategy-variant.index');
                 Route::post('/users-new-chat-generate-assumptions', [AiChatController::class, 'generate_pathway_assumptions'])->name('users-new-chat-generate-assumptions.index');
                 Route::post('/users-new-chat-update-scenario', [AiChatController::class, 'users_new_chat_update_scenario'])->name('users-new-chat-update-scenario.index');

@@ -2116,9 +2116,32 @@ function stEnsureTodayDivider(container) {
                 loadingDiv.querySelectorAll('input[name="gs-scenario"]').forEach(r => {
                     r.addEventListener('change', function () {
                         selScenario = this.value;
+                        // Tell the server too. Without this the choice lived only
+                        // here, and everything downstream -- the leadership brief,
+                        // the action table, every follow-up message -- fell back to
+                        // the first scenario, which is always a best case.
+                        persistScenarioChoice(selStrategy, selScenario);
                         inFinal ? renderFinal() : renderStep();
                     });
                 });
+            }
+
+            /** Record the picked scenario. Fire and forget: it must never block the UI. */
+            function persistScenarioChoice(strategyId, scenarioId) {
+                if (!strategyId || !scenarioId || !window.chatChatId) return;
+
+                fetch('{{ route("users-new-chat-select-scenario.index") }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify({
+                        chat_id: window.chatChatId,
+                        strategy_id: strategyId,
+                        scenario_id: scenarioId
+                    })
+                }).catch(() => {});
             }
 
             function renderStep() {

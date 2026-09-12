@@ -1063,6 +1063,63 @@ EOT;
         ]);
     }
 
+    /**
+     * Record the scenario the user just picked.
+     *
+     * Picking one used to set a JavaScript variable and nothing else, so the
+     * choice never left the browser. Every server-side reader then fell through
+     * resolveSelectionFromContract()'s default -- scenarios[0], which the
+     * generation prompt guarantees is a best case -- and the leadership brief,
+     * the action table and every follow-up message answered in best-case terms
+     * however the user had chosen.
+     *
+     * Written into the contract beside selectedStrategyId, which is already
+     * stored this way, so the existing readers need no changes.
+     */
+    public function users_new_chat_select_scenario(Request $request)
+    {
+        $user = auth()->user();
+
+        $validated = $request->validate([
+            'chat_id' => 'required|integer',
+            'strategy_id' => 'required|string|max:64',
+            'scenario_id' => 'required|string|max:64',
+        ]);
+
+        if (! SearchUserChat::where('id', $validated['chat_id'])->where('user_id', $user->id)->exists()) {
+            return response()->json(['error' => 'Chat not found.'], 404);
+        }
+
+        $label = null;
+
+        // The label is read out of the stored contract rather than taken from the
+        // request: it ends up in a prompt, and the id is the only part of this the
+        // client needs to be trusted for.
+        $this->persistContractMutation($validated['chat_id'], $user->id, function (array &$data) use ($validated, &$label) {
+            $strategyId = $validated['strategy_id'];
+
+            if (! isset($data['strategyVariants'][$strategyId]) || ! is_array($data['strategyVariants'][$strategyId])) {
+                return;
+            }
+
+            $data['selectedStrategyId'] = $strategyId;
+            $data['strategyVariants'][$strategyId]['selectedScenarioId'] = $validated['scenario_id'];
+
+            foreach ($data['strategyVariants'][$strategyId]['scenarios'] ?? [] as $scenario) {
+                if (is_array($scenario) && ($scenario['id'] ?? null) === $validated['scenario_id']) {
+                    $label = $scenario['label'] ?? null;
+                    break;
+                }
+            }
+        });
+
+        if ($label) {
+            SearchUserChat::where('id', $validated['chat_id'])->update(['selected_scenario' => $label]);
+        }
+
+        return response()->json(['ok' => true, 'selected_scenario' => $label]);
+    }
+
     public function users_new_chat_add_context(Request $request)
     {
         $user = auth()->user();
