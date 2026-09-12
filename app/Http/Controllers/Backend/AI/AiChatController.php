@@ -904,7 +904,7 @@ EOT;
         }
 
         $systemMessage = $this->docs->buildSystemMessage($user);
-        $systemMessage .= SearchUserChat::find($chatId)?->additionalContextBlock() ?? '';
+        $systemMessage .= $this->ownedChat($chatId)?->additionalContextBlock() ?? '';
 
         $prompt = <<<EOT
 Strategy: "$selectedStrategy"
@@ -992,6 +992,12 @@ EOT;
 
         if (! $selectedScenario || ! $chatId || ! $originalQuestion) {
             return response()->json(['error' => 'Selected scenario, Chat ID, and original question are required.'], 400);
+        }
+
+        // Before the model is called, not after: this endpoint both spends tokens
+        // and writes to the row, and it used to do each for any id it was handed.
+        if (! $this->ownedChat($chatId)) {
+            return response()->json(['error' => 'Chat session not found or access denied.'], 404);
         }
 
         $systemMessage = $this->docs->buildSystemMessage($user);
@@ -1086,7 +1092,7 @@ EOT;
             'scenario_id' => 'required|string|max:64',
         ]);
 
-        if (! SearchUserChat::where('id', $validated['chat_id'])->where('user_id', $user->id)->exists()) {
+        if (! $this->ownedChat($validated['chat_id'])) {
             return response()->json(['error' => 'Chat not found.'], 404);
         }
 
@@ -2152,6 +2158,22 @@ EOT;
      * SearchUserChat.response when it still holds the contract). Used to persist
      * per-pathway assumptions and simulations into the existing response JSON.
      */
+    /**
+     * The caller's own chat, or null.
+     *
+     * A chat_id arrives from the request on a dozen endpoints, and reaching for it
+     * without checking who owns it is how two cross-user holes got in: one pulled
+     * another member's additional context into the caller's prompt, the other let
+     * them overwrite that member's chosen scenario. Colleagues share an
+     * organization, so "logged in" is not "allowed to touch this row".
+     */
+    private function ownedChat($chatId): ?SearchUserChat
+    {
+        return SearchUserChat::where('id', $chatId)
+            ->where('user_id', auth()->id())
+            ->first();
+    }
+
     private function persistContractMutation($chatId, $userId, callable $mutate): void
     {
         $row = SearchUserChatData::where('search_user_chat_id', $chatId)
