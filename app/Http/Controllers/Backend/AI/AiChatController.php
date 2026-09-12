@@ -773,6 +773,12 @@ EOT;
         $systemMessage = 'You are a strategy assistant. Respond only using structured ChatGPT-style text with emojis and clean formatting based on the GoalSync method.';
         $systemMessage .= $this->docs->orgContextBlock($user);
 
+        // The strategy and scenario the user picked. Every later turn has to carry
+        // them: they were stored and read back nowhere, so follow-ups were answered
+        // as if nothing had been chosen and drifted back to the best case. Empty on
+        // the first message, which is before anything has been picked.
+        $systemMessage .= $chat->selectionBlock();
+
         if ($isFirstMessage) {
             $systemMessage .= $this->docs->buildContext($documents);
         } elseif (! empty($documentNamesList)) {

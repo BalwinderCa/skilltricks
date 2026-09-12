@@ -30,9 +30,9 @@ class SearchUserChat extends Model
 
     protected $casts = [
         'additional_context' => 'array',
-        'total_tokens'       => 'integer',
-        'status1'            => 'integer',
-        'status2'            => 'integer',
+        'total_tokens' => 'integer',
+        'status1' => 'integer',
+        'status2' => 'integer',
     ];
 
     public function user()
@@ -59,7 +59,7 @@ class SearchUserChat extends Model
 
     public function appendAdditionalContext(string $details): void
     {
-        $existing   = $this->additional_context ?? [];
+        $existing = $this->additional_context ?? [];
         $existing[] = ['additional_details' => $details, 'created_at' => now()->toDateTimeString()];
 
         $this->update(['additional_context' => $existing]);
@@ -73,18 +73,65 @@ class SearchUserChat extends Model
     {
         $contextList = $this->additional_context;
 
-        if (empty($contextList) || !is_array($contextList)) {
+        if (empty($contextList) || ! is_array($contextList)) {
             return '';
         }
 
         $block = "\n\n--- ADDITIONAL USER CONTEXT (PREVIOUSLY PROVIDED) ---\n";
 
         foreach ($contextList as $ctx) {
-            if (!empty($ctx['additional_details'])) {
-                $block .= "Additional Details: " . $ctx['additional_details'] . "\n";
+            if (! empty($ctx['additional_details'])) {
+                $block .= 'Additional Details: '.$ctx['additional_details']."\n";
             }
         }
 
-        return $block . "--- END ADDITIONAL USER CONTEXT ---\n";
+        return $block."--- END ADDITIONAL USER CONTEXT ---\n";
+    }
+
+    /**
+     * The strategy and scenario this chat is working in.
+     *
+     * These were stored when the user picked them and then read back nowhere, so
+     * every follow-up message was generated as if no choice had been made and the
+     * model drifted back to the best case it first produced. This block is what
+     * carries the choice forward.
+     *
+     * Read from the row rather than the request: the choice has to survive a page
+     * reload, and only some of the front end's calls remember to send it.
+     */
+    public function selectionBlock(): string
+    {
+        $strategy = trim((string) $this->selected_strategy);
+        $scenario = trim((string) $this->selected_scenario);
+
+        if ($strategy === '' && $scenario === '') {
+            return '';
+        }
+
+        $block = "\n\n--- ACTIVE SELECTION ---\n";
+
+        if ($strategy !== '') {
+            $block .= 'Strategy: '.$this->sanitiseForPrompt($strategy)."\n";
+        }
+
+        if ($scenario !== '') {
+            $block .= 'Scenario: '.$this->sanitiseForPrompt($scenario)."\n"
+                ."Answer every part of this conversation in terms of that scenario. Do not\n"
+                ."revert to the best case, and do not re-describe the other scenarios unless\n"
+                ."the user asks for them.\n";
+        }
+
+        return $block."--- END ACTIVE SELECTION ---\n";
+    }
+
+    /**
+     * Flatten a stored value before it is rendered into a fenced prompt block.
+     *
+     * A scenario label carrying a newline and its own "---" fence would otherwise
+     * close the block and continue as instructions.
+     */
+    private function sanitiseForPrompt(string $value): string
+    {
+        return trim(preg_replace('/\s*-{3,}\s*/', ' ', preg_replace('/\s+/', ' ', $value)));
     }
 }
