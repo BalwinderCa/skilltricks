@@ -595,6 +595,12 @@ EOT;
             $assumptionsBlock = "Assumptions derived for this pathway (the simulations MUST be consistent with these):\n{$assumptionsList}\n\n";
         }
 
+        $roles = $this->roleRule($user, 7);
+        $rolePlaceholder = $roles ? 'Role title from the list above' : 'Role title from documents';
+        $roleCountRule = $roles
+            ? "- Each \"rolesGoals\": up to {$roles['max']} DISTINCT roles. {$roles['rule']} \"action\" is EXACTLY one sentence."
+            : '- Each "rolesGoals": 5 to 7 DISTINCT roles using ONLY exact role titles from the documents. "action" is EXACTLY one sentence.';
+
         $prompt = <<<EOT
 User Goal: "{$question}"
 Selected strategy: "{$strategyName}"
@@ -610,17 +616,17 @@ Selected strategy: "{$strategyName}"
   "selectedScenarioId": "sc1",
   "scenarioVariants": {
     "sc1": {
-      "rolesGoals": [{"role": "Role title from documents", "goal": "1-2 sentences", "action": "EXACTLY one sentence"}],
+      "rolesGoals": [{"role": "{$rolePlaceholder}", "goal": "1-2 sentences", "action": "EXACTLY one sentence"}],
       "complementaryGoals": ["goal one", "goal two"],
       "finalOutcome": "two sentences for this strategy + scenario"
     },
     "sc2": {
-      "rolesGoals": [{"role": "Role title from documents", "goal": "1-2 sentences", "action": "EXACTLY one sentence"}],
+      "rolesGoals": [{"role": "{$rolePlaceholder}", "goal": "1-2 sentences", "action": "EXACTLY one sentence"}],
       "complementaryGoals": ["goal one", "goal two"],
       "finalOutcome": "two sentences for this strategy + scenario"
     },
     "sc3": {
-      "rolesGoals": [{"role": "Role title from documents", "goal": "1-2 sentences", "action": "EXACTLY one sentence"}],
+      "rolesGoals": [{"role": "{$rolePlaceholder}", "goal": "1-2 sentences", "action": "EXACTLY one sentence"}],
       "complementaryGoals": ["goal one", "goal two"],
       "finalOutcome": "two sentences for this strategy + scenario"
     }
@@ -629,7 +635,7 @@ Selected strategy: "{$strategyName}"
 
 Rules:
 - "scenarioVariants" MUST contain ALL THREE keys sc1, sc2 AND sc3.
-- Each "rolesGoals": 5 to 7 DISTINCT roles using ONLY exact role titles from the documents. "action" is EXACTLY one sentence.
+{$roleCountRule}
 - The scenarios (simulations) MUST be consistent with the assumptions listed above when any are provided.
 - Output VALID JSON only: double-quoted keys/strings, no trailing commas, no comments, no markdown.
 EOT;
@@ -906,6 +912,10 @@ EOT;
         $systemMessage = $this->docs->buildSystemMessage($user);
         $systemMessage .= $this->ownedChat($chatId)?->additionalContextBlock() ?? '';
 
+        $roles = $this->roleRule($user, 10);
+        $roleCount = $roles ? "Output up to {$roles['max']} roles only, numbered in order." : 'Output 5 to 10 roles only, numbered in order.';
+        $roleSource = $roles ? $roles['rule'] : 'Only use role titles that actually appear in the company documents.';
+
         $prompt = <<<EOT
 Strategy: "$selectedStrategy"
 Goal: "$originalQuestion"
@@ -921,9 +931,9 @@ Generate these 4 sections concisely:
     👥 Rephrased Goals by Role
     - Study the uploaded org/company documents in context.
     - Choose the sections/roles that are most relevant to the user's goal.
-    - Output 5 to 10 roles only, numbered in order.
+    - {$roleCount}
     - For each role: role name on one line, then "Goal:" line (1–2 sentences), then "Actions:" line with EXACTLY ONE sentence on the same line (no bullets, no dashes, no line breaks, no multiple sentences).
-    - Only use role titles that actually appear in the company documents.
+    - {$roleSource}
 
 📌 Complementary Goals
 2 goals, 1 sentence each.
@@ -1002,6 +1012,10 @@ EOT;
 
         $systemMessage = $this->docs->buildSystemMessage($user);
 
+        $roles = $this->roleRule($user, 10);
+        $roleCount = $roles ? "Output up to {$roles['max']} roles only, numbered in order (1., 2., 3., ...)." : 'Output 5 to 10 roles only, numbered in order (1., 2., 3., ...).';
+        $roleSource = $roles ? $roles['rule'] : 'Only use role titles that exist in the documents.';
+
         $prompt = <<<EOT
 Strategy Context: "{$selectedStrategy}"
 Focused Scenario: "{$selectedScenario}"
@@ -1015,9 +1029,9 @@ Regenerate these sections tailored to the selected scenario (and strategy if pro
 👥 Rephrased Goals by Role
 - Study the uploaded org/company documents in context.
 - Select the sections/roles most relevant to this scenario (and strategy, if provided).
-- Output 5 to 10 roles only, numbered in order (1., 2., 3., ...).
+- {$roleCount}
 - For each role: role name on one line, then "Goal:" line (1–2 sentences), then "Actions:" line with EXACTLY ONE sentence on the same line.
-- Only use role titles that exist in the documents.
+- {$roleSource}
 - Translate the goal into role-specific directions referencing the scenario and role responsibilities.
 - Avoid OKR phrasing - use leadership-alignment language.
 - Reference at least one dependency per role.
@@ -2167,6 +2181,26 @@ EOT;
      * them overwrite that member's chosen scenario. Colleagues share an
      * organization, so "logged in" is not "allowed to touch this row".
      */
+    /**
+     * The role-title rule for role-goal prompts. With org roles the model may use
+     * only those names, and never more goals than there are roles; null means
+     * the organization has none and the prompt keeps its document wording.
+     *
+     * @return array{max: int, rule: string}|null
+     */
+    private function roleRule($user, int $max): ?array
+    {
+        $names = $this->docs->roleNamesFor($user);
+        if ($names === []) {
+            return null;
+        }
+
+        return [
+            'max' => min($max, count($names)),
+            'rule' => 'Use ONLY these role titles, exactly as written, one goal per role you choose: '.implode(', ', $names).'.',
+        ];
+    }
+
     private function ownedChat($chatId): ?SearchUserChat
     {
         return SearchUserChat::where('id', $chatId)

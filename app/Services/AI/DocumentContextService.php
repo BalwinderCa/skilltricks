@@ -87,6 +87,24 @@ class DocumentContextService
     private const ORG_MAX_ROSTER_LINES = 60;
 
     /**
+     * The author's organization's role names, as the prompt should show them:
+     * sanitised and capped like the roster block. Empty when there are none.
+     *
+     * @return array<int, string>
+     */
+    public function roleNamesFor($user): array
+    {
+        $org = optional($user)->organization;
+        if (! $org) {
+            return [];
+        }
+
+        return $org->roles()->orderBy('name')->limit(self::ORG_MAX_ROSTER_LINES)->pluck('name')
+            ->map(fn ($name) => $this->sanitiseForPrompt((string) $name))
+            ->filter()->values()->all();
+    }
+
+    /**
      * Build the "ORGANIZATIONAL CONTEXT" block for a user's organization.
      *
      * The active baseline is the one declared by the highest-ranking calibrated
