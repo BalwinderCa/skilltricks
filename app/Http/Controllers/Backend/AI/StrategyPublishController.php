@@ -145,6 +145,43 @@ class StrategyPublishController extends Controller
         return response()->json($this->payload($chat->fresh(), $user));
     }
 
+    public function publish(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if (! $this->ownChat($request, $request->input('chat_id'))) {
+            return $this->denied();
+        }
+        if (! $this->orgs->canPublish($user)) {
+            return response()->json(['error' => 'Only department heads, managers and the organization owner can publish.'], 403);
+        }
+
+        // Re-read under a row lock so a double click cannot publish twice.
+        $result = DB::transaction(function () use ($request, $user) {
+            $chat = SearchUserChat::whereKey($request->input('chat_id'))->lockForUpdate()->firstOrFail();
+            if ($chat->isPublished()) {
+                return response()->json(['error' => 'This strategy is already published.'], 409);
+            }
+            if (! $chat->resources()->exists()) {
+                return response()->json(['error' => 'Add at least one department\'s resources before publishing.'], 422);
+            }
+
+            $chat->forceFill([
+                'status' => 'published',
+                'published_by' => $user->id,
+                'published_at' => now(),
+                'organization_id' => $user->organization_id,
+            ])->save();
+
+            return $chat;
+        });
+
+        if ($result instanceof JsonResponse) {
+            return $result;
+        }
+
+        return response()->json($this->payload($result->fresh(), $user));
+    }
+
     // -------------------------------------------------------------------------
 
     private function aiFailed(): JsonResponse

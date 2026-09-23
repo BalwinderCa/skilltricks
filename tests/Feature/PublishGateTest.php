@@ -339,4 +339,74 @@ class PublishGateTest extends TestCase
         $this->actingAs($w['head'])->postJson(route('users-new-chat-resources-suggest.index'), ['chat_id' => $chat->id])
             ->assertStatus(409);
     }
+
+    private function withRow(SearchUserChat $chat, Department $dept): SearchUserChat
+    {
+        $chat->resources()->create(['department_id' => $dept->id, 'department_name' => $dept->name, 'budget' => 50000, 'fte' => 2]);
+
+        return $chat;
+    }
+
+    public function test_a_leader_publishes_their_strategy(): void
+    {
+        $w = $this->world();
+        $chat = $this->withRow($this->finishedChat($w['manager']), $w['sales']);
+        DB::table('search_user_chat')->where('id', $chat->id)->update(['organization_id' => null]);
+
+        $this->actingAs($w['manager'])->postJson(route('users-new-chat-publish.index'), ['chat_id' => $chat->id])
+            ->assertOk()
+            ->assertJsonPath('status', 'published')
+            ->assertJsonPath('is_publisher', true)
+            ->assertJsonPath('published_by', $w['manager']->name);
+
+        $chat = $chat->fresh();
+        $this->assertTrue($chat->isPublished());
+        $this->assertSame($w['manager']->id, (int) $chat->published_by);
+        $this->assertNotNull($chat->published_at);
+        $this->assertSame($w['org']->id, (int) $chat->organization_id);
+    }
+
+    public function test_a_plain_member_cannot_publish(): void
+    {
+        $w = $this->world();
+        $chat = $this->withRow($this->finishedChat($w['member']), $w['sales']);
+
+        $this->actingAs($w['member'])->postJson(route('users-new-chat-publish.index'), ['chat_id' => $chat->id])
+            ->assertForbidden();
+        $this->assertFalse($chat->fresh()->isPublished());
+    }
+
+    public function test_a_leader_cannot_publish_someone_elses_strategy(): void
+    {
+        $w = $this->world();
+        $chat = $this->withRow($this->finishedChat($w['member']), $w['sales']);
+
+        $this->actingAs($w['owner'])->postJson(route('users-new-chat-publish.index'), ['chat_id' => $chat->id])
+            ->assertForbidden();
+        $this->assertFalse($chat->fresh()->isPublished());
+    }
+
+    public function test_publishing_twice_is_refused_and_keeps_the_first_timestamp(): void
+    {
+        $w = $this->world();
+        $chat = $this->withRow($this->finishedChat($w['owner']), $w['sales']);
+
+        $this->actingAs($w['owner'])->postJson(route('users-new-chat-publish.index'), ['chat_id' => $chat->id])->assertOk();
+        $first = $chat->fresh()->published_at->toIso8601String();
+
+        $this->travel(5)->minutes();
+        $this->actingAs($w['owner'])->postJson(route('users-new-chat-publish.index'), ['chat_id' => $chat->id])
+            ->assertStatus(409);
+        $this->assertSame($first, $chat->fresh()->published_at->toIso8601String());
+    }
+
+    public function test_publishing_with_no_resources_is_refused(): void
+    {
+        $w = $this->world();
+        $chat = $this->finishedChat($w['owner']);
+
+        $this->actingAs($w['owner'])->postJson(route('users-new-chat-publish.index'), ['chat_id' => $chat->id])
+            ->assertStatus(422);
+        $this->assertFalse($chat->fresh()->isPublished());
+    }
 }
