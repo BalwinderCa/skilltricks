@@ -123,7 +123,11 @@ class ExpectedState extends Model
         return $this->hasOne(Intervention::class, 'expected_state_id')->latestOfMany();
     }
 
-    /** The organization role this goal is for (Features spec, phase 2). */
+    /**
+     * The organization role this goal is for (Features spec, phase 2).
+     *
+     * @return BelongsTo<OrgRole, $this>
+     */
     public function orgRole(): BelongsTo
     {
         return $this->belongsTo(OrgRole::class);

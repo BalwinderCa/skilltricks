@@ -329,4 +329,16 @@ class RoleGoalLinksTest extends TestCase
 
         $this->actingAs($author)->postJson(route('users-new-chat-publish.index'), ['chat_id' => $chat->id])->assertOk();
     }
+
+    public function test_the_chat_page_carries_the_goal_role_route(): void
+    {
+        $org = $this->org();
+        $author = $this->member($org, 'ceo@acme.com');
+        $chat = $this->chatWithGoals($author, ['A']);
+
+        $this->actingAs($author)->get('/dashboard/users-new-chat/'.$chat->id)
+            ->assertOk()
+            ->assertSee(route('users-new-chat-goal-role.index'), false)
+            ->assertSee('Who gets which goal', false);
+    }
 }

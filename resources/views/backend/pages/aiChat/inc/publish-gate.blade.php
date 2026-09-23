@@ -12,6 +12,10 @@
     .pg-published { background: #fbf2ea; border-left: 4px solid #ec883f; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; }
     .pg-error { color: #b42318; font-size: 13px; margin: 8px 0; }
     .pg-history { font-size: 12px; margin-top: 12px; }
+    .pg-goals { margin-bottom: 14px; }
+    .pg-goals .pg-flag-red { color: #b42318; font-size: 12px; }
+    .pg-goals .pg-flag-orange { color: #ec883f; font-size: 12px; }
+    .pg-goals .pg-role-text { color: #6c757d; font-size: 12px; }
 </style>
 <script>
 (function () {
@@ -20,6 +24,7 @@
         suggest: '{{ route('users-new-chat-resources-suggest.index') }}',
         save: '{{ route('users-new-chat-resources-save.index') }}',
         publish: '{{ route('users-new-chat-publish.index') }}',
+        goalRole: '{{ route('users-new-chat-goal-role.index') }}',
     };
     const chatId = {{ (int) $id }};
     const csrf = '{{ csrf_token() }}';
@@ -150,6 +155,35 @@
         </tr>`;
     }
 
+    function goalsHtml(published) {
+        if (!state.goals || !state.goals.length) return '';
+        const holders = Object.fromEntries((state.roles || []).map(r => [r.id, r.member_count]));
+        const rows = state.goals.map(g => {
+            const flag = g.org_role_id === null
+                ? '<div class="pg-flag-red">No matching role — pick one</div>'
+                : (holders[g.org_role_id] === 0 ? '<div class="pg-flag-orange">Nobody holds this role yet</div>' : '');
+            const picker = published
+                ? esc(g.org_role_name ?? '—')
+                : `<select class="form-select form-select-sm" data-goal="${g.id}" ${busy ? 'disabled' : ''}>
+                    ${g.org_role_id === null ? '<option value="" selected disabled>Pick a role…</option>' : ''}
+                    ${(state.roles || []).map(r => `<option value="${r.id}" ${r.id === g.org_role_id ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}
+                   </select>`;
+            return `<tr><td>${esc(g.action)}<div class="pg-role-text">AI role: ${esc(g.role_text)}</div></td><td style="min-width:180px">${picker}${flag}</td></tr>`;
+        }).join('');
+        const noRoles = !published && !(state.roles || []).length
+            ? '<div class="pg-hint">Your organization has no roles yet. Add them on the Roles page, then reload.</div>' : '';
+        return `<div class="pg-goals"><strong>Who gets which goal</strong>${noRoles}
+            <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+            <thead><tr><th>Goal</th><th>Role</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+    }
+
+    async function assignRole(goalId, roleId) {
+        busy = true; error = ''; render();
+        try { state = await call(urls.goalRole, { chat_id: chatId, goal_id: goalId, org_role_id: roleId }); }
+        catch (e) { error = e.message; }
+        busy = false; render();
+    }
+
     function render() {
         const el = card();
         if (!el) return;
@@ -185,6 +219,7 @@
             ${header}
             ${error ? `<div class="pg-error">${esc(error)}</div>` : ''}
             ${busy ? '<div class="pg-sub">Working…</div>' : ''}
+            ${goalsHtml(published)}
             <div class="table-responsive">
                 <table class="table table-sm align-middle mb-2">
                     <thead><tr><th>Department</th><th>Budget (${esc(state.currency)})</th><th>People (FTE)</th><th>Tools</th><th>Notes</th><th></th></tr></thead>
@@ -212,6 +247,13 @@
         if (!act || busy) return;
         if (act.dataset.act !== 'publish') confirmPublish = false;
         ({ suggest, save, publish, add: addRow })[act.dataset.act]();
+    });
+
+    document.addEventListener('change', e => {
+        const el = card();
+        const sel = e.target.closest && e.target.closest('select[data-goal]');
+        if (!el || !sel || !el.contains(sel) || busy || sel.value === '') return;
+        assignRole(Number(sel.dataset.goal), Number(sel.value));
     });
 
     new MutationObserver(mount).observe(document.body, { childList: true, subtree: true });
