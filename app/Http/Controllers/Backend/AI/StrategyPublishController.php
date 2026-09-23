@@ -98,7 +98,167 @@ class StrategyPublishController extends Controller
         return response()->json($this->payload($chat->fresh(), $user));
     }
 
+    public function suggest(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $chat = $this->ownChat($request, $request->input('chat_id'));
+        if (! $chat) {
+            return $this->denied();
+        }
+        if ($chat->isPublished()) {
+            return response()->json(['error' => 'This strategy is already published.'], 409);
+        }
+
+        $goals = ExpectedState::where('search_user_chat_id', $chat->id)->orderBy('id')->get(['role', 'recommended_action']);
+        if ($goals->isEmpty() && empty($chat->leadership_brief)) {
+            return response()->json(['error' => 'Finish the wizard first.'], 422);
+        }
+
+        $departments = $this->departmentsFor($user);
+        $system = $this->docs->buildSystemMessage($user, 'You are an executive resource planner. Return ONLY valid JSON. No markdown, no code fences, no commentary.');
+
+        try {
+            $response = $this->ai->generate($system, $this->suggestPrompt($chat, $goals, $departments), 2000, 0.4, true);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return $this->aiFailed();
+        }
+        if (! $response->successful()) {
+            return $this->aiFailed();
+        }
+
+        $this->ai->recordChatTokens($chat->id, $response);
+        $parsed = $this->ai->parseJson($this->ai->extractText($response));
+        $rows = $this->matchRows(is_array($parsed['rows'] ?? null) ? $parsed['rows'] : [], $departments);
+        if (empty($rows)) {
+            return $this->aiFailed();
+        }
+
+        DB::transaction(function () use ($chat, $rows) {
+            $chat->resources()->delete();
+            foreach ($rows as $row) {
+                $chat->resources()->create($row);
+            }
+        });
+
+        return response()->json($this->payload($chat->fresh(), $user));
+    }
+
     // -------------------------------------------------------------------------
+
+    private function aiFailed(): JsonResponse
+    {
+        return response()->json(['error' => 'Could not suggest resources right now. Try again, or enter them yourself.'], 502);
+    }
+
+    /**
+     * @param  Collection<int, ExpectedState>  $goals
+     * @param  Collection<int, Department>  $departments
+     */
+    private function suggestPrompt(SearchUserChat $chat, Collection $goals, Collection $departments): string
+    {
+        $goalLines = $goals->map(fn ($g) => '- '.$g->role.': '.$g->recommended_action)->implode("\n") ?: '(none recorded)';
+        $deptLines = $departments->isEmpty()
+            ? '- '.self::WHOLE_ORG.' (this organization has no departments; return exactly one row with this name)'
+            : $departments->map(fn ($d) => '- '.$d->name)->implode("\n");
+        $brief = mb_substr((string) $chat->leadership_brief, 0, 4000);
+
+        return <<<EOT
+Estimate the resources needed to deliver this strategy, per department.
+
+Strategy path: "{$chat->selected_strategy}"
+Scenario: "{$chat->selected_scenario}"
+
+Role goals:
+{$goalLines}
+
+Leadership brief:
+{$brief}
+
+Departments (use these names exactly; only include departments this strategy affects):
+{$deptLines}
+
+Output a JSON object with EXACTLY this shape:
+{"rows":[{"department":"<department name from the list>","budget":<number, whole currency units>,"fte":<number of full-time people>,"tools":"<systems, tools or vendors needed>","rationale":"<one sentence>"}]}
+EOT;
+    }
+
+    /**
+     * Keep AI rows that name a real department (case-insensitive), once each,
+     * with amounts coerced to numbers.
+     *
+     * @param  array<int, mixed>  $aiRows
+     * @param  Collection<int, Department>  $departments
+     * @return array<int, array<string, mixed>>
+     */
+    private function matchRows(array $aiRows, Collection $departments): array
+    {
+        $byName = $departments->keyBy(fn ($d) => mb_strtolower(trim($d->name)));
+        $out = [];
+
+        foreach ($aiRows as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            if ($departments->isEmpty()) {
+                $deptId = null;
+                $name = self::WHOLE_ORG;
+            } else {
+                $dept = $byName->get(mb_strtolower(trim((string) ($row['department'] ?? ''))));
+                if (! $dept) {
+                    continue;
+                }
+                $deptId = $dept->id;
+                $name = $dept->name;
+            }
+            if (isset($out[$name])) {
+                continue;
+            }
+
+            $tools = $row['tools'] ?? null;
+            $tools = is_array($tools) ? implode(', ', array_filter(array_map('strval', $tools))) : $tools;
+            $suggestion = [
+                'budget' => $this->toAmount($row['budget'] ?? null),
+                'fte' => $this->toAmount($row['fte'] ?? null),
+                'tools' => $this->text(is_scalar($tools) ? (string) $tools : null),
+                'rationale' => $this->text(is_scalar($row['rationale'] ?? null) ? (string) $row['rationale'] : null),
+            ];
+
+            $out[$name] = [
+                'department_id' => $deptId,
+                'department_name' => $name,
+                'budget' => $suggestion['budget'],
+                'fte' => $suggestion['fte'],
+                'tools' => $suggestion['tools'],
+                'ai_suggestion' => $suggestion,
+            ];
+
+            if ($departments->isEmpty()) {
+                break;
+            }
+        }
+
+        return array_values($out);
+    }
+
+    /** "$50k" → 50000, "1,200,000" → 1200000, "2 FTE" → 2; anything else → null. */
+    private function toAmount($value): ?float
+    {
+        if (is_int($value) || is_float($value)) {
+            return $value < 0 ? null : (float) $value;
+        }
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $s = strtolower(str_replace([',', ' '], '', $value));
+        if (! preg_match('/(\d+(?:\.\d+)?)([km]?)/', $s, $m)) {
+            return null;
+        }
+
+        return (float) $m[1] * ['' => 1, 'k' => 1000, 'm' => 1000000][$m[2]];
+    }
 
     /** The chat, only if the signed-in user wrote it. */
     private function ownChat(Request $request, $chatId): ?SearchUserChat

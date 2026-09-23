@@ -251,4 +251,92 @@ class PublishGateTest extends TestCase
             'chat_id' => $chat->id, 'rows' => [],
         ])->assertForbidden();
     }
+
+    public function test_suggest_saves_one_row_per_matching_department_and_drops_unknown_ones(): void
+    {
+        $w = $this->world();
+        $chat = $this->finishedChat($w['head']);
+        $this->fakeAi(json_encode(['rows' => [
+            ['department' => 'sales', 'budget' => '$50k', 'fte' => '2 FTE', 'tools' => ['CRM seats', 'CPQ'], 'rationale' => 'Upgrade motion'],
+            ['department' => 'Engineering', 'budget' => '1,200,000', 'fte' => 4, 'tools' => 'SOC2 tooling', 'rationale' => 'Compliance'],
+            ['department' => 'Legal', 'budget' => 10, 'fte' => 1, 'tools' => '', 'rationale' => 'Not a department here'],
+        ]]));
+
+        $this->actingAs($w['head'])->postJson(route('users-new-chat-resources-suggest.index'), ['chat_id' => $chat->id])
+            ->assertOk()->assertJsonCount(2, 'rows');
+
+        $sales = StrategyResource::where('department_id', $w['sales']->id)->first();
+        $this->assertSame('50000.00', $sales->budget);
+        $this->assertSame('2.00', $sales->fte);
+        $this->assertSame('CRM seats, CPQ', $sales->tools);
+        $this->assertSame('Upgrade motion', $sales->ai_suggestion['rationale']);
+        $this->assertSame('1200000.00', StrategyResource::where('department_id', $w['eng']->id)->value('budget'));
+    }
+
+    public function test_suggest_replaces_earlier_draft_rows(): void
+    {
+        $w = $this->world();
+        $chat = $this->finishedChat($w['head']);
+        $chat->resources()->create(['department_id' => $w['eng']->id, 'department_name' => 'Engineering', 'budget' => 1]);
+        $this->fakeAi(json_encode(['rows' => [['department' => 'Sales', 'budget' => 5, 'fte' => 1, 'tools' => 'x', 'rationale' => 'y']]]));
+
+        $this->actingAs($w['head'])->postJson(route('users-new-chat-resources-suggest.index'), ['chat_id' => $chat->id])->assertOk();
+
+        $this->assertSame(['Sales'], StrategyResource::pluck('department_name')->all());
+    }
+
+    public function test_an_organization_without_departments_gets_one_whole_organization_row(): void
+    {
+        $loner = User::factory()->create(['email' => 'solo@example.com', 'user_type' => 'customer', 'organization_id' => null]);
+        $chat = $this->finishedChat($loner);
+        $this->fakeAi(json_encode(['rows' => [['department' => 'Whole organization', 'budget' => 9000, 'fte' => 1, 'tools' => 'x', 'rationale' => 'y']]]));
+
+        $this->actingAs($loner)->postJson(route('users-new-chat-resources-suggest.index'), ['chat_id' => $chat->id])
+            ->assertOk()
+            ->assertJsonPath('rows.0.department_name', 'Whole organization')
+            ->assertJsonPath('rows.0.department_id', null)
+            ->assertJsonPath('rows.0.budget', 9000);
+    }
+
+    public function test_suggest_needs_a_finished_wizard(): void
+    {
+        $w = $this->world();
+        $chat = SearchUserChat::create(['user_id' => $w['head']->id, 'status1' => 0]);
+        $this->fakeAi('{}');
+
+        $this->actingAs($w['head'])->postJson(route('users-new-chat-resources-suggest.index'), ['chat_id' => $chat->id])
+            ->assertStatus(422);
+    }
+
+    public function test_suggest_reports_an_ai_failure_without_saving(): void
+    {
+        $w = $this->world();
+        $chat = $this->finishedChat($w['head']);
+        $this->fakeAi('not json at all', 500);
+
+        $this->actingAs($w['head'])->postJson(route('users-new-chat-resources-suggest.index'), ['chat_id' => $chat->id])
+            ->assertStatus(502);
+        $this->assertSame(0, StrategyResource::count());
+    }
+
+    public function test_suggest_reports_unparseable_json_as_a_failure(): void
+    {
+        $w = $this->world();
+        $chat = $this->finishedChat($w['head']);
+        $this->fakeAi('Sure! Here are some ideas.');
+
+        $this->actingAs($w['head'])->postJson(route('users-new-chat-resources-suggest.index'), ['chat_id' => $chat->id])
+            ->assertStatus(502);
+    }
+
+    public function test_suggest_refuses_a_published_strategy(): void
+    {
+        $w = $this->world();
+        $chat = $this->finishedChat($w['head']);
+        $chat->forceFill(['status' => 'published', 'published_by' => $w['head']->id, 'published_at' => now()])->save();
+        $this->fakeAi('{}');
+
+        $this->actingAs($w['head'])->postJson(route('users-new-chat-resources-suggest.index'), ['chat_id' => $chat->id])
+            ->assertStatus(409);
+    }
 }
