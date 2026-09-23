@@ -206,6 +206,9 @@ class StrategyPublishController extends Controller
             if (! $chat->resources()->exists()) {
                 return response()->json(['error' => 'Add at least one department\'s resources before publishing.'], 422);
             }
+            if (ExpectedState::where('search_user_chat_id', $chat->id)->whereNull('org_role_id')->exists()) {
+                return response()->json(['error' => 'Link every goal to a role before publishing.'], 422);
+            }
 
             $chat->forceFill([
                 'status' => 'published',

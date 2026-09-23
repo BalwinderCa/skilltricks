@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Department;
 use App\Models\ExpectedState;
 use App\Models\Organization;
 use App\Models\OrgRole;
@@ -288,5 +289,44 @@ class RoleGoalLinksTest extends TestCase
         ])->assertStatus(409);
 
         $this->assertNull(ExpectedState::first()->org_role_id);
+    }
+
+    /** A leader (department head) with a finished strategy that has one resource row. */
+    private function publishable(array $roleTexts): array
+    {
+        $org = $this->org();
+        $author = $this->member($org, 'ceo@acme.com');
+        Department::create(['organization_id' => $org->id, 'name' => 'Sales', 'color' => '#22C55E', 'head_user_id' => $author->id]);
+        $chat = $this->chatWithGoals($author, $roleTexts);
+        $chat->resources()->create(['department_id' => null, 'department_name' => 'Whole organization', 'budget' => 1]);
+
+        return [$org, $author, $chat];
+    }
+
+    public function test_publishing_is_refused_while_a_goal_has_no_role(): void
+    {
+        [, $author, $chat] = $this->publishable(['Chief Dreamer']);
+
+        $this->actingAs($author)->postJson(route('users-new-chat-publish.index'), ['chat_id' => $chat->id])
+            ->assertStatus(422)
+            ->assertJsonPath('error', 'Link every goal to a role before publishing.');
+        $this->assertFalse($chat->fresh()->isPublished());
+    }
+
+    public function test_publishing_succeeds_once_every_goal_is_linked(): void
+    {
+        [$org, $author, $chat] = $this->publishable(['Chief Dreamer']);
+        $role = $this->role($org, 'Director');
+        ExpectedState::first()->update(['org_role_id' => $role->id]);
+
+        $this->actingAs($author)->postJson(route('users-new-chat-publish.index'), ['chat_id' => $chat->id])->assertOk();
+        $this->assertTrue($chat->fresh()->isPublished());
+    }
+
+    public function test_a_strategy_with_no_goals_can_still_be_published(): void
+    {
+        [, $author, $chat] = $this->publishable([]);
+
+        $this->actingAs($author)->postJson(route('users-new-chat-publish.index'), ['chat_id' => $chat->id])->assertOk();
     }
 }
