@@ -159,4 +159,96 @@ class PublishGateTest extends TestCase
 
         $this->assertFalse(app(OrganizationService::class)->canPublish($w['member']));
     }
+
+    public function test_show_returns_the_card_state_for_the_author(): void
+    {
+        $w = $this->world();
+        $chat = $this->finishedChat($w['head']);
+
+        $this->actingAs($w['head'])->getJson(route('users-new-chat-resources.show', ['chat' => $chat->id]))
+            ->assertOk()
+            ->assertJsonPath('status', 'draft')
+            ->assertJsonPath('can_publish', true)
+            ->assertJsonPath('ready', true)
+            ->assertJsonPath('departments.0.name', 'Engineering')
+            ->assertJsonPath('departments.1.name', 'Sales')
+            ->assertJsonCount(0, 'rows');
+    }
+
+    public function test_show_refuses_someone_elses_strategy(): void
+    {
+        $w = $this->world();
+        $chat = $this->finishedChat($w['owner']);
+
+        $this->actingAs($w['member'])->getJson(route('users-new-chat-resources.show', ['chat' => $chat->id]))
+            ->assertForbidden();
+    }
+
+    public function test_draft_save_replaces_the_rows_and_logs_nothing(): void
+    {
+        $w = $this->world();
+        $chat = $this->finishedChat($w['member']);
+        $old = $chat->resources()->create(['department_id' => $w['eng']->id, 'department_name' => 'Engineering', 'budget' => 10]);
+
+        $this->actingAs($w['member'])->postJson(route('users-new-chat-resources-save.index'), [
+            'chat_id' => $chat->id,
+            'rows' => [
+                ['department_id' => $w['sales']->id, 'department_name' => 'ignored', 'budget' => 50000, 'fte' => 1.5, 'tools' => 'CRM seats', 'notes' => 'From Q3 brand budget'],
+            ],
+        ])->assertOk()->assertJsonCount(1, 'rows')->assertJsonPath('rows.0.department_name', 'Sales');
+
+        $this->assertNull(StrategyResource::find($old->id));
+        $this->assertSame(0, StrategyResourceChange::count());
+    }
+
+    public function test_draft_save_keeps_the_ai_suggestion_on_an_edited_row(): void
+    {
+        $w = $this->world();
+        $chat = $this->finishedChat($w['member']);
+        $row = $chat->resources()->create(['department_id' => $w['sales']->id, 'department_name' => 'Sales', 'budget' => 40000, 'ai_suggestion' => ['budget' => 40000]]);
+
+        $this->actingAs($w['member'])->postJson(route('users-new-chat-resources-save.index'), [
+            'chat_id' => $chat->id,
+            'rows' => [['id' => $row->id, 'department_id' => $w['sales']->id, 'department_name' => 'Sales', 'budget' => 45000]],
+        ])->assertOk();
+
+        $this->assertSame('45000.00', $row->fresh()->budget);
+        $this->assertSame(['budget' => 40000], $row->fresh()->ai_suggestion);
+    }
+
+    public function test_save_refuses_a_department_from_another_organization(): void
+    {
+        $w = $this->world();
+        $chat = $this->finishedChat($w['member']);
+        $other = Organization::create(['domain' => 'globex.com', 'name' => 'Globex']);
+        $foreign = Department::create(['organization_id' => $other->id, 'name' => 'Ops', 'color' => '#EF4444']);
+
+        $this->actingAs($w['member'])->postJson(route('users-new-chat-resources-save.index'), [
+            'chat_id' => $chat->id,
+            'rows' => [['department_id' => $foreign->id, 'department_name' => 'Ops', 'budget' => 1]],
+        ])->assertStatus(422);
+
+        $this->assertSame(0, StrategyResource::count());
+    }
+
+    public function test_save_refuses_negative_amounts(): void
+    {
+        $w = $this->world();
+        $chat = $this->finishedChat($w['member']);
+
+        $this->actingAs($w['member'])->postJson(route('users-new-chat-resources-save.index'), [
+            'chat_id' => $chat->id,
+            'rows' => [['department_id' => null, 'department_name' => 'Whole organization', 'budget' => -5]],
+        ])->assertStatus(422);
+    }
+
+    public function test_save_refuses_someone_elses_strategy(): void
+    {
+        $w = $this->world();
+        $chat = $this->finishedChat($w['owner']);
+
+        $this->actingAs($w['member'])->postJson(route('users-new-chat-resources-save.index'), [
+            'chat_id' => $chat->id, 'rows' => [],
+        ])->assertForbidden();
+    }
 }

@@ -25,6 +25,7 @@ use App\Http\Controllers\Backend\AI\Plagiarism\AIDetectorController;
 use App\Http\Controllers\Backend\AI\Plagiarism\AIPlagiarismController;
 use App\Http\Controllers\Backend\AI\Plagiarism\SetupController;
 use App\Http\Controllers\Backend\AI\ReWriteController;
+use App\Http\Controllers\Backend\AI\StrategyPublishController;
 use App\Http\Controllers\Backend\AI\VisionController;
 use App\Http\Controllers\Backend\AI\VoiceSettingController;
 use App\Http\Controllers\Backend\Appearance\AboutUsController;
@@ -341,6 +342,11 @@ Route::group(
                 Route::post('/users-new-chat-save-observed-state', [AiChatController::class, 'save_observed_state'])->name('users-new-chat-save-observed-state.index');
                 Route::post('/users-new-chat-generate-intervention', [AiChatController::class, 'generate_intervention'])->name('users-new-chat-generate-intervention.index');
                 Route::post('/users-new-chat-activate-intervention', [AiChatController::class, 'activate_intervention'])->name('users-new-chat-activate-intervention.index');
+                // publish gate: commit resources, then publish the strategy to the organization
+                Route::get('/users-new-chat-resources/{chat}', [StrategyPublishController::class, 'show'])->name('users-new-chat-resources.show');
+                Route::post('/users-new-chat-resources-suggest', [StrategyPublishController::class, 'suggest'])->name('users-new-chat-resources-suggest.index');
+                Route::post('/users-new-chat-resources-save', [StrategyPublishController::class, 'save'])->name('users-new-chat-resources-save.index');
+                Route::post('/users-new-chat-publish', [StrategyPublishController::class, 'publish'])->name('users-new-chat-publish.index');
                 Route::get('/userchathistory', [AiChatController::class, 'userchathistory'])->name('userchathistory.index');
                 Route::get('/user-view-chathistory/{id}', [AiChatController::class, 'user_view_chathistory'])->name('user-view-chathistory.index');
                 Route::get('/users-chat-search-delete/{id}', [AiChatController::class, 'userschat_search_delete'])->name('users-chat-search-delete.index');
