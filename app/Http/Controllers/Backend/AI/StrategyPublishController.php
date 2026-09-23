@@ -26,6 +26,11 @@ class StrategyPublishController extends Controller
 {
     private const WHOLE_ORG = 'Whole organization';
 
+    /** The largest values decimal(12,2) budget and decimal(6,2) fte can hold. */
+    private const BUDGET_MAX = 9999999999;
+
+    private const FTE_MAX = 9999;
+
     public function __construct(
         protected AiProviderService $ai,
         protected DocumentContextService $docs,
@@ -50,8 +55,8 @@ class StrategyPublishController extends Controller
             'rows.*.id' => 'nullable|integer',
             'rows.*.department_id' => 'nullable|integer',
             'rows.*.department_name' => 'required|string|max:255',
-            'rows.*.budget' => 'nullable|numeric|min:0|max:9999999999',
-            'rows.*.fte' => 'nullable|numeric|min:0|max:9999',
+            'rows.*.budget' => 'nullable|numeric|min:0|max:'.self::BUDGET_MAX,
+            'rows.*.fte' => 'nullable|numeric|min:0|max:'.self::FTE_MAX,
             'rows.*.tools' => 'nullable|string|max:5000',
             'rows.*.notes' => 'nullable|string|max:5000',
         ]);
@@ -63,16 +68,26 @@ class StrategyPublishController extends Controller
         }
 
         $departments = $this->departmentsFor($user)->keyBy('id');
+        $stored = $chat->resources()->get()->keyBy('id');
         $rows = [];
         foreach ($data['rows'] as $row) {
-            $deptId = $row['department_id'] ?? null;
-            if ($deptId !== null && ! $departments->has($deptId)) {
-                return response()->json(['error' => 'That department is not in your organization.'], 422);
+            // A row that already exists keeps its department (and its name
+            // snapshot), even if that department has since been deleted.
+            $existing = isset($row['id']) ? $stored->get($row['id']) : null;
+            if ($existing) {
+                $deptId = $existing->department_id;
+                $deptName = $existing->department_name;
+            } else {
+                $deptId = $row['department_id'] ?? null;
+                if ($deptId !== null && ! $departments->has($deptId)) {
+                    return response()->json(['error' => 'That department is not in your organization.'], 422);
+                }
+                $deptName = $deptId !== null ? $departments[$deptId]->name : self::WHOLE_ORG;
             }
             $rows[] = [
                 'id' => $row['id'] ?? null,
                 'department_id' => $deptId,
-                'department_name' => $deptId !== null ? $departments[$deptId]->name : self::WHOLE_ORG,
+                'department_name' => $deptName,
                 'budget' => $row['budget'] ?? null,
                 'fte' => $row['fte'] ?? null,
                 'tools' => $this->text($row['tools'] ?? null),
@@ -84,7 +99,10 @@ class StrategyPublishController extends Controller
             return $this->amend($chat, $user, $rows);
         }
 
-        DB::transaction(function () use ($chat, $rows) {
+        $saved = DB::transaction(function () use ($chat, $rows) {
+            if ($this->publishedUnderLock($chat)) {
+                return false;
+            }
             $keep = [];
             foreach ($rows as $row) {
                 $attrs = collect($row)->except('id')->all();
@@ -97,7 +115,12 @@ class StrategyPublishController extends Controller
                 }
             }
             $chat->resources()->whereNotIn('id', $keep)->delete();
+
+            return true;
         });
+        if (! $saved) {
+            return $this->publishedMeanwhile();
+        }
 
         return response()->json($this->payload($chat->fresh(), $user));
     }
@@ -139,12 +162,22 @@ class StrategyPublishController extends Controller
             return $this->aiFailed();
         }
 
-        DB::transaction(function () use ($chat, $rows) {
+        // The AI call takes seconds; the strategy may have been published from
+        // another tab meanwhile, and its committed rows must not be replaced.
+        $replaced = DB::transaction(function () use ($chat, $rows) {
+            if ($this->publishedUnderLock($chat)) {
+                return false;
+            }
             $chat->resources()->delete();
             foreach ($rows as $row) {
                 $chat->resources()->create($row);
             }
+
+            return true;
         });
+        if (! $replaced) {
+            return $this->publishedMeanwhile();
+        }
 
         return response()->json($this->payload($chat->fresh(), $user));
     }
@@ -235,6 +268,17 @@ class StrategyPublishController extends Controller
         return $this->text($value);
     }
 
+    /** Re-read the strategy under a row lock; call inside a transaction. */
+    private function publishedUnderLock(SearchUserChat $chat): bool
+    {
+        return SearchUserChat::whereKey($chat->id)->lockForUpdate()->firstOrFail()->isPublished();
+    }
+
+    private function publishedMeanwhile(): JsonResponse
+    {
+        return response()->json(['error' => 'This strategy was published in the meantime. Reload to see it.'], 409);
+    }
+
     private function aiFailed(): JsonResponse
     {
         return response()->json(['error' => 'Could not suggest resources right now. Try again, or enter them yourself.'], 502);
@@ -307,8 +351,8 @@ EOT;
             $tools = $row['tools'] ?? null;
             $tools = is_array($tools) ? implode(', ', array_filter(array_map('strval', $tools))) : $tools;
             $suggestion = [
-                'budget' => $this->toAmount($row['budget'] ?? null),
-                'fte' => $this->toAmount($row['fte'] ?? null),
+                'budget' => $this->toAmount($row['budget'] ?? null, self::BUDGET_MAX),
+                'fte' => $this->toAmount($row['fte'] ?? null, self::FTE_MAX),
                 'tools' => $this->text(is_scalar($tools) ? (string) $tools : null),
                 'rationale' => $this->text(is_scalar($row['rationale'] ?? null) ? (string) $row['rationale'] : null),
             ];
@@ -330,22 +374,22 @@ EOT;
         return array_values($out);
     }
 
-    /** "$50k" → 50000, "1,200,000" → 1200000, "2 FTE" → 2; anything else → null. */
-    private function toAmount($value): ?float
+    /**
+     * "$50k" → 50000, "1,200,000" → 1200000, "2 FTE" → 2, "10 mentors" → 10.
+     * A k/m suffix only counts when no letter follows it. Anything negative or
+     * beyond what the column holds becomes null rather than a MySQL overflow.
+     */
+    private function toAmount($value, float $max): ?float
     {
         if (is_int($value) || is_float($value)) {
-            return $value < 0 ? null : (float) $value;
-        }
-        if (! is_string($value)) {
+            $n = (float) $value;
+        } elseif (is_string($value) && preg_match('/(\d+(?:\.\d+)?)\s*([km])?(?![a-z])/i', str_replace(',', '', $value), $m)) {
+            $n = (float) $m[1] * ['' => 1, 'k' => 1000, 'm' => 1000000][strtolower($m[2] ?? '')];
+        } else {
             return null;
         }
 
-        $s = strtolower(str_replace([',', ' '], '', $value));
-        if (! preg_match('/(\d+(?:\.\d+)?)([km]?)/', $s, $m)) {
-            return null;
-        }
-
-        return (float) $m[1] * ['' => 1, 'k' => 1000, 'm' => 1000000][$m[2]];
+        return ($n < 0 || $n > $max) ? null : $n;
     }
 
     /** The chat, only if the signed-in user wrote it. */

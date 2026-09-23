@@ -79,13 +79,21 @@ class PublishGateTest extends TestCase
     }
 
     /** Bind an AI provider that answers every generate() with $text. */
-    private function fakeAi(string $text, int $status = 200): void
+    private function fakeAi(string $text, int $status = 200, ?callable $during = null): void
     {
+        $response = new ClientResponse(new PsrResponse($status, [], json_encode([
+            'candidates' => [['content' => ['parts' => [['text' => $text]]]]],
+        ])));
         $ai = Mockery::mock(AiProviderService::class);
         $ai->shouldReceive('providerLabel')->andReturn('Fake');
-        $ai->shouldReceive('generate')->andReturn(new ClientResponse(new PsrResponse($status, [], json_encode([
-            'candidates' => [['content' => ['parts' => [['text' => $text]]]]],
-        ]))));
+        // $during runs while the "model is thinking", to stage a concurrent change.
+        $ai->shouldReceive('generate')->andReturnUsing(function () use ($response, $during) {
+            if ($during) {
+                $during();
+            }
+
+            return $response;
+        });
         $ai->shouldReceive('extractText')->andReturn($text);
         $ai->shouldReceive('extractUsage')->andReturn([]);
         $ai->shouldReceive('recordChatTokens')->andReturn(0);
@@ -495,5 +503,77 @@ class PublishGateTest extends TestCase
             ->assertOk()
             ->assertSee('publish-gate-card', false)
             ->assertSee(route('users-new-chat-resources.show', ['chat' => $chat->id]), false);
+    }
+
+    public function test_ai_amounts_ignore_words_that_start_with_k_or_m(): void
+    {
+        $w = $this->world();
+        $chat = $this->finishedChat($w['head']);
+        $this->fakeAi(json_encode(['rows' => [['department' => 'Sales', 'budget' => '$50k', 'fte' => '10 mentors', 'tools' => 'x', 'rationale' => 'y']]]));
+
+        $this->actingAs($w['head'])->postJson(route('users-new-chat-resources-suggest.index'), ['chat_id' => $chat->id])->assertOk();
+
+        $this->assertSame('10.00', StrategyResource::value('fte'));
+        $this->assertSame('50000.00', StrategyResource::value('budget'));
+    }
+
+    public function test_ai_amounts_beyond_the_column_limits_are_dropped(): void
+    {
+        $w = $this->world();
+        $chat = $this->finishedChat($w['head']);
+        $this->fakeAi(json_encode(['rows' => [['department' => 'Sales', 'budget' => 25000000000, 'fte' => '20000', 'tools' => 'x', 'rationale' => 'y']]]));
+
+        $this->actingAs($w['head'])->postJson(route('users-new-chat-resources-suggest.index'), ['chat_id' => $chat->id])->assertOk();
+
+        $row = StrategyResource::first();
+        $this->assertNull($row->budget);
+        $this->assertNull($row->fte);
+    }
+
+    public function test_suggest_does_not_overwrite_a_strategy_published_while_the_ai_was_thinking(): void
+    {
+        $w = $this->world();
+        $chat = $this->withRow($this->finishedChat($w['head']), $w['sales']);
+        $this->fakeAi(
+            json_encode(['rows' => [['department' => 'Engineering', 'budget' => 1, 'fte' => 1, 'tools' => 'x', 'rationale' => 'y']]]),
+            200,
+            fn () => DB::table('search_user_chat')->where('id', $chat->id)
+                ->update(['status' => 'published', 'published_by' => $w['head']->id, 'published_at' => now()]),
+        );
+
+        $this->actingAs($w['head'])->postJson(route('users-new-chat-resources-suggest.index'), ['chat_id' => $chat->id])
+            ->assertStatus(409);
+        $this->assertSame(['Sales'], StrategyResource::pluck('department_name')->all());
+    }
+
+    public function test_the_publisher_can_still_amend_after_a_department_is_deleted(): void
+    {
+        $w = $this->world();
+        $chat = $this->published($w['owner'], $w['sales']);
+        $row = $chat->resources()->first();
+        $w['sales']->delete();
+
+        $this->actingAs($w['owner'])->postJson(route('users-new-chat-resources-save.index'), [
+            'chat_id' => $chat->id,
+            'rows' => [['id' => $row->id, 'department_id' => $w['sales']->id, 'department_name' => 'Sales', 'budget' => 60000, 'fte' => 2]],
+        ])->assertOk();
+
+        $this->assertSame('60000.00', $row->fresh()->budget);
+    }
+
+    public function test_a_draft_row_survives_its_department_being_deleted(): void
+    {
+        $w = $this->world();
+        $chat = $this->withRow($this->finishedChat($w['member']), $w['eng']);
+        $row = $chat->resources()->first();
+        $w['eng']->delete();
+
+        $this->actingAs($w['member'])->postJson(route('users-new-chat-resources-save.index'), [
+            'chat_id' => $chat->id,
+            'rows' => [['id' => $row->id, 'department_id' => $w['eng']->id, 'department_name' => 'Engineering', 'budget' => 7]],
+        ])->assertOk();
+
+        $this->assertSame('Engineering', $row->fresh()->department_name);
+        $this->assertSame('7.00', $row->fresh()->budget);
     }
 }

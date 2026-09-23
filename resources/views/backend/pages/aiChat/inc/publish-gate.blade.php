@@ -27,6 +27,7 @@
     let busy = false;
     let error = '';
     let confirmPublish = false;
+    let armedAt = 0;
 
     const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
     const money = v => (v === null || v === undefined || v === '') ? '—' : state.currency + Number(v).toLocaleString();
@@ -108,7 +109,10 @@
     }
 
     async function publish() {
-        if (!confirmPublish) { confirmPublish = true; render(); return; }
+        if (!confirmPublish) { confirmPublish = true; armedAt = Date.now(); render(); return; }
+        // Publishing cannot be undone: the second click of a double-click lands on
+        // the re-rendered button, so a confirm that fast is not a confirm.
+        if (Date.now() - armedAt < 600) return;
         confirmPublish = false;
         if (!(await save())) return;
         busy = true; render();
