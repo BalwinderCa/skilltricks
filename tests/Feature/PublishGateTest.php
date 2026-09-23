@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Department;
 use App\Models\ExpectedState;
 use App\Models\Organization;
+use App\Models\OrgRole;
 use App\Models\SearchUserChat;
 use App\Models\StrategyResource;
 use App\Models\StrategyResourceChange;
@@ -72,8 +73,13 @@ class PublishGateTest extends TestCase
             'selected_scenario' => 'Realistic Positive',
             'leadership_brief' => 'Convert mid-market accounts to enterprise tiers.',
         ]);
-        ExpectedState::create(['search_user_chat_id' => $chat->id, 'role' => 'VP of Sales', 'recommended_action' => 'Create an enterprise upgrade motion']);
-        ExpectedState::create(['search_user_chat_id' => $chat->id, 'role' => 'VP of Product', 'recommended_action' => 'Ship SOC2 controls']);
+        foreach (['VP of Sales' => 'Create an enterprise upgrade motion', 'VP of Product' => 'Ship SOC2 controls'] as $role => $action) {
+            // Phase 2: publishing needs every goal linked to a role in the author's organization.
+            $orgRoleId = $author->organization_id
+                ? OrgRole::firstOrCreate(['organization_id' => $author->organization_id, 'name' => $role])->id
+                : null;
+            ExpectedState::create(['search_user_chat_id' => $chat->id, 'role' => $role, 'recommended_action' => $action, 'org_role_id' => $orgRoleId]);
+        }
 
         return $chat;
     }

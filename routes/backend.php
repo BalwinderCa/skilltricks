@@ -347,6 +347,7 @@ Route::group(
                 Route::post('/users-new-chat-resources-suggest', [StrategyPublishController::class, 'suggest'])->name('users-new-chat-resources-suggest.index');
                 Route::post('/users-new-chat-resources-save', [StrategyPublishController::class, 'save'])->name('users-new-chat-resources-save.index');
                 Route::post('/users-new-chat-publish', [StrategyPublishController::class, 'publish'])->name('users-new-chat-publish.index');
+                Route::post('/users-new-chat-goal-role', [StrategyPublishController::class, 'assignRole'])->name('users-new-chat-goal-role.index');
                 Route::get('/userchathistory', [AiChatController::class, 'userchathistory'])->name('userchathistory.index');
                 Route::get('/user-view-chathistory/{id}', [AiChatController::class, 'user_view_chathistory'])->name('user-view-chathistory.index');
                 Route::get('/users-chat-search-delete/{id}', [AiChatController::class, 'userschat_search_delete'])->name('users-chat-search-delete.index');

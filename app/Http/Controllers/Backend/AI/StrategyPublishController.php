@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Backend\AI;
 use App\Http\Controllers\Controller;
 use App\Models\Department;
 use App\Models\ExpectedState;
+use App\Models\OrgRole;
 use App\Models\SearchUserChat;
 use App\Models\StrategyResource;
 use App\Models\StrategyResourceChange;
@@ -12,6 +13,7 @@ use App\Models\User;
 use App\Services\AI\AiProviderService;
 use App\Services\AI\DocumentContextService;
 use App\Services\OrganizationService;
+use App\Services\RoleGoalLinker;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -35,6 +37,7 @@ class StrategyPublishController extends Controller
         protected AiProviderService $ai,
         protected DocumentContextService $docs,
         protected OrganizationService $orgs,
+        protected RoleGoalLinker $linker,
     ) {}
 
     public function show(Request $request, $chat): JsonResponse
@@ -43,6 +46,8 @@ class StrategyPublishController extends Controller
         if (! $record) {
             return $this->denied();
         }
+
+        $this->linker->autoLink($record);
 
         return response()->json($this->payload($record, $request->user()));
     }
@@ -217,6 +222,41 @@ class StrategyPublishController extends Controller
         }
 
         return response()->json($this->payload($result->fresh(), $user));
+    }
+
+    public function assignRole(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'chat_id' => 'required|integer',
+            'goal_id' => 'required|integer',
+            'org_role_id' => 'required|integer',
+        ]);
+
+        $user = $request->user();
+        $chat = $this->ownChat($request, $data['chat_id']);
+        if (! $chat) {
+            return $this->denied();
+        }
+
+        $goal = ExpectedState::whereKey($data['goal_id'])->where('search_user_chat_id', $chat->id)->first();
+        if (! $goal) {
+            return response()->json(['error' => 'That goal is not part of this strategy.'], 422);
+        }
+
+        // Links are final once published, like the resources.
+        $result = DB::transaction(function () use ($chat, $goal, $data, $user) {
+            if ($this->publishedUnderLock($chat)) {
+                return 'published';
+            }
+
+            return $this->linker->assign($goal, (int) $data['org_role_id'], $user) ? 'ok' : 'foreign';
+        });
+
+        return match ($result) {
+            'published' => $this->publishedMeanwhile(),
+            'foreign' => response()->json(['error' => 'That role is not in your organization.'], 422),
+            default => response()->json($this->payload($chat->fresh(), $user)),
+        };
     }
 
     // -------------------------------------------------------------------------
@@ -432,6 +472,15 @@ EOT;
             ->with('user:id,name')->orderByDesc('id')->get();
         $names = $rows->pluck('department_name', 'id');
 
+        $goals = ExpectedState::where('search_user_chat_id', $chat->id)->with('orgRole:id,name')->orderBy('id')->get();
+        $roles = $user->organization_id
+            ? OrgRole::where('organization_id', $user->organization_id)->orderBy('name')->get(['id', 'name'])
+            : collect();
+        $holders = $user->organization_id
+            ? User::where('organization_id', $user->organization_id)->whereNotNull('org_role_id')
+                ->selectRaw('org_role_id, count(*) as n')->groupBy('org_role_id')->pluck('n', 'org_role_id')
+            : collect();
+
         return [
             'status' => $chat->status ?? 'draft',
             'is_publisher' => $chat->isPublished() && (int) $chat->published_by === (int) $user->id,
@@ -442,6 +491,18 @@ EOT;
             'published_at' => $chat->published_at?->toIso8601String(),
             'currency' => config('custom.default_currency_symbol') ?: '$',
             'departments' => $this->departmentsFor($user)->map(fn ($d) => ['id' => $d->id, 'name' => $d->name])->values(),
+            'goals' => $goals->map(fn (ExpectedState $g) => [
+                'id' => $g->id,
+                'role_text' => $g->role,
+                'action' => $g->recommended_action,
+                'org_role_id' => $g->org_role_id !== null ? (int) $g->org_role_id : null,
+                'org_role_name' => $g->orgRole?->name,
+            ])->values(),
+            'roles' => $roles->map(fn (OrgRole $r) => [
+                'id' => $r->id,
+                'name' => $r->name,
+                'member_count' => (int) ($holders[$r->id] ?? 0),
+            ])->values(),
             'rows' => $rows->map(fn (StrategyResource $r) => [
                 'id' => $r->id,
                 'department_id' => $r->department_id,

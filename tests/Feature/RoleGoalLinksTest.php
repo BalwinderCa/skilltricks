@@ -187,4 +187,106 @@ class RoleGoalLinksTest extends TestCase
         $this->assertStringNotContainsString('Use ONLY these role titles', $captured);
         $this->assertMatchesRegularExpression('/role titles (from the documents|that actually appear in the company documents|that exist in the documents)/', $captured);
     }
+
+    public function test_the_card_auto_links_goals_and_lists_roles_with_member_counts(): void
+    {
+        $org = $this->org();
+        $sales = $this->role($org, 'Head of Sales');
+        $empty = $this->role($org, 'Data Lead');
+        $author = $this->member($org, 'ceo@acme.com');
+        $this->member($org, 'rep@acme.com', $sales);
+        $chat = $this->chatWithGoals($author, ['Head of Sales', 'Chief Dreamer']);
+
+        $this->actingAs($author)->getJson(route('users-new-chat-resources.show', ['chat' => $chat->id]))
+            ->assertOk()
+            ->assertJsonPath('goals.0.org_role_id', $sales->id)
+            ->assertJsonPath('goals.0.org_role_name', 'Head of Sales')
+            ->assertJsonPath('goals.1.org_role_id', null)
+            ->assertJsonPath('goals.1.role_text', 'Chief Dreamer')
+            ->assertJsonPath('roles.0.id', $empty->id)
+            ->assertJsonPath('roles.0.member_count', 0)
+            ->assertJsonPath('roles.1.member_count', 1);
+    }
+
+    public function test_an_author_without_an_organization_gets_no_roles_and_no_error(): void
+    {
+        $loner = User::factory()->create(['email' => 'solo@example.com', 'user_type' => 'customer', 'organization_id' => null]);
+        $chat = $this->chatWithGoals($loner, ['Head of Sales']);
+
+        $this->actingAs($loner)->getJson(route('users-new-chat-resources.show', ['chat' => $chat->id]))
+            ->assertOk()
+            ->assertJsonCount(0, 'roles')
+            ->assertJsonPath('goals.0.org_role_id', null);
+    }
+
+    public function test_the_author_assigns_a_goal_to_a_role(): void
+    {
+        $org = $this->org();
+        $director = $this->role($org, 'Director');
+        $author = $this->member($org, 'ceo@acme.com');
+        $chat = $this->chatWithGoals($author, ['Chief Dreamer']);
+        $goal = ExpectedState::first();
+
+        $this->actingAs($author)->postJson(route('users-new-chat-goal-role.index'), [
+            'chat_id' => $chat->id, 'goal_id' => $goal->id, 'org_role_id' => $director->id,
+        ])->assertOk()->assertJsonPath('goals.0.org_role_name', 'Director');
+
+        $this->assertSame($director->id, (int) $goal->fresh()->org_role_id);
+    }
+
+    public function test_assigning_another_strategys_goal_is_refused(): void
+    {
+        $org = $this->org();
+        $director = $this->role($org, 'Director');
+        $author = $this->member($org, 'ceo@acme.com');
+        $mine = $this->chatWithGoals($author, ['A']);
+        $other = $this->chatWithGoals($author, ['B']);
+        $otherGoal = ExpectedState::where('search_user_chat_id', $other->id)->first();
+
+        $this->actingAs($author)->postJson(route('users-new-chat-goal-role.index'), [
+            'chat_id' => $mine->id, 'goal_id' => $otherGoal->id, 'org_role_id' => $director->id,
+        ])->assertStatus(422);
+
+        $this->assertNull($otherGoal->fresh()->org_role_id);
+    }
+
+    public function test_assigning_a_role_from_another_organization_is_refused(): void
+    {
+        $org = $this->org();
+        $foreign = $this->role($this->org('globex.com'), 'Spy');
+        $author = $this->member($org, 'ceo@acme.com');
+        $chat = $this->chatWithGoals($author, ['A']);
+
+        $this->actingAs($author)->postJson(route('users-new-chat-goal-role.index'), [
+            'chat_id' => $chat->id, 'goal_id' => ExpectedState::first()->id, 'org_role_id' => $foreign->id,
+        ])->assertStatus(422);
+    }
+
+    public function test_assigning_on_someone_elses_strategy_is_refused(): void
+    {
+        $org = $this->org();
+        $director = $this->role($org, 'Director');
+        $author = $this->member($org, 'ceo@acme.com');
+        $intruder = $this->member($org, 'ic@acme.com');
+        $chat = $this->chatWithGoals($author, ['A']);
+
+        $this->actingAs($intruder)->postJson(route('users-new-chat-goal-role.index'), [
+            'chat_id' => $chat->id, 'goal_id' => ExpectedState::first()->id, 'org_role_id' => $director->id,
+        ])->assertForbidden();
+    }
+
+    public function test_links_are_final_once_published(): void
+    {
+        $org = $this->org();
+        $director = $this->role($org, 'Director');
+        $author = $this->member($org, 'ceo@acme.com');
+        $chat = $this->chatWithGoals($author, ['A']);
+        $chat->forceFill(['status' => 'published', 'published_by' => $author->id, 'published_at' => now()])->save();
+
+        $this->actingAs($author)->postJson(route('users-new-chat-goal-role.index'), [
+            'chat_id' => $chat->id, 'goal_id' => ExpectedState::first()->id, 'org_role_id' => $director->id,
+        ])->assertStatus(409);
+
+        $this->assertNull(ExpectedState::first()->org_role_id);
+    }
 }
