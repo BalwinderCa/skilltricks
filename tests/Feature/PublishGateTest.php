@@ -485,4 +485,15 @@ class PublishGateTest extends TestCase
             'rows' => [['id' => $row->id, 'department_id' => $w['sales']->id, 'department_name' => 'Sales', 'budget' => 1]],
         ])->assertForbidden();
     }
+
+    public function test_the_chat_page_carries_the_publish_card_script(): void
+    {
+        $w = $this->world();
+        $chat = $this->finishedChat($w['owner']);
+
+        $this->actingAs($w['owner'])->get('/dashboard/users-new-chat/'.$chat->id)
+            ->assertOk()
+            ->assertSee('publish-gate-card', false)
+            ->assertSee(route('users-new-chat-resources.show', ['chat' => $chat->id]), false);
+    }
 }

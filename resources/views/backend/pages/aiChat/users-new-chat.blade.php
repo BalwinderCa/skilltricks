@@ -5609,5 +5609,6 @@ document.addEventListener('click', function (e) {
 
 
 
+@include('backend.pages.aiChat.inc.publish-gate')
 @endsection
 
