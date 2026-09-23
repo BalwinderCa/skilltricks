@@ -409,4 +409,80 @@ class PublishGateTest extends TestCase
             ->assertStatus(422);
         $this->assertFalse($chat->fresh()->isPublished());
     }
+
+    private function published(User $author, Department $dept): SearchUserChat
+    {
+        $chat = $this->withRow($this->finishedChat($author), $dept);
+        $chat->forceFill(['status' => 'published', 'published_by' => $author->id, 'published_at' => now()])->save();
+
+        return $chat;
+    }
+
+    public function test_amending_a_published_strategy_logs_each_changed_field(): void
+    {
+        $w = $this->world();
+        $chat = $this->published($w['owner'], $w['sales']);
+        $row = $chat->resources()->first();
+
+        $this->actingAs($w['owner'])->postJson(route('users-new-chat-resources-save.index'), [
+            'chat_id' => $chat->id,
+            'rows' => [['id' => $row->id, 'department_id' => $w['sales']->id, 'department_name' => 'Sales', 'budget' => 60000, 'fte' => 2, 'tools' => 'CPQ', 'notes' => null]],
+        ])->assertOk()->assertJsonCount(2, 'changes');
+
+        $this->assertSame('60000.00', $row->fresh()->budget);
+        $budget = StrategyResourceChange::where('field', 'budget')->first();
+        $this->assertSame('50000.00', $budget->old_value);
+        $this->assertSame('60000.00', $budget->new_value);
+        $this->assertSame($w['owner']->id, (int) $budget->user_id);
+        $this->assertSame(['budget', 'tools'], StrategyResourceChange::orderBy('field')->pluck('field')->all());
+    }
+
+    public function test_amending_with_unchanged_values_logs_nothing(): void
+    {
+        $w = $this->world();
+        $chat = $this->published($w['owner'], $w['sales']);
+        $row = $chat->resources()->first();
+
+        $this->actingAs($w['owner'])->postJson(route('users-new-chat-resources-save.index'), [
+            'chat_id' => $chat->id,
+            'rows' => [['id' => $row->id, 'department_id' => $w['sales']->id, 'department_name' => 'Sales', 'budget' => '50000.00', 'fte' => '2.00', 'tools' => '', 'notes' => '  ']],
+        ])->assertOk();
+
+        $this->assertSame(0, StrategyResourceChange::count());
+    }
+
+    public function test_rows_cannot_be_added_or_removed_after_publishing(): void
+    {
+        $w = $this->world();
+        $chat = $this->published($w['owner'], $w['sales']);
+        $row = $chat->resources()->first();
+
+        $this->actingAs($w['owner'])->postJson(route('users-new-chat-resources-save.index'), [
+            'chat_id' => $chat->id,
+            'rows' => [
+                ['id' => $row->id, 'department_id' => $w['sales']->id, 'department_name' => 'Sales', 'budget' => 50000],
+                ['department_id' => $w['eng']->id, 'department_name' => 'Engineering', 'budget' => 1],
+            ],
+        ])->assertStatus(422);
+
+        $this->actingAs($w['owner'])->postJson(route('users-new-chat-resources-save.index'), [
+            'chat_id' => $chat->id, 'rows' => [],
+        ])->assertStatus(422);
+
+        $this->assertSame(1, $chat->resources()->count());
+    }
+
+    public function test_only_the_publisher_may_amend(): void
+    {
+        $w = $this->world();
+        $chat = $this->published($w['owner'], $w['sales']);
+        // Same author, but the record says someone else published it.
+        $chat->forceFill(['published_by' => $w['head']->id])->save();
+        $row = $chat->resources()->first();
+
+        $this->actingAs($w['owner'])->postJson(route('users-new-chat-resources-save.index'), [
+            'chat_id' => $chat->id,
+            'rows' => [['id' => $row->id, 'department_id' => $w['sales']->id, 'department_name' => 'Sales', 'budget' => 1]],
+        ])->assertForbidden();
+    }
 }

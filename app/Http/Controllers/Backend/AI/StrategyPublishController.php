@@ -80,6 +80,10 @@ class StrategyPublishController extends Controller
             ];
         }
 
+        if ($chat->isPublished()) {
+            return $this->amend($chat, $user, $rows);
+        }
+
         DB::transaction(function () use ($chat, $rows) {
             $keep = [];
             foreach ($rows as $row) {
@@ -183,6 +187,53 @@ class StrategyPublishController extends Controller
     }
 
     // -------------------------------------------------------------------------
+
+    /**
+     * Edit a published strategy's rows in place. The set of rows is fixed once
+     * published; every field that actually changes is logged.
+     *
+     * @param  array<int, array<string, mixed>>  $rows
+     */
+    private function amend(SearchUserChat $chat, User $user, array $rows): JsonResponse
+    {
+        if ((int) $chat->published_by !== (int) $user->id) {
+            return response()->json(['error' => 'Only the person who published this strategy can change its resources.'], 403);
+        }
+
+        $existing = $chat->resources()->get()->keyBy('id');
+        $submitted = collect($rows)->pluck('id')->filter()->map(fn ($id) => (int) $id)->sort()->values()->all();
+        if (count($rows) !== count($submitted) || $submitted !== $existing->keys()->map(fn ($id) => (int) $id)->sort()->values()->all()) {
+            return response()->json(['error' => 'Rows cannot be added or removed after publishing.'], 422);
+        }
+
+        DB::transaction(function () use ($rows, $existing, $user) {
+            foreach ($rows as $row) {
+                $record = $existing[(int) $row['id']];
+                foreach (['budget', 'fte', 'tools', 'notes'] as $field) {
+                    $old = $this->normalise($field, $record->getRawOriginal($field));
+                    $new = $this->normalise($field, $row[$field]);
+                    if ($old === $new) {
+                        continue;
+                    }
+                    $record->changes()->create(['user_id' => $user->id, 'field' => $field, 'old_value' => $old, 'new_value' => $new]);
+                    $record->{$field} = $new;
+                }
+                $record->save();
+            }
+        });
+
+        return response()->json($this->payload($chat->fresh(), $user));
+    }
+
+    /** Compare amounts as fixed 2-dp strings and text as trimmed-or-null, so "50000" equals "50000.00". */
+    private function normalise(string $field, $value): ?string
+    {
+        if (in_array($field, ['budget', 'fte'], true)) {
+            return ($value === null || $value === '') ? null : number_format((float) $value, 2, '.', '');
+        }
+
+        return $this->text($value);
+    }
 
     private function aiFailed(): JsonResponse
     {
