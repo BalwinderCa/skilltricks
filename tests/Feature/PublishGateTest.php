@@ -10,6 +10,7 @@ use App\Models\StrategyResource;
 use App\Models\StrategyResourceChange;
 use App\Models\User;
 use App\Services\AI\AiProviderService;
+use App\Services\OrganizationService;
 use GuzzleHttp\Psr7\Response as PsrResponse;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Response as ClientResponse;
@@ -129,5 +130,33 @@ class PublishGateTest extends TestCase
 
         $chat->delete();
         $this->assertSame(0, StrategyResource::count());
+    }
+
+    public function test_owner_department_head_and_managers_can_publish_but_plain_members_cannot(): void
+    {
+        $w = $this->world();
+        $orgs = app(OrganizationService::class);
+
+        $this->assertTrue($orgs->canPublish($w['owner']), 'owner');
+        $this->assertTrue($orgs->canPublish($w['head']), 'department head');
+        $this->assertTrue($orgs->canPublish($w['manager']), 'has a direct report');
+        $this->assertFalse($orgs->canPublish($w['report']), 'has a manager, no reports');
+        $this->assertFalse($orgs->canPublish($w['member']), 'plain member');
+    }
+
+    public function test_a_user_without_an_organization_cannot_publish(): void
+    {
+        $loner = User::factory()->create(['email' => 'solo@example.com', 'user_type' => 'customer', 'organization_id' => null]);
+
+        $this->assertFalse(app(OrganizationService::class)->canPublish($loner));
+    }
+
+    public function test_heading_a_department_in_another_organization_does_not_count(): void
+    {
+        $w = $this->world();
+        $other = Organization::create(['domain' => 'globex.com', 'name' => 'Globex']);
+        Department::create(['organization_id' => $other->id, 'name' => 'Ops', 'color' => '#EF4444', 'head_user_id' => $w['member']->id]);
+
+        $this->assertFalse(app(OrganizationService::class)->canPublish($w['member']));
     }
 }

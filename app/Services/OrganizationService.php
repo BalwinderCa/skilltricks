@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Department;
 use App\Models\Organization;
 use App\Models\OrgContextVersion;
 use App\Models\OrgRole;
@@ -198,6 +199,23 @@ class OrganizationService
         return $email === ''
             ? $this->firstOrCreateDomain('user:'.$user->id)
             : $this->resolveForEmail($email);
+    }
+
+    /**
+     * May this user publish a strategy to their organization? The org chart
+     * decides, not seniority levels: the owner, a department head, or anyone
+     * with a direct report.
+     */
+    public function canPublish(User $user): bool
+    {
+        $orgId = $user->organization_id;
+        if (! $orgId) {
+            return false;
+        }
+
+        return Organization::where('id', $orgId)->where('owner_user_id', $user->id)->exists()
+            || Department::where('organization_id', $orgId)->where('head_user_id', $user->id)->exists()
+            || User::where('organization_id', $orgId)->where('manager_id', $user->id)->exists();
     }
 
     /**
