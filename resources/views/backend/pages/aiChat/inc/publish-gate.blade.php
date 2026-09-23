@@ -159,11 +159,12 @@
         if (!state.goals || !state.goals.length) return '';
         const holders = Object.fromEntries((state.roles || []).map(r => [r.id, r.member_count]));
         const rows = state.goals.map(g => {
-            const flag = g.org_role_id === null
+            // Flags ask for action, so only a draft shows them.
+            const flag = published ? '' : g.org_role_id === null
                 ? '<div class="pg-flag-red">No matching role — pick one</div>'
                 : (holders[g.org_role_id] === 0 ? '<div class="pg-flag-orange">Nobody holds this role yet</div>' : '');
             const picker = published
-                ? esc(g.org_role_name ?? '—')
+                ? esc(g.org_role_name ?? 'Not linked')
                 : `<select class="form-select form-select-sm" data-goal="${g.id}" ${busy ? 'disabled' : ''}>
                     ${g.org_role_id === null ? '<option value="" selected disabled>Pick a role…</option>' : ''}
                     ${(state.roles || []).map(r => `<option value="${r.id}" ${r.id === g.org_role_id ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}

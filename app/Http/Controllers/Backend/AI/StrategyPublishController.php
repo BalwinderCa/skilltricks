@@ -47,7 +47,10 @@ class StrategyPublishController extends Controller
             return $this->denied();
         }
 
-        $this->linker->autoLink($record);
+        // Links are final once published: only a draft is linked by name.
+        if (! $record->isPublished()) {
+            $this->linker->autoLink($record);
+        }
 
         return response()->json($this->payload($record, $request->user()));
     }
@@ -206,7 +209,11 @@ class StrategyPublishController extends Controller
             if (! $chat->resources()->exists()) {
                 return response()->json(['error' => 'Add at least one department\'s resources before publishing.'], 422);
             }
-            if (ExpectedState::where('search_user_chat_id', $chat->id)->whereNull('org_role_id')->exists()) {
+            $unlinked = ExpectedState::where('search_user_chat_id', $chat->id)
+                ->where(fn ($q) => $q->whereNull('org_role_id')
+                    ->orWhereDoesntHave('orgRole', fn ($r) => $r->where('organization_id', $user->organization_id)))
+                ->exists();
+            if ($unlinked) {
                 return response()->json(['error' => 'Link every goal to a role before publishing.'], 422);
             }
 
@@ -309,6 +316,12 @@ class StrategyPublishController extends Controller
         }
 
         return $this->text($value);
+    }
+
+    /** Is this goal linked to a role that still exists in the author's organization? */
+    private function linkedRole(ExpectedState $goal, User $user): bool
+    {
+        return $goal->orgRole !== null && (int) $goal->orgRole->organization_id === (int) $user->organization_id;
     }
 
     /** Re-read the strategy under a row lock; call inside a transaction. */
@@ -475,7 +488,7 @@ EOT;
             ->with('user:id,name')->orderByDesc('id')->get();
         $names = $rows->pluck('department_name', 'id');
 
-        $goals = ExpectedState::where('search_user_chat_id', $chat->id)->with('orgRole:id,name')->orderBy('id')->get();
+        $goals = ExpectedState::where('search_user_chat_id', $chat->id)->with('orgRole:id,name,organization_id')->orderBy('id')->get();
         $roles = $user->organization_id
             ? OrgRole::where('organization_id', $user->organization_id)->orderBy('name')->get(['id', 'name'])
             : collect();
@@ -498,8 +511,10 @@ EOT;
                 'id' => $g->id,
                 'role_text' => $g->role,
                 'action' => $g->recommended_action,
-                'org_role_id' => $g->org_role_id !== null ? (int) $g->org_role_id : null,
-                'org_role_name' => $g->orgRole?->name,
+                // A link to a role that was deleted, or that belongs to another
+                // organization, is no link at all.
+                'org_role_id' => $this->linkedRole($g, $user) ? (int) $g->org_role_id : null,
+                'org_role_name' => $this->linkedRole($g, $user) ? $g->orgRole->name : null,
             ])->values(),
             'roles' => $roles->map(fn (OrgRole $r) => [
                 'id' => $r->id,

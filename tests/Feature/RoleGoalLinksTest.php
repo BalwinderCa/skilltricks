@@ -74,7 +74,7 @@ class RoleGoalLinksTest extends TestCase
         $sales = $this->role($org, 'VP of  Sales');
         $rnd = $this->role($org, 'R&D --- Ops');
         $author = $this->member($org, 'ceo@acme.com');
-        $chat = $this->chatWithGoals($author, ['vp of sales ', 'R&D Ops', 'Chief Dreamer']);
+        $chat = $this->chatWithGoals($author, ['vp of sales ', 'R&D -- Ops', 'Chief Dreamer']);
 
         app(RoleGoalLinker::class)->autoLink($chat);
 
@@ -340,5 +340,34 @@ class RoleGoalLinksTest extends TestCase
             ->assertOk()
             ->assertSee(route('users-new-chat-goal-role.index'), false)
             ->assertSee('Who gets which goal', false);
+    }
+
+    public function test_a_goal_linked_to_a_deleted_role_counts_as_unlinked(): void
+    {
+        [$org, $author, $chat] = $this->publishable(['Director']);
+        $role = $this->role($org, 'Director');
+        ExpectedState::first()->update(['org_role_id' => $role->id]);
+        $role->delete();
+
+        $this->actingAs($author)->getJson(route('users-new-chat-resources.show', ['chat' => $chat->id]))
+            ->assertOk()
+            ->assertJsonPath('goals.0.org_role_id', null)
+            ->assertJsonPath('goals.0.org_role_name', null);
+        $this->postJson(route('users-new-chat-publish.index'), ['chat_id' => $chat->id])
+            ->assertStatus(422)
+            ->assertJsonPath('error', 'Link every goal to a role before publishing.');
+    }
+
+    public function test_opening_a_published_strategy_does_not_change_its_links(): void
+    {
+        $org = $this->org();
+        $this->role($org, 'Director');
+        $author = $this->member($org, 'ceo@acme.com');
+        $chat = $this->chatWithGoals($author, ['Director']);
+        $chat->forceFill(['status' => 'published', 'published_by' => $author->id, 'published_at' => now()])->save();
+
+        $this->actingAs($author)->getJson(route('users-new-chat-resources.show', ['chat' => $chat->id]))->assertOk();
+
+        $this->assertNull(ExpectedState::first()->org_role_id);
     }
 }

@@ -47,12 +47,13 @@ class RoleGoalLinker
     }
 
     /**
-     * Compare names the way the prompt shows them: DocumentContextService's
-     * sanitiser collapses whitespace and "---" runs, so the model can only
-     * echo that form back.
+     * Compare names loosely enough to survive the prompt: DocumentContextService's
+     * sanitiser turns "---" runs into "--", so both sides fold any run of two or
+     * more dashes (and the spaces around it) into one space, then collapse
+     * whitespace and case.
      */
     public static function normalise(string $name): string
     {
-        return mb_strtolower(trim(preg_replace('/\s*-{3,}\s*/', ' ', preg_replace('/\s+/', ' ', $name))));
+        return mb_strtolower(trim(preg_replace('/\s+/', ' ', preg_replace('/\s*-{2,}\s*/', ' ', $name))));
     }
 }
