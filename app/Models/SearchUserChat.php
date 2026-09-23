@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SearchUserChat extends Model
 {
@@ -26,6 +28,10 @@ class SearchUserChat extends Model
         'selected_scenario',
         'additional_context',
         'leadership_brief',
+        'organization_id',
+        'status',
+        'published_by',
+        'published_at',
     ];
 
     protected $casts = [
@@ -33,6 +39,12 @@ class SearchUserChat extends Model
         'total_tokens' => 'integer',
         'status1' => 'integer',
         'status2' => 'integer',
+        'published_at' => 'datetime',
+    ];
+
+    /** Matches the column default, so a freshly created model reads 'draft' too. */
+    protected $attributes = [
+        'status' => 'draft',
     ];
 
     public function user()
@@ -43,6 +55,23 @@ class SearchUserChat extends Model
     public function messages()
     {
         return $this->hasMany(SearchUserChatData::class, 'search_user_chat_id');
+    }
+
+    /** @return HasMany<StrategyResource, $this> */
+    public function resources()
+    {
+        return $this->hasMany(StrategyResource::class, 'search_user_chat_id');
+    }
+
+    /** @return BelongsTo<User, $this> */
+    public function publisher()
+    {
+        return $this->belongsTo(User::class, 'published_by');
+    }
+
+    public function isPublished(): bool
+    {
+        return $this->status === 'published';
     }
 
     public function isFirstMessage(): bool
