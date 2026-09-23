@@ -50,6 +50,7 @@ class ExpectedState extends Model
         'search_user_chat_id',
         'role',
         'recommended_action',
+        'org_role_id',
         'decision',
         'decision_rationale',
         'decided_at',
@@ -120,5 +121,11 @@ class ExpectedState extends Model
     public function latestIntervention(): HasOne
     {
         return $this->hasOne(Intervention::class, 'expected_state_id')->latestOfMany();
+    }
+
+    /** The organization role this goal is for (Features spec, phase 2). */
+    public function orgRole(): BelongsTo
+    {
+        return $this->belongsTo(OrgRole::class);
     }
 }
