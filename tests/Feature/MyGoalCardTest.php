@@ -244,4 +244,28 @@ class MyGoalCardTest extends TestCase
             ->assertSee('once your organization gives you a role')
             ->assertDontSee('Launch the upgrade motion');
     }
+
+    public function test_the_author_sees_obstacles_once_published(): void
+    {
+        $w = $this->world();
+        $chat = $this->publishedGoal($w);
+        GoalObstacle::create(['expected_state_id' => $this->salesGoalId(), 'user_id' => $w['rep']->id, 'body' => 'Missing budget']);
+
+        $this->actingAs($w['ceo'])->getJson(route('users-new-chat-resources.show', ['chat' => $chat->id]))
+            ->assertOk()
+            ->assertJsonPath('obstacles.0.body', 'Missing budget')
+            ->assertJsonPath('obstacles.0.user', $w['rep']->name)
+            ->assertJsonPath('obstacles.0.role', 'Sales');
+    }
+
+    public function test_a_draft_reports_no_obstacles(): void
+    {
+        $w = $this->world();
+        $chat = $this->publishedGoal($w, draft: true);
+        GoalObstacle::create(['expected_state_id' => $this->salesGoalId(), 'user_id' => $w['rep']->id, 'body' => 'x']);
+
+        $this->actingAs($w['ceo'])->getJson(route('users-new-chat-resources.show', ['chat' => $chat->id]))
+            ->assertOk()
+            ->assertJsonCount(0, 'obstacles');
+    }
 }

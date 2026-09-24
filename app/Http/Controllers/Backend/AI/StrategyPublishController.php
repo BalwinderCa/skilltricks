@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Backend\AI;
 use App\Http\Controllers\Controller;
 use App\Models\Department;
 use App\Models\ExpectedState;
+use App\Models\GoalObstacle;
 use App\Models\OrgRole;
 use App\Models\SearchUserChat;
 use App\Models\StrategyResource;
@@ -497,6 +498,11 @@ EOT;
                 ->selectRaw('org_role_id, count(*) as n')->groupBy('org_role_id')->pluck('n', 'org_role_id')
             : collect();
 
+        $obstacles = $chat->isPublished()
+            ? GoalObstacle::whereIn('expected_state_id', $goals->pluck('id'))->with('user:id,name')->orderByDesc('id')->get()
+            : collect();
+        $goalRoles = $goals->mapWithKeys(fn (ExpectedState $g) => [$g->id => $g->orgRole->name ?? $g->role]);
+
         return [
             'status' => $chat->status ?? 'draft',
             'is_publisher' => $chat->isPublished() && (int) $chat->published_by === (int) $user->id,
@@ -520,6 +526,13 @@ EOT;
                 'id' => $r->id,
                 'name' => $r->name,
                 'member_count' => (int) ($holders[$r->id] ?? 0),
+            ])->values(),
+            'obstacles' => $obstacles->map(fn (GoalObstacle $o) => [
+                'goal_id' => $o->expected_state_id,
+                'role' => $goalRoles[$o->expected_state_id] ?? '',
+                'user' => $o->user?->name,
+                'body' => $o->body,
+                'at' => $o->created_at?->toIso8601String(),
             ])->values(),
             'rows' => $rows->map(fn (StrategyResource $r) => [
                 'id' => $r->id,

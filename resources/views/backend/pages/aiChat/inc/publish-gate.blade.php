@@ -155,6 +155,12 @@
         </tr>`;
     }
 
+    function obstaclesHtml() {
+        if (!state.obstacles || !state.obstacles.length) return '';
+        return `<div class="pg-history"><strong>Reported obstacles</strong><ul class="mb-0">${state.obstacles.map(o =>
+            `<li>${esc(new Date(o.at).toLocaleString())} — ${esc(o.user)} (${esc(o.role)}): ${esc(o.body)}</li>`).join('')}</ul></div>`;
+    }
+
     function goalsHtml(published) {
         if (!state.goals || !state.goals.length) return '';
         const holders = Object.fromEntries((state.roles || []).map(r => [r.id, r.member_count]));
@@ -221,6 +227,7 @@
             ${error ? `<div class="pg-error">${esc(error)}</div>` : ''}
             ${busy ? '<div class="pg-sub">Working…</div>' : ''}
             ${goalsHtml(published)}
+            ${obstaclesHtml()}
             <div class="table-responsive">
                 <table class="table table-sm align-middle mb-2">
                     <thead><tr><th>Department</th><th>Budget (${esc(state.currency)})</th><th>People (FTE)</th><th>Tools</th><th>Notes</th><th></th></tr></thead>

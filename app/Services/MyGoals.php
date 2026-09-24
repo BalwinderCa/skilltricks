@@ -58,7 +58,8 @@ class MyGoals
 
         // ponytail: two queries per card (company goal, resources); fine for a
         // handful of published strategies, batch them if a dashboard shows dozens.
-        return $goals->map(fn (ExpectedState $g) => [
+        /** @var Collection<int, array<string, mixed>> $cards */
+        $cards = $goals->map(fn (ExpectedState $g) => [
             'goal' => $g,
             'strategy' => $g->searchUserChat,
             'company_goal' => $this->companyGoal($g->searchUserChat),
@@ -69,6 +70,8 @@ class MyGoals
             'response' => $responses->get($g->id),
             'obstacles' => $obstacles->get($g->id, collect()),
         ]);
+
+        return $cards;
     }
 
     /** The strategy's first question; the chat row has no goal column. */
