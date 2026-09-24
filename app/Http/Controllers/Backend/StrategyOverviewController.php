@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Backend;
 
 use App\Http\Controllers\Controller;
 use App\Models\SearchUserChat;
+use App\Services\DriftIndex;
 use App\Services\OrganizationService;
 use App\Services\Recourse;
 use App\Services\StrategyOverview;
@@ -36,13 +37,19 @@ class StrategyOverviewController extends Controller
         return view('backend.pages.strategies.show', $detail);
     }
 
-    public function recourse(Request $request, $chat, Recourse $recourse): RedirectResponse
+    public function recourse(Request $request, $chat, Recourse $recourse, DriftIndex $drift): RedirectResponse
     {
         abort_unless($this->orgs->isLeader($request->user()), 403);
         $record = SearchUserChat::whereKey((int) $chat)->where('status', 'published')
             ->where('organization_id', (int) $request->user()->organization_id)->first();
         abort_unless($record, 404);
 
+        // Each call is a paid AI request: only a strategy in severe drift gets one.
+        if ($drift->evaluate($record, alert: false)['level'] !== 'red') {
+            flash(localize('Recourse is suggested for strategies in severe drift only.'))->info();
+
+            return back();
+        }
         if ($recourse->suggest($record, $request->user())) {
             flash(localize('Recourse options are ready'))->success();
         } else {

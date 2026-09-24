@@ -377,4 +377,61 @@ class CommandDashboardTest extends TestCase
             ->assertSee('Severe Drift')
             ->assertSee('1 goal blocked');
     }
+
+    public function test_recourse_is_only_generated_for_a_strategy_in_severe_drift(): void
+    {
+        $w = $this->world();
+        $this->progress($w['rep'], 'Sales', 'in_progress', 50); // on baseline → green
+        $ai = Mockery::mock(AiProviderService::class)->shouldIgnoreMissing();
+        $ai->shouldReceive('generate')->never();
+        $this->instance(AiProviderService::class, $ai);
+
+        $this->actingAs($w['ceo'])->post(route('strategies.recourse', $w['chat']->id))->assertRedirect();
+
+        $this->assertNull($w['chat']->fresh()->recourse);
+    }
+
+    public function test_the_recourse_route_is_throttled(): void
+    {
+        $route = app('router')->getRoutes()->getByName('strategies.recourse');
+
+        $this->assertTrue(collect($route->gatherMiddleware())->contains(fn ($m) => str_starts_with($m, 'throttle:')));
+    }
+
+    public function test_projected_value_only_for_a_plain_numeric_target(): void
+    {
+        $w = $this->world();
+        $this->progress($w['rep'], 'Sales', 'in_progress', 30);
+        $sales = fn () => app(DriftIndex::class)->evaluate($w['chat']->fresh(), alert: false)['goals']->firstWhere('goal.role', 'Sales');
+
+        $this->goal('Sales')->update(['target_value' => '1,500']);
+        $this->assertEqualsWithDelta(900.0, $sales()['projected_value'], 0.01);
+
+        $this->goal('Sales')->update(['target_value' => 'Q3 2026 launch']);
+        $this->assertNull($sales()['projected_value']);
+    }
+
+    public function test_no_projected_completion_in_the_grace_period(): void
+    {
+        $w = $this->world();
+        $w['chat']->forceFill(['published_at' => now()->subDay()])->save();
+        $this->progress($w['rep'], 'Sales', 'in_progress', 20);
+
+        $state = app(DriftIndex::class)->evaluate($w['chat']->fresh(), alert: false);
+
+        $this->assertNull($state['goals']->firstWhere('goal.role', 'Sales')['projected_completion']);
+        $this->assertNull($state['projected']);
+    }
+
+    public function test_no_strategy_projection_while_a_dated_goal_has_not_reported(): void
+    {
+        $w = $this->world();
+        $this->goal('Product')->update(['target_date' => now()->addDays(10)->toDateString()]);
+        $this->progress($w['rep'], 'Sales', 'in_progress', 50);
+
+        $state = app(DriftIndex::class)->evaluate($w['chat']->fresh(), alert: false);
+
+        $this->assertNotNull($state['goals']->firstWhere('goal.role', 'Sales')['projected_completion']);
+        $this->assertNull($state['projected']);
+    }
 }

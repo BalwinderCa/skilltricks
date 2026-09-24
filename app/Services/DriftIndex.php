@@ -56,18 +56,23 @@ class DriftIndex
         $elapsed = max(0, min($window, now()->getTimestamp() - $start->getTimestamp()));
         $expected = 100 * $elapsed / $window;
         $metrics['expected'] = round($expected, 1);
-        if ($observed > 0 && $elapsed > 0) {
-            $metrics['projected_completion'] = $start->copy()->addSeconds((int) round($elapsed * 100 / $observed));
-        }
+        // Inside the grace period there is too little history to project from:
+        // 20% after a few hours would "finish" in two days.
         if ($expected < self::GRACE) {
             return $metrics;
+        }
+        if ($observed > 0) {
+            $metrics['projected_completion'] = $start->copy()->addSeconds((int) round($elapsed * 100 / $observed));
         }
 
         $metrics['measured'] = true;
         $metrics['drift'] = round(max(0, ($expected - $observed) / $expected * 100), 1);
         $metrics['days_behind'] = $expected > $observed ? (int) round(($expected - $observed) / 100 * $window / 86400) : 0;
-        if (preg_match('/-?\d+(?:\.\d+)?/', (string) $goal->target_value, $m)) {
-            $metrics['projected_value'] = round((float) $m[0] * min(1, $observed / $expected), 1);
+        // Only a plainly numeric target ("25", "1,500", "$50k" is not): the first
+        // digit in "Q3 2026 launch" or "from 8% to 5%" is not a target.
+        $target = str_replace([',', '%', '$', ' '], '', trim((string) $goal->target_value));
+        if (is_numeric($target)) {
+            $metrics['projected_value'] = round((float) $target * min(1, $observed / $expected), 1);
         }
 
         return $metrics;
@@ -84,7 +89,12 @@ class DriftIndex
         $index = $measured->isEmpty() ? null : round((float) $measured->avg('drift'), 1);
         $level = self::levelFor($index);
         $worst = $measured->sortByDesc('drift')->first()['goal'] ?? null;
-        $projected = $rows->pluck('projected_completion')->filter()->max();
+        // A strategy finishes when its last dated goal does; while any dated goal
+        // has no projection yet, there is no honest date to show.
+        $dated = $rows->whereNotNull('expected');
+        $projected = $dated->isNotEmpty() && $dated->every(fn (array $row) => $row['projected_completion'] !== null)
+            ? $dated->pluck('projected_completion')->max()
+            : null;
 
         if ($chat->isPublished()) {
             $chat->forceFill(['drift_index' => $index, 'drift_level' => $level, 'drift_checked_at' => now()])->save();

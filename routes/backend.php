@@ -360,7 +360,7 @@ Route::group(
                 // Executive view: every published strategy in the organization, leaders only
                 Route::get('/strategies', [StrategyOverviewController::class, 'index'])->name('strategies.index');
                 Route::get('/strategies/{chat}', [StrategyOverviewController::class, 'show'])->name('strategies.show');
-                Route::post('/strategies/{chat}/recourse', [StrategyOverviewController::class, 'recourse'])->name('strategies.recourse');
+                Route::post('/strategies/{chat}/recourse', [StrategyOverviewController::class, 'recourse'])->middleware('throttle:10,1')->name('strategies.recourse');
                 Route::post('/strategies/settings', [StrategyOverviewController::class, 'settings'])->name('strategies.settings');
                 Route::get('/userchathistory', [AiChatController::class, 'userchathistory'])->name('userchathistory.index');
                 Route::get('/user-view-chathistory/{id}', [AiChatController::class, 'user_view_chathistory'])->name('user-view-chathistory.index');

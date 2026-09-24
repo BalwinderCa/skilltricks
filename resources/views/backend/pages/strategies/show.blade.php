@@ -32,7 +32,7 @@
                     <div class="small text-muted">{{ localize('Drift index') }}</div>
                     <div class="fs-5 fw-bold">@include('backend.pages.strategies.drift-pill', ['index' => $command['drift_index'], 'level' => $command['drift_level']])</div>
                     <div class="small text-muted">
-                        @if ($command['projected']){{ localize('Projected completion') }}: {{ $command['projected']->toFormattedDateString() }} ({{ localize('at current pace') }})@else{{ localize('No progress reported yet') }}@endif
+                        @if ($command['projected']){{ localize('Projected completion') }}: {{ $command['projected']->toFormattedDateString() }} ({{ localize('at current pace') }})@else{{ localize('Not enough progress reported to project yet') }}@endif
                     </div>
                 </div></div></div>
             </div>
