@@ -76,6 +76,7 @@ use App\Http\Controllers\Backend\Settings\PWASettingsController;
 use App\Http\Controllers\Backend\Settings\ThemeController;
 use App\Http\Controllers\Backend\SettingsController;
 use App\Http\Controllers\Backend\StaffsController;
+use App\Http\Controllers\Backend\StrategyOverviewController;
 use App\Http\Controllers\Backend\SubscribersController;
 use App\Http\Controllers\Backend\Subscription\SubscriptionHistoryController;
 use App\Http\Controllers\Backend\Subscription\SubscriptionsController;
@@ -355,6 +356,9 @@ Route::group(
                 Route::post('/my-goals/suggest', [MyGoalController::class, 'suggestStart'])->name('my-goals.suggest');
                 Route::post('/my-goals/commit', [MyGoalController::class, 'commit'])->name('my-goals.commit');
                 Route::post('/my-goals/revise', [MyGoalController::class, 'revise'])->name('my-goals.revise');
+                // Executive view: every published strategy in the organization, leaders only
+                Route::get('/strategies', [StrategyOverviewController::class, 'index'])->name('strategies.index');
+                Route::get('/strategies/{chat}', [StrategyOverviewController::class, 'show'])->name('strategies.show');
                 Route::get('/userchathistory', [AiChatController::class, 'userchathistory'])->name('userchathistory.index');
                 Route::get('/user-view-chathistory/{id}', [AiChatController::class, 'user_view_chathistory'])->name('user-view-chathistory.index');
                 Route::get('/users-chat-search-delete/{id}', [AiChatController::class, 'userschat_search_delete'])->name('users-chat-search-delete.index');
