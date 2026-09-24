@@ -75,7 +75,7 @@ class MyGoals
     }
 
     /** The strategy's first question; the chat row has no goal column. */
-    private function companyGoal(SearchUserChat $chat): string
+    public function companyGoal(SearchUserChat $chat): string
     {
         $first = SearchUserChatData::where('search_user_chat_id', $chat->id)->orderBy('id')->value('search');
         if (filled($first)) {

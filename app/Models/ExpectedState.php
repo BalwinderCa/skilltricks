@@ -51,6 +51,7 @@ class ExpectedState extends Model
         'role',
         'recommended_action',
         'org_role_id',
+        'starting_options',
         'decision',
         'decision_rationale',
         'decided_at',
@@ -70,6 +71,7 @@ class ExpectedState extends Model
     ];
 
     protected $casts = [
+        'starting_options' => 'array',
         'resources_committed' => 'boolean',
         'target_date' => 'date',
         'decided_at' => 'datetime',

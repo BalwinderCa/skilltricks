@@ -15,9 +15,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class GoalResponse extends Model
 {
-    protected $fillable = ['expected_state_id', 'user_id', 'decision', 'decided_at'];
+    protected $fillable = ['expected_state_id', 'user_id', 'decision', 'decided_at', 'starting_point', 'committed_at', 'starting_history'];
 
-    protected $casts = ['decided_at' => 'datetime'];
+    protected $casts = ['decided_at' => 'datetime', 'committed_at' => 'datetime', 'starting_history' => 'array'];
 
     /** @return BelongsTo<ExpectedState, $this> */
     public function goal(): BelongsTo
