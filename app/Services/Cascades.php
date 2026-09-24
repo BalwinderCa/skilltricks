@@ -137,12 +137,17 @@ class Cascades
     {
         $drafts = $this->itemsFor($leader, $root, $parent)->whereNull('sent_at');
         $removeIds = collect($remove)->map(fn ($id) => (int) $id);
+        // Re-checked at send time: someone who moved teams (or organizations)
+        // since the draft was written must not receive it.
+        $reportIds = $this->reportsOf($leader)->pluck('id')->map(fn ($id) => (int) $id);
         $sent = collect();
 
-        DB::transaction(function () use ($drafts, $texts, $removeIds, $sent) {
+        DB::transaction(function () use ($drafts, $texts, $removeIds, $reportIds, $sent) {
             foreach ($drafts as $draft) {
-                $text = trim((string) ($texts[$draft->id] ?? $draft->text));
-                if ($removeIds->contains((int) $draft->id) || $text === '') {
+                // A submitted field wins even when blank: middleware turns '' into
+                // null, and falling back to the draft would send what was cleared.
+                $text = array_key_exists($draft->id, $texts) ? trim((string) $texts[$draft->id]) : $draft->text;
+                if ($removeIds->contains((int) $draft->id) || $text === '' || ! $reportIds->contains((int) $draft->assignee_user_id)) {
                     $draft->delete();
 
                     continue;

@@ -228,4 +228,30 @@ class GoalCascadeTest extends TestCase
         $this->actingAs($w['ceo'])->get(route('strategies.show', $w['chat']->id))
             ->assertOk()->assertSee('2 sub-goals cascaded (1 completed)');
     }
+
+    public function test_a_blanked_draft_is_dropped_not_sent(): void
+    {
+        $w = $this->world();
+        $this->suggestFor($w);
+        [$first, $second] = GoalCascade::orderBy('id')->get()->all();
+
+        $this->actingAs($w['vp'])->post(route('my-goals.cascade.send'), ['goal_id' => $w['goal']->id, 'texts' => [$first->id => '', $second->id => '   ']])->assertRedirect();
+
+        $this->assertSame(0, GoalCascade::count());
+        $this->assertSame(0, WrNotification::count());
+    }
+
+    public function test_a_draft_for_someone_no_longer_a_direct_report_is_not_sent(): void
+    {
+        Mail::fake();
+        $w = $this->world();
+        $this->suggestFor($w);
+        $w['lead2']->forceFill(['manager_id' => $w['ceo']->id])->save(); // moved teams after the draft
+
+        $this->actingAs($w['vp'])->post(route('my-goals.cascade.send'), ['goal_id' => $w['goal']->id])->assertRedirect();
+
+        $this->assertSame([$w['lead1']->id], GoalCascade::whereNotNull('sent_at')->pluck('assignee_user_id')->map(fn ($id) => (int) $id)->all());
+        $this->assertSame(0, GoalCascade::where('assignee_user_id', $w['lead2']->id)->count());
+        Mail::assertNotQueued(EmailManager::class, fn ($m) => $m->hasTo('lead2@acme.com'));
+    }
 }
