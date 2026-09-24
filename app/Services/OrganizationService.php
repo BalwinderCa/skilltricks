@@ -8,6 +8,7 @@ use App\Models\OrgContextVersion;
 use App\Models\OrgRole;
 use App\Models\User;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class OrganizationService
@@ -202,11 +203,10 @@ class OrganizationService
     }
 
     /**
-     * May this user publish a strategy to their organization? The org chart
-     * decides, not seniority levels: the owner, a department head, or anyone
-     * with a direct report.
+     * A leader, by the org chart rather than seniority levels: the owner, a
+     * department head, or anyone with a direct report.
      */
-    public function canPublish(User $user): bool
+    public function isLeader(User $user): bool
     {
         $orgId = $user->organization_id;
         if (! $orgId) {
@@ -216,6 +216,37 @@ class OrganizationService
         return Organization::where('id', $orgId)->where('owner_user_id', $user->id)->exists()
             || Department::where('organization_id', $orgId)->where('head_user_id', $user->id)->exists()
             || User::where('organization_id', $orgId)->where('manager_id', $user->id)->exists();
+    }
+
+    /** May this user publish a strategy to their organization? Leaders may. */
+    public function canPublish(User $user): bool
+    {
+        return $this->isLeader($user);
+    }
+
+    /**
+     * The user's manager, that manager's manager, and so on, inside the user's
+     * organization. Stops at a loop, at the organization's edge, or after 20.
+     *
+     * @return Collection<int, User>
+     */
+    public function managerChain(User $user): Collection
+    {
+        $chain = collect();
+        $seen = [(int) $user->id => true];
+        $current = $user;
+
+        for ($step = 0; $step < 20 && $current->manager_id; $step++) {
+            $manager = User::where('id', $current->manager_id)->where('organization_id', $user->organization_id)->first();
+            if (! $manager || isset($seen[(int) $manager->id])) {
+                break;
+            }
+            $seen[(int) $manager->id] = true;
+            $chain->push($manager);
+            $current = $manager;
+        }
+
+        return $chain;
     }
 
     /**
