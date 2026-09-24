@@ -350,6 +350,8 @@ Route::group(
                 Route::post('/users-new-chat-resources-save', [StrategyPublishController::class, 'save'])->name('users-new-chat-resources-save.index');
                 Route::post('/users-new-chat-publish', [StrategyPublishController::class, 'publish'])->name('users-new-chat-publish.index');
                 Route::post('/users-new-chat-goal-role', [StrategyPublishController::class, 'assignRole'])->name('users-new-chat-goal-role.index');
+                Route::post('/users-new-chat-rank-goals', [StrategyPublishController::class, 'rankGoals'])->middleware('throttle:10,1')->name('users-new-chat-rank-goals.index');
+                Route::post('/users-new-chat-goal-weight', [StrategyPublishController::class, 'setWeight'])->name('users-new-chat-goal-weight.index');
                 // "My goal" card: respond to a published goal, report an obstacle
                 Route::post('/my-goals/decide', [MyGoalController::class, 'decide'])->name('my-goals.decide');
                 Route::post('/my-goals/obstacle', [MyGoalController::class, 'reportObstacle'])->name('my-goals.obstacle');

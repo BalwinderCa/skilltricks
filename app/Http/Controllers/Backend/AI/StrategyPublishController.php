@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Services\AI\AiProviderService;
 use App\Services\AI\DocumentContextService;
 use App\Services\Alignment;
+use App\Services\ImpactRanking;
 use App\Services\OrganizationService;
 use App\Services\RoleGoalLinker;
 use Illuminate\Http\JsonResponse;
@@ -271,6 +272,53 @@ class StrategyPublishController extends Controller
         };
     }
 
+    public function rankGoals(Request $request, ImpactRanking $ranking): JsonResponse
+    {
+        $chat = $this->ownChat($request, $request->input('chat_id'));
+        if (! $chat) {
+            return $this->denied();
+        }
+        if ($chat->isPublished()) {
+            return response()->json(['error' => 'Rank before publishing; a published strategy is final.'], 409);
+        }
+        if (! ExpectedState::where('search_user_chat_id', $chat->id)->exists()) {
+            return response()->json(['error' => 'This strategy has no goals to rank yet.'], 422);
+        }
+        if (! $ranking->rank($chat, $request->user())) {
+            return response()->json(['error' => 'Could not rank the goals right now. Try again.'], 502);
+        }
+
+        return response()->json($this->payload($chat->fresh(), $request->user()));
+    }
+
+    public function setWeight(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'chat_id' => 'required|integer',
+            'goal_id' => 'required|integer',
+            'weight' => 'required|integer|min:1|max:5',
+        ]);
+        $chat = $this->ownChat($request, $data['chat_id']);
+        if (! $chat) {
+            return $this->denied();
+        }
+        $goal = ExpectedState::whereKey($data['goal_id'])->where('search_user_chat_id', $chat->id)->first();
+        if (! $goal) {
+            return response()->json(['error' => 'That goal is not part of this strategy.'], 422);
+        }
+
+        $saved = DB::transaction(function () use ($chat, $goal, $data) {
+            if ($this->publishedUnderLock($chat)) {
+                return false;
+            }
+            $goal->forceFill(['weight' => (int) $data['weight']])->save();
+
+            return true;
+        });
+
+        return $saved ? response()->json($this->payload($chat->fresh(), $request->user())) : $this->publishedMeanwhile();
+    }
+
     // -------------------------------------------------------------------------
 
     /**
@@ -522,6 +570,9 @@ EOT;
                 // organization, is no link at all.
                 'org_role_id' => $this->linkedRole($g, $user) ? (int) $g->org_role_id : null,
                 'org_role_name' => $this->linkedRole($g, $user) ? $g->orgRole->name : null,
+                'impact_score' => $g->impact_score,
+                'impact_reason' => $g->impact_reason,
+                'weight' => $g->weight,
             ])->values(),
             'roles' => $roles->map(fn (OrgRole $r) => [
                 'id' => $r->id,

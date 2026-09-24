@@ -120,4 +120,57 @@ class ImpactRankingTest extends TestCase
         $w['productGoal']->update(['weight' => 1]);
         $this->assertEqualsWithDelta(33.3, $drift->evaluate($w['chat']->fresh(), alert: false)['index'], 0.1);
     }
+
+    public function test_the_author_ranks_goals_from_the_publish_card(): void
+    {
+        $w = $this->world();
+        $this->fakeAi(json_encode(['scores' => [['id' => $w['salesGoal']->id, 'score' => 9, 'reason' => 'Decisive'], ['id' => $w['productGoal']->id, 'score' => 3, 'reason' => 'Enabler']]]));
+
+        $this->actingAs($w['ceo'])->postJson(route('users-new-chat-rank-goals.index'), ['chat_id' => $w['chat']->id])
+            ->assertOk()
+            ->assertJsonPath('goals.0.impact_score', 9)
+            ->assertJsonPath('goals.0.weight', 5)
+            ->assertJsonPath('goals.1.impact_reason', 'Enabler');
+    }
+
+    public function test_ranking_is_refused_after_publishing_and_reports_ai_failure(): void
+    {
+        $w = $this->world();
+        $this->fakeAi('nope', 500);
+        $this->actingAs($w['ceo'])->postJson(route('users-new-chat-rank-goals.index'), ['chat_id' => $w['chat']->id])->assertStatus(502);
+
+        $this->publish($w);
+        $this->actingAs($w['ceo'])->postJson(route('users-new-chat-rank-goals.index'), ['chat_id' => $w['chat']->id])->assertStatus(409);
+        $this->actingAs($w['rep'])->postJson(route('users-new-chat-rank-goals.index'), ['chat_id' => $w['chat']->id])->assertForbidden();
+    }
+
+    public function test_the_author_sets_a_weight_until_publishing(): void
+    {
+        $w = $this->world();
+        $other = SearchUserChat::create(['user_id' => $w['ceo']->id, 'status1' => 0]);
+        $foreignGoal = ExpectedState::create(['search_user_chat_id' => $other->id, 'role' => 'X', 'recommended_action' => 'Y']);
+        $post = fn (array $body) => $this->actingAs($w['ceo'])->postJson(route('users-new-chat-goal-weight.index'), $body + ['chat_id' => $w['chat']->id]);
+
+        $post(['goal_id' => $w['salesGoal']->id, 'weight' => 3])->assertOk();
+        $this->assertSame(3, $w['salesGoal']->fresh()->weight);
+        $post(['goal_id' => $w['salesGoal']->id, 'weight' => 6])->assertStatus(422);
+        $post(['goal_id' => $foreignGoal->id, 'weight' => 2])->assertStatus(422);
+
+        $this->publish($w);
+        $post(['goal_id' => $w['salesGoal']->id, 'weight' => 1])->assertStatus(409);
+        $this->assertSame(3, $w['salesGoal']->fresh()->weight);
+    }
+
+    public function test_the_pages_show_rank_controls_and_scores(): void
+    {
+        $w = $this->world();
+        $w['salesGoal']->update(['impact_score' => 8, 'weight' => 4]);
+
+        $this->actingAs($w['ceo'])->get('/dashboard/users-new-chat/'.$w['chat']->id)
+            ->assertOk()->assertSee(route('users-new-chat-rank-goals.index'), false)->assertSee(route('users-new-chat-goal-weight.index'), false);
+
+        $this->publish($w);
+        $this->actingAs($w['ceo'])->get(route('strategies.show', $w['chat']->id))
+            ->assertOk()->assertSee('8/10')->assertSee('weight 4');
+    }
 }

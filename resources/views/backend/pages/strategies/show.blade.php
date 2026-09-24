@@ -96,12 +96,13 @@
                 <h6>{{ localize('Goals') }}</h6>
                 <div class="table-responsive">
                     <table class="table table-sm align-middle mb-0">
-                        <thead><tr><th>{{ localize('Role') }}</th><th>{{ localize('Goal') }}</th><th>{{ localize('People') }}</th><th>{{ localize('Committed') }}</th><th>{{ localize('Responses') }}</th><th>{{ localize('Target vs projected') }}</th><th>{{ localize('OI drift') }}</th></tr></thead>
+                        <thead><tr><th>{{ localize('Role') }}</th><th>{{ localize('Goal') }}</th><th>{{ localize('Impact') }}</th><th>{{ localize('People') }}</th><th>{{ localize('Committed') }}</th><th>{{ localize('Responses') }}</th><th>{{ localize('Target vs projected') }}</th><th>{{ localize('OI drift') }}</th></tr></thead>
                         <tbody>
                             @foreach ($goals as $row)
                                 <tr>
                                     <td>{{ $row['role'] }}</td>
                                     <td>{{ $row['goal']->recommended_action }}</td>
+                                    <td class="small">@if ($row['goal']->impact_score)<strong title="{{ $row['goal']->impact_reason }}">{{ $row['goal']->impact_score }}/10</strong><br>@endif weight {{ $row['goal']->weight ?? 1 }}</td>
                                     <td>{{ $row['holders'] }}</td>
                                     <td>{{ $row['committed'] }}</td>
                                     <td class="small">

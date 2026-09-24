@@ -29,6 +29,8 @@
         save: '{{ route('users-new-chat-resources-save.index') }}',
         publish: '{{ route('users-new-chat-publish.index') }}',
         goalRole: '{{ route('users-new-chat-goal-role.index') }}',
+        rankGoals: '{{ route('users-new-chat-rank-goals.index') }}',
+        goalWeight: '{{ route('users-new-chat-goal-weight.index') }}',
     };
     const chatId = {{ (int) $id }};
     const csrf = '{{ csrf_token() }}';
@@ -177,7 +179,15 @@
     function goalsHtml(published) {
         if (!state.goals || !state.goals.length) return '';
         const holders = Object.fromEntries((state.roles || []).map(r => [r.id, r.member_count]));
-        const rows = state.goals.map(g => {
+        // Notion Epic 1: once scored, highest impact first; unscored keep their order.
+        const ordered = [...state.goals].sort((a, b) => (b.impact_score ?? -1) - (a.impact_score ?? -1));
+        const rows = ordered.map(g => {
+            const impact = g.impact_score === null || g.impact_score === undefined ? '<span class="pg-hint">—</span>'
+                : `<strong title="${esc(g.impact_reason ?? '')}">${g.impact_score}/10</strong>`;
+            const weight = published ? `weight ${g.weight ?? 1}`
+                : `<select class="form-select form-select-sm" data-weight-goal="${g.id}" ${busy ? 'disabled' : ''} style="width:auto;display:inline-block">
+                    ${[1, 2, 3, 4, 5].map(n => `<option value="${n}" ${(g.weight ?? 1) === n ? 'selected' : ''}>weight ${n}</option>`).join('')}
+                   </select>`;
             // Flags ask for action, so only a draft shows them.
             const flag = published ? '' : g.org_role_id === null
                 ? '<div class="pg-flag-red">No matching role — pick one</div>'
@@ -188,13 +198,27 @@
                     ${g.org_role_id === null ? '<option value="" selected disabled>Pick a role…</option>' : ''}
                     ${(state.roles || []).map(r => `<option value="${r.id}" ${r.id === g.org_role_id ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}
                    </select>`;
-            return `<tr><td>${esc(g.action)}<div class="pg-role-text">AI role: ${esc(g.role_text)}</div></td><td style="min-width:180px">${picker}${flag}</td></tr>`;
+return `<tr><td>${esc(g.action)}<div class="pg-role-text">AI role: ${esc(g.role_text)}</div></td><td style="min-width:180px">${picker}${flag}</td><td style="min-width:150px">${impact}<div>${weight}</div></td></tr>`;
         }).join('');
         const noRoles = !published && !(state.roles || []).length
             ? '<div class="pg-hint">Your organization has no roles yet. Add them on the Roles page, then reload.</div>' : '';
-        return `<div class="pg-goals"><strong>Who gets which goal</strong>${noRoles}
+        return `<div class="pg-goals"><strong>Who gets which goal</strong>${published ? '' : ` <button type="button" class="btn btn-sm btn-outline-secondary ms-2" data-act="rank" ${busy ? 'disabled' : ''}>Rank by impact</button>`}${noRoles}
             <div class="table-responsive"><table class="table table-sm align-middle mb-0">
-            <thead><tr><th>Goal</th><th>Role</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+            <thead><tr><th>Goal</th><th>Role</th><th>Impact</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+    }
+
+    async function rankGoals() {
+        busy = true; error = ''; render();
+        try { state = await call(urls.rankGoals, { chat_id: chatId }); }
+        catch (e) { error = e.message; }
+        busy = false; render();
+    }
+
+    async function setWeight(goalId, weight) {
+        busy = true; error = ''; render();
+        try { state = await call(urls.goalWeight, { chat_id: chatId, goal_id: goalId, weight }); }
+        catch (e) { error = e.message; }
+        busy = false; render();
     }
 
     async function assignRole(goalId, roleId) {
@@ -268,11 +292,13 @@
         if (rm) return removeRow(Number(rm.dataset.remove));
         if (!act || busy) return;
         if (act.dataset.act !== 'publish') confirmPublish = false;
-        ({ suggest, save, publish, add: addRow })[act.dataset.act]();
+        ({ suggest, save, publish, add: addRow, rank: rankGoals })[act.dataset.act]();
     });
 
     document.addEventListener('change', e => {
         const el = card();
+        const w = e.target.closest && e.target.closest('select[data-weight-goal]');
+        if (el && w && el.contains(w) && !busy) return setWeight(Number(w.dataset.weightGoal), Number(w.value));
         const sel = e.target.closest && e.target.closest('select[data-goal]');
         if (!el || !sel || !el.contains(sel) || busy || sel.value === '') return;
         assignRole(Number(sel.dataset.goal), Number(sel.value));
