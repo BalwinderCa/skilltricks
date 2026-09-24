@@ -290,4 +290,42 @@ class WhereToBeginTest extends TestCase
         $this->actingAs($w['ceo'])->getJson(route('users-new-chat-resources.show', ['chat' => $draft->id]))
             ->assertOk()->assertJsonPath('alignment', null);
     }
+
+    public function test_the_card_offers_starting_points_after_act_on_it(): void
+    {
+        $w = $this->world();
+        $this->publishedGoals($w);
+        $this->goal('Sales')->update(['starting_options' => ['Audit fields', 'Book a sync']]);
+        GoalResponse::create(['expected_state_id' => $this->goal('Sales')->id, 'user_id' => $w['rep1']->id, 'decision' => 'act_on_it', 'starting_point' => 'Book a sync']);
+
+        $this->actingAs($w['rep1'])->get('/dashboard')
+            ->assertOk()
+            ->assertSee('Where to begin')
+            ->assertSee('Audit fields')
+            ->assertSee(route('my-goals.commit'), false)
+            ->assertSee('Change my starting point');
+    }
+
+    public function test_the_card_offers_to_suggest_when_there_are_no_options(): void
+    {
+        $w = $this->world();
+        $this->publishedGoals($w);
+        GoalResponse::create(['expected_state_id' => $this->goal('Sales')->id, 'user_id' => $w['rep1']->id, 'decision' => 'act_on_it']);
+
+        $this->actingAs($w['rep1'])->get('/dashboard')
+            ->assertOk()
+            ->assertSee('Suggest starting points')
+            ->assertSee(route('my-goals.suggest'), false);
+    }
+
+    public function test_no_starting_points_before_act_on_it_and_the_obstacle_box_is_required(): void
+    {
+        $w = $this->world();
+        $this->publishedGoals($w);
+
+        $this->actingAs($w['rep1'])->get('/dashboard')
+            ->assertOk()
+            ->assertDontSee('Where to begin')
+            ->assertSee('name="body" maxlength="2000" required', false);
+    }
 }

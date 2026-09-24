@@ -67,11 +67,44 @@
                         @endforeach
                     </form>
 
+                    @if ($card['response']?->decision === 'act_on_it')
+                        <div class="mg-label mt-3">{{ localize('Where to begin') }}</div>
+                        @if (! empty($card['goal']->starting_options))
+                            <form method="POST" action="{{ route('my-goals.commit') }}">
+                                @csrf
+                                <input type="hidden" name="goal_id" value="{{ $card['goal']->id }}">
+                                @foreach ($card['goal']->starting_options as $i => $option)
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="option" value="{{ $i }}"
+                                            id="start-{{ $card['goal']->id }}-{{ $i }}" required
+                                            @checked($card['response']->starting_point === $option)>
+                                        <label class="form-check-label small" for="start-{{ $card['goal']->id }}-{{ $i }}">{{ $option }}</label>
+                                    </div>
+                                @endforeach
+                                <button type="submit" class="btn btn-sm mg-btn mt-1">
+                                    {{ $card['response']->starting_point ? localize('Change my starting point') : localize('Commit') }}
+                                </button>
+                            </form>
+                            @if ($card['response']->starting_point)
+                                <div class="small mt-1">{{ localize('Committed') }}: <strong>{{ $card['response']->starting_point }}</strong></div>
+                            @endif
+                            @error('option')
+                                <div class="small text-danger mt-1">{{ $message }}</div>
+                            @enderror
+                        @else
+                            <form method="POST" action="{{ route('my-goals.suggest') }}">
+                                @csrf
+                                <input type="hidden" name="goal_id" value="{{ $card['goal']->id }}">
+                                <button type="submit" class="btn btn-sm mg-btn">{{ localize('Suggest starting points') }}</button>
+                            </form>
+                        @endif
+                    @endif
+
                     <form method="POST" action="{{ route('my-goals.obstacle') }}" class="mt-2">
                         @csrf
                         <input type="hidden" name="goal_id" value="{{ $card['goal']->id }}">
                         <div class="d-flex gap-2">
-                            <input type="text" name="body" maxlength="2000" class="form-control form-control-sm"
+                            <input type="text" name="body" maxlength="2000" required class="form-control form-control-sm"
                                 placeholder="{{ localize('Anything in the way? e.g. the tool keeps timing out') }}">
                             <button type="submit" class="btn btn-sm mg-btn">{{ localize('Report') }}</button>
                         </div>
