@@ -52,6 +52,9 @@ class ExpectedState extends Model
         'recommended_action',
         'org_role_id',
         'starting_options',
+        'impact_score',
+        'impact_reason',
+        'weight',
         'decision',
         'decision_rationale',
         'decided_at',
@@ -72,6 +75,8 @@ class ExpectedState extends Model
 
     protected $casts = [
         'starting_options' => 'array',
+        'impact_score' => 'integer',
+        'weight' => 'integer',
         'resources_committed' => 'boolean',
         'target_date' => 'date',
         'decided_at' => 'datetime',

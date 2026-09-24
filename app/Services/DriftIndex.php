@@ -86,7 +86,10 @@ class DriftIndex
         $rows = $goals->map(fn (ExpectedState $g) => ['goal' => $g] + $this->goalMetrics($g, $chat, $responses->get($g->id, collect())));
 
         $measured = $rows->where('measured', true);
-        $index = $measured->isEmpty() ? null : round((float) $measured->avg('drift'), 1);
+        // Notion Epic 1 weights (phase 7): heavier goals move the index more; unweighted = 1.
+        $weightOf = fn (array $row) => max(1, (int) ($row['goal']->weight ?? 1));
+        $index = $measured->isEmpty() ? null
+            : round($measured->sum(fn (array $row) => $row['drift'] * $weightOf($row)) / $measured->sum($weightOf), 1);
         $level = self::levelFor($index);
         $worst = $measured->sortByDesc('drift')->first()['goal'] ?? null;
         // A strategy finishes when its last dated goal does; while any dated goal
