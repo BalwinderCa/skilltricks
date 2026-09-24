@@ -132,4 +132,16 @@ class ExpectedState extends Model
     {
         return $this->belongsTo(OrgRole::class);
     }
+
+    /** @return HasMany<GoalResponse, $this> */
+    public function responses(): HasMany
+    {
+        return $this->hasMany(GoalResponse::class);
+    }
+
+    /** @return HasMany<GoalObstacle, $this> */
+    public function obstacles(): HasMany
+    {
+        return $this->hasMany(GoalObstacle::class);
+    }
 }
