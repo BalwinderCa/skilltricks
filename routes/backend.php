@@ -356,6 +356,7 @@ Route::group(
                 Route::post('/my-goals/suggest', [MyGoalController::class, 'suggestStart'])->name('my-goals.suggest');
                 Route::post('/my-goals/commit', [MyGoalController::class, 'commit'])->name('my-goals.commit');
                 Route::post('/my-goals/revise', [MyGoalController::class, 'revise'])->name('my-goals.revise');
+                Route::post('/my-goals/progress', [MyGoalController::class, 'progress'])->name('my-goals.progress');
                 // Executive view: every published strategy in the organization, leaders only
                 Route::get('/strategies', [StrategyOverviewController::class, 'index'])->name('strategies.index');
                 Route::get('/strategies/{chat}', [StrategyOverviewController::class, 'show'])->name('strategies.show');

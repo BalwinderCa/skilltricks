@@ -6,18 +6,22 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * One person's response to a published goal.
+ * One progress report on a goal: status, percent, note.
  *
  * @property int $id
  * @property int $expected_state_id
  * @property int $user_id
- * @property string|null $decision
+ * @property string $status
+ * @property int $pct
+ * @property string|null $note
  */
-class GoalResponse extends Model
+class GoalProgressUpdate extends Model
 {
-    protected $fillable = ['expected_state_id', 'user_id', 'decision', 'decided_at', 'starting_point', 'committed_at', 'starting_history', 'progress_status', 'progress_pct', 'progress_note', 'progress_at'];
+    public const UPDATED_AT = null;
 
-    protected $casts = ['decided_at' => 'datetime', 'committed_at' => 'datetime', 'starting_history' => 'array', 'progress_pct' => 'integer', 'progress_at' => 'datetime'];
+    protected $fillable = ['expected_state_id', 'user_id', 'status', 'pct', 'note'];
+
+    protected $casts = ['pct' => 'integer'];
 
     /** @return BelongsTo<ExpectedState, $this> */
     public function goal(): BelongsTo

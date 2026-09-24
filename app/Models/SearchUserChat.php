@@ -32,6 +32,11 @@ class SearchUserChat extends Model
         'status',
         'published_by',
         'published_at',
+        'drift_index',
+        'drift_level',
+        'drift_alerted_level',
+        'drift_checked_at',
+        'recourse',
     ];
 
     protected $casts = [
@@ -40,6 +45,8 @@ class SearchUserChat extends Model
         'status1' => 'integer',
         'status2' => 'integer',
         'published_at' => 'datetime',
+        'drift_checked_at' => 'datetime',
+        'recourse' => 'array',
     ];
 
     /** Matches the column default, so a freshly created model reads 'draft' too. */

@@ -8,6 +8,7 @@ use App\Models\GoalResponse;
 use App\Services\GoalRevisions;
 use App\Services\MyGoals;
 use App\Services\OrganizationService;
+use App\Services\ProgressUpdates;
 use App\Services\StartingPoints;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -24,6 +25,7 @@ class MyGoalController extends Controller
         protected StartingPoints $starts,
         protected GoalRevisions $revisions,
         protected OrganizationService $orgs,
+        protected ProgressUpdates $progressUpdates,
     ) {}
 
     public function decide(Request $request): RedirectResponse
@@ -110,6 +112,23 @@ class MyGoalController extends Controller
         if ($this->revisions->revise($goal, $request->user(), $data['text'], $data['reason'] ?? null)) {
             flash(localize('The goal has been updated'))->success();
         }
+
+        return back();
+    }
+
+    public function progress(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'goal_id' => 'required|integer',
+            'status' => ['required', Rule::in(ProgressUpdates::STATUSES)],
+            'pct' => 'required|integer|min:0|max:100',
+            'note' => 'nullable|string|max:500',
+        ]);
+        $goal = $this->goals->visibleGoal($request->user(), (int) $data['goal_id']);
+        abort_unless($goal, 404);
+
+        $this->progressUpdates->record($goal, $request->user(), $data['status'], (int) $data['pct'], $data['note'] ?? null);
+        flash(localize('Your update has been posted'))->success();
 
         return back();
     }

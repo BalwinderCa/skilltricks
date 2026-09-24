@@ -7,6 +7,12 @@
         'not_viable' => localize('Not viable'),
     ];
     $currency = config('custom.default_currency_symbol') ?: '$';
+    $statusLabels = [
+        'not_started' => localize('Not started'),
+        'in_progress' => localize('In progress'),
+        'completed' => localize('Completed'),
+        'blocked' => localize('Blocked — flag a bottleneck'),
+    ];
 @endphp
 <style>
     #my-goals .mg-goal { border: 1px solid #36839b; border-radius: 10px; padding: 14px; margin-top: 12px; background: #e7f3f7; }
@@ -107,6 +113,34 @@
                                 @if ($card['last_revised_at'] && $card['response']->committed_at && $card['response']->committed_at->lt($card['last_revised_at']))
                                     <span class="text-muted">({{ localize('made before this goal changed') }})</span>
                                 @endif
+                            </div>
+                        @endif
+                        <form method="POST" action="{{ route('my-goals.progress') }}" class="row g-2 align-items-center mt-2">
+                            @csrf
+                            <input type="hidden" name="goal_id" value="{{ $card['goal']->id }}">
+                            <div class="col-md-3">
+                                <select name="status" class="form-select form-select-sm">
+                                    @foreach ($statusLabels as $value => $label)
+                                        <option value="{{ $value }}" @selected(($card['response']->progress_status ?? 'in_progress') === $value)>{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <input type="number" name="pct" min="0" max="100" required class="form-control form-control-sm"
+                                    value="{{ $card['response']->progress_pct ?? 0 }}" aria-label="{{ localize('Progress %') }}">
+                            </div>
+                            <div class="col-md-5">
+                                <input type="text" name="note" maxlength="500" class="form-control form-control-sm" placeholder="{{ localize('What changed?') }}">
+                            </div>
+                            <div class="col-md-2">
+                                <button type="submit" class="btn btn-sm mg-btn w-100">{{ localize('Update status') }}</button>
+                            </div>
+                        </form>
+                        @if ($card['response']->progress_at)
+                            <div class="small text-muted mt-1">
+                                {{ $statusLabels[$card['response']->progress_status] ?? '' }} · {{ $card['response']->progress_pct }}%
+                                @if ($card['response']->progress_note) · {{ $card['response']->progress_note }}@endif
+                                · {{ $card['response']->progress_at->diffForHumans() }}
                             </div>
                         @endif
                     @endif

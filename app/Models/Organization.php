@@ -13,7 +13,10 @@ class Organization extends Model
         'name',
         'owner_user_id',
         'active_context_id',
+        'command_settings',
     ];
+
+    protected $casts = ['command_settings' => 'array'];
 
     /** @return BelongsTo<OrgContextVersion, $this> */
     public function activeContext(): BelongsTo
