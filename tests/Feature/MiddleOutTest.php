@@ -224,4 +224,45 @@ class MiddleOutTest extends TestCase
 
         $this->assertTrue(collect($route->gatherMiddleware())->contains(fn ($m) => str_starts_with($m, 'throttle:')));
     }
+
+    private function approved(array $w): void
+    {
+        $this->link($w);
+        $this->sendForApproval($w);
+        $this->actingAs($w['ceo'])->post(route('strategies.approve', $w['initiative']->id));
+    }
+
+    public function test_approvals_are_listed_for_the_approver(): void
+    {
+        $w = $this->world();
+        $this->link($w);
+        $this->sendForApproval($w);
+
+        $this->actingAs($w['ceo'])->get(route('strategies.index'))
+            ->assertOk()
+            ->assertSee('Awaiting your approval')
+            ->assertSee('Automate contract review')
+            ->assertSee('Dana Director')
+            ->assertSee(route('strategies.approve', $w['initiative']->id), false)
+            ->assertSee(route('strategies.reject', $w['initiative']->id), false);
+    }
+
+    public function test_initiatives_roll_up_into_their_priority(): void
+    {
+        $w = $this->world();
+        $this->approved($w);
+
+        $this->actingAs($w['ceo'])->get(route('strategies.index'))
+            ->assertOk()->assertSee('Supports: Grow revenue 30%')->assertSee('1 supporting initiative');
+        $this->actingAs($w['ceo'])->get(route('strategies.show', $w['priority']->id))
+            ->assertOk()->assertSee('Supporting initiatives')->assertSee('Automate contract review')->assertSee('Dana Director');
+    }
+
+    public function test_the_card_carries_the_priority_controls(): void
+    {
+        $w = $this->world();
+
+        $this->actingAs($w['director'])->get('/dashboard/users-new-chat/'.$w['initiative']->id)
+            ->assertOk()->assertSee(route('users-new-chat-match.index'), false)->assertSee(route('users-new-chat-parent.index'), false);
+    }
 }

@@ -26,6 +26,7 @@ class StrategyOverviewController extends Controller
 
         return view('backend.pages.strategies.index', [
             'strategies' => $this->overview->list($request->user()),
+            'approvals' => $this->overview->approvalsFor($request->user()),
             'settings' => StrategyOverview::settingsFor($request->user()->organization),
             'isOwner' => (int) optional($request->user()->organization)->owner_user_id === (int) $request->user()->id,
         ]);

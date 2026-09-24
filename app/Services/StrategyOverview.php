@@ -110,6 +110,8 @@ class StrategyOverview
                     'savings' => self::savings($this->holders($chat, $goals)->push((int) $chat->user_id)->unique()->count(), (int) $chat->total_tokens, $settings),
                     'obstacles' => $obstacles,
                     'not_viable' => GoalResponse::whereIn('expected_state_id', $ids)->where('decision', 'not_viable')->count(),
+                    'supports' => $chat->parent_chat_id && ($parent = SearchUserChat::find($chat->parent_chat_id)) ? $this->goals->companyGoal($parent) : null,
+                    'supporting_count' => SearchUserChat::where('parent_chat_id', $chat->id)->where('status', 'published')->count(),
                 ];
             });
 
@@ -190,6 +192,21 @@ class StrategyOverview
             'blockers' => $goals->filter(fn (ExpectedState $g) => $flagged->contains((int) $g->id) && $goals->contains(fn ($o) => (int) $o->depends_on_id === (int) $g->id))
                 ->map(fn (ExpectedState $g) => $g->orgRole->name ?? $g->role)->values(),
             'recourse' => $chat->recourse,
+            'supporting' => SearchUserChat::where('parent_chat_id', $chat->id)->where('status', 'published')->with('user:id,name')->orderByDesc('published_at')->get()
+                ->map(function (SearchUserChat $child) {
+                    $childIds = ExpectedState::where('search_user_chat_id', $child->id)->pluck('id');
+                    $alignment = $this->alignment->forStrategy($child)['overall'];
+
+                    return [
+                        'chat' => $child,
+                        'company_goal' => $this->goals->companyGoal($child),
+                        'owner' => $child->user?->name,
+                        'alignment' => $alignment,
+                        'badge' => self::badge($alignment['rate'], GoalObstacle::whereIn('expected_state_id', $childIds)->count(), $this->flaggedBlocked($childIds)->count()),
+                        'drift_index' => $child->drift_index !== null ? (float) $child->drift_index : null,
+                        'drift_level' => $child->drift_level,
+                    ];
+                }),
         ];
     }
 
@@ -234,6 +251,31 @@ class StrategyOverview
         $ownerId = Organization::whereKey((int) $child->organization_id)->value('owner_user_id');
 
         return (int) $viewer->id === (int) $ownerId || (int) $viewer->id === (int) $child->parentChat?->user_id;
+    }
+
+    /** @return Collection<int, array<string, mixed>> initiatives waiting for this viewer's approval */
+    public function approvalsFor(User $viewer): Collection
+    {
+        if (! $viewer->organization_id) {
+            return collect();
+        }
+
+        /** @var Collection<int, array<string, mixed>> $rows */
+        $rows = SearchUserChat::where('status', 'pending_approval')->where('organization_id', (int) $viewer->organization_id)
+            ->with(['parentChat', 'publisher:id,name'])->orderBy('approval_requested_at')->get()
+            ->filter(fn (SearchUserChat $c) => $this->canApprove($viewer, $c))
+            ->map(fn (SearchUserChat $c) => [
+                'chat' => $c,
+                'company_goal' => $this->goals->companyGoal($c),
+                'requester' => $c->publisher?->name,
+                'supports' => $c->parentChat ? $this->goals->companyGoal($c->parentChat) : null,
+                'score' => $c->correlation_score,
+                'reason' => $c->correlation_reason,
+                'budget' => (float) $c->resources()->sum('budget'),
+                'goals' => ExpectedState::where('search_user_chat_id', $c->id)->count(),
+            ])->values();
+
+        return $rows;
     }
 
     /** @return Builder<SearchUserChat> */

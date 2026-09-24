@@ -31,6 +31,8 @@
         goalRole: '{{ route('users-new-chat-goal-role.index') }}',
         rankGoals: '{{ route('users-new-chat-rank-goals.index') }}',
         goalWeight: '{{ route('users-new-chat-goal-weight.index') }}',
+        match: '{{ route('users-new-chat-match.index') }}',
+        parent: '{{ route('users-new-chat-parent.index') }}',
     };
     const chatId = {{ (int) $id }};
     const csrf = '{{ csrf_token() }}';
@@ -176,6 +178,46 @@
             `<li>${esc(new Date(o.at).toLocaleString())} — ${esc(o.user)} (${esc(o.role)}): ${esc(o.body)}</li>`).join('')}</ul></div>`;
     }
 
+    function priorityHtml() {
+        if (state.status !== 'draft' || !state.requires_approval) return '';
+        const current = state.parent ? state.parent.id : null;
+        const opts = (state.parent_candidates || []).map(c => `<option value="${c.id}" ${c.id === current ? 'selected' : ''}>${esc(c.goal)}</option>`).join('');
+        const match = state.parent && state.parent.score !== null && state.parent.score !== undefined
+            ? `<div class="pg-hint">AI match ${state.parent.score}/100 — ${esc(state.parent.reason ?? '')}</div>` : '';
+        return `<div class="pg-goals"><strong>Corporate priority this initiative supports</strong>
+            <div class="pg-hint">Initiatives from directors and VPs roll up into a C-suite priority, and need its owner's approval before they go live.</div>
+            <div class="d-flex flex-wrap gap-2 mt-1">
+                <select class="form-select form-select-sm" data-parent ${busy ? 'disabled' : ''} style="max-width:480px">
+                    ${current === null ? '<option value="" selected disabled>Pick a priority…</option>' : ''}${opts}
+                </select>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-act="match" ${busy ? 'disabled' : ''}>Find the matching priority</button>
+            </div>${match}</div>`;
+    }
+
+    async function matchParent() {
+        const unsaved = unsavedRows();
+        if (unsaved) state.rows = unsaved;
+        busy = true; error = ''; render();
+        try {
+            state = await call(urls.match, { chat_id: chatId });
+            if (unsaved && state.status === 'draft') state.rows = unsaved;
+        }
+        catch (e) { error = e.message; }
+        busy = false; render();
+    }
+
+    async function setParent(parentId) {
+        const unsaved = unsavedRows();
+        if (unsaved) state.rows = unsaved;
+        busy = true; error = ''; render();
+        try {
+            state = await call(urls.parent, { chat_id: chatId, parent_chat_id: parentId });
+            if (unsaved && state.status === 'draft') state.rows = unsaved;
+        }
+        catch (e) { error = e.message; }
+        busy = false; render();
+    }
+
     function goalsHtml(published) {
         if (!state.goals || !state.goals.length) return '';
         const holders = Object.fromEntries((state.roles || []).map(r => [r.id, r.member_count]));
@@ -259,9 +301,15 @@ return `<tr><td>${esc(g.action)}<div class="pg-role-text">AI role: ${esc(g.role_
             return;
         }
 
-        const published = state.status === 'published';
+        // Pending approval is as final as published for the author: nothing to edit.
+        const published = state.status !== 'draft';
+        const pending = state.status === 'pending_approval';
         const editable = !published || state.is_publisher;
-        const header = published
+        const header = pending
+            ? `<div class="pg-published">Sent for approval to <strong>${esc(state.approval && state.approval.approver)}</strong> on ${esc(new Date(state.approval && state.approval.requested_at).toLocaleString())}. It goes live when they approve.</div>`
+            : state.rejection && !published
+            ? `<div class="pg-error">Sent back: ${esc(state.rejection.note)}</div><div class="pg-sub">Review the resources each department needs. This strategy stays private until it is published.</div>`
+            : published
             ? `<div class="pg-published">Published by <strong>${esc(state.published_by)}</strong> on ${esc(new Date(state.published_at).toLocaleString())}. ${state.is_publisher ? 'You can still change amounts; every change is logged.' : ''} <a href="{{ url('dashboard/strategies') }}/${chatId}" style="color:#2c6d82">Open the executive view &rarr;</a></div>`
             : `<div class="pg-sub">Review the resources each department needs. This strategy stays private until it is published.</div>`;
 
@@ -277,7 +325,7 @@ return `<tr><td>${esc(g.action)}<div class="pg-role-text">AI role: ${esc(g.role_
             : '';
 
         const publishBtn = published ? '' : (state.can_publish
-            ? `<button type="button" class="btn btn-sm ${confirmPublish ? 'pg-btn-confirm' : 'pg-btn-primary'}" data-act="publish" ${busy ? 'disabled' : ''}>${confirmPublish ? 'Click again to publish to your organization' : '🔒 Commit Resources &amp; Publish'}</button>`
+            ? `<button type="button" class="btn btn-sm ${confirmPublish ? 'pg-btn-confirm' : 'pg-btn-primary'}" data-act="publish" ${busy ? 'disabled' : ''}>${confirmPublish ? (state.requires_approval ? 'Click again to send for approval' : 'Click again to publish to your organization') : (state.requires_approval ? '🔒 Commit Resources &amp; Send for Approval' : '🔒 Commit Resources &amp; Publish')}</button>`
             : `<button type="button" class="btn btn-sm pg-btn-primary" disabled>🔒 Commit Resources &amp; Publish</button>
                <div class="pg-hint mt-1">Only department heads, managers and the organization owner can publish. This strategy stays private to you.</div>`);
 
@@ -286,6 +334,7 @@ return `<tr><td>${esc(g.action)}<div class="pg-role-text">AI role: ${esc(g.role_
             ${header}
             ${error ? `<div class="pg-error">${esc(error)}</div>` : ''}
             ${busy ? '<div class="pg-sub">Working…</div>' : ''}
+            ${priorityHtml()}
             ${goalsHtml(published)}
             ${alignmentHtml()}
             ${obstaclesHtml()}
@@ -315,13 +364,15 @@ return `<tr><td>${esc(g.action)}<div class="pg-role-text">AI role: ${esc(g.role_
         if (rm) return removeRow(Number(rm.dataset.remove));
         if (!act || busy) return;
         if (act.dataset.act !== 'publish') confirmPublish = false;
-        ({ suggest, save, publish, add: addRow, rank: rankGoals })[act.dataset.act]();
+        ({ suggest, save, publish, add: addRow, rank: rankGoals, match: matchParent })[act.dataset.act]();
     });
 
     document.addEventListener('change', e => {
         const el = card();
         const w = e.target.closest && e.target.closest('select[data-weight-goal]');
         if (el && w && el.contains(w) && !busy) return setWeight(Number(w.dataset.weightGoal), Number(w.value));
+        const p = e.target.closest && e.target.closest('select[data-parent]');
+        if (el && p && el.contains(p) && !busy && p.value !== '') return setParent(Number(p.value));
         const sel = e.target.closest && e.target.closest('select[data-goal]');
         if (!el || !sel || !el.contains(sel) || busy || sel.value === '') return;
         assignRole(Number(sel.dataset.goal), Number(sel.value));

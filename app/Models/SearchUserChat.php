@@ -64,7 +64,8 @@ class SearchUserChat extends Model
         'status' => 'draft',
     ];
 
-    public function user()
+    /** @return BelongsTo<User, $this> */
+    public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }

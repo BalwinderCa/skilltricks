@@ -9,6 +9,32 @@
         <div class="container">
             <h4 class="mb-1">{{ localize('Executive view') }}</h4>
             <p class="text-muted small">{{ localize('Every published strategy in your organization.') }}</p>
+            @if ($approvals->isNotEmpty())
+                <div class="card mb-3" style="border:1px solid #ec883f"><div class="card-body">
+                    <h6 style="color:#9a5a12">{{ localize('Awaiting your approval') }}</h6>
+                    @foreach ($approvals as $item)
+                        <div class="border-top pt-2 mt-2">
+                            <strong>{{ $item['company_goal'] }}</strong>
+                            <div class="small text-muted">
+                                {{ localize('From') }} {{ $item['requester'] }} · {{ localize('Supports') }}: {{ $item['supports'] }}
+                                @if ($item['score'] !== null) · {{ localize('AI match') }} {{ $item['score'] }}/100 @endif
+                                · {{ $item['goals'] }} {{ \Illuminate\Support\Str::plural('goal', $item['goals']) }}
+                                · {{ localize('Budget') }} {{ config('custom.default_currency_symbol') ?: '$' }}{{ number_format($item['budget']) }}
+                            </div>
+                            @if ($item['reason'])<div class="small">{{ $item['reason'] }}</div>@endif
+                            <div class="d-flex flex-wrap gap-2 mt-2">
+                                <form method="POST" action="{{ route('strategies.approve', $item['chat']->id) }}">@csrf
+                                    <button type="submit" class="btn btn-sm" style="background:#36839b;color:#fff">{{ localize('Approve and publish') }}</button>
+                                </form>
+                                <form method="POST" action="{{ route('strategies.reject', $item['chat']->id) }}" class="d-flex gap-2">@csrf
+                                    <input type="text" name="note" required maxlength="500" class="form-control form-control-sm" style="box-sizing:border-box;min-width:260px" placeholder="{{ localize('Why send it back?') }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary">{{ localize('Send back') }}</button>
+                                </form>
+                            </div>
+                        </div>
+                    @endforeach
+                </div></div>
+            @endif
             <div class="card">
                 <div class="card-body">
                     @if ($strategies->isEmpty())
@@ -35,6 +61,8 @@
                                             <td>
                                                 <a href="{{ route('strategies.show', $row['chat']->id) }}" style="color:#2c6d82">{{ $row['company_goal'] }}</a>
                                                 <div class="small text-muted">{{ $row['chat']->selected_strategy }}</div>
+                                                @if ($row['supports'])<div class="small" style="color:#9a5a12">{{ localize('Supports') }}: {{ $row['supports'] }}</div>@endif
+                                                @if ($row['supporting_count'])<div class="small text-muted">{{ $row['supporting_count'] }} {{ \Illuminate\Support\Str::plural('supporting initiative', $row['supporting_count']) }}</div>@endif
                                             </td>
                                             <td class="small">{{ $row['chat']->publisher?->name }}<br>{{ optional($row['chat']->published_at)->toFormattedDateString() }}</td>
                                             <td>@include('backend.pages.strategies.badge', ['badge' => $row['badge']])</td>

@@ -54,6 +54,21 @@
                 </div></div>
             @endif
 
+            @if ($supporting->isNotEmpty())
+                <div class="card mb-3"><div class="card-body">
+                    <h6>{{ localize('Supporting initiatives') }}</h6>
+                    @foreach ($supporting as $child)
+                        <div class="small mb-2">
+                            <a href="{{ route('strategies.show', $child['chat']->id) }}" style="color:#2c6d82">{{ $child['company_goal'] }}</a>
+                            <span class="text-muted">— {{ $child['owner'] }}</span>
+                            @include('backend.pages.strategies.badge', ['badge' => $child['badge']])
+                            @include('backend.pages.strategies.drift-pill', ['index' => $child['drift_index'], 'level' => $child['drift_level']])
+                            <span class="text-muted">{{ $child['alignment']['committed'] }} of {{ $child['alignment']['people'] }} {{ localize('committed') }}</span>
+                        </div>
+                    @endforeach
+                </div></div>
+            @endif
+
             <div class="card mb-3"><div class="card-body">
                 <h6>{{ localize('Departmental progress & deliverables') }}</h6>
                 @php $statusText = ['completed' => '✅ '.localize('Completed'), 'in_progress' => '⏳ '.localize('In progress'), 'blocked' => '⛔ '.localize('Blocked'), 'not_started' => localize('Not started')]; @endphp
