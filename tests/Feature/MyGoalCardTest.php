@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\Department;
 use App\Models\ExpectedState;
+use App\Models\GoalObstacle;
+use App\Models\GoalResponse;
 use App\Models\Organization;
 use App\Models\OrgRole;
 use App\Models\SearchUserChat;
@@ -131,5 +133,77 @@ class MyGoalCardTest extends TestCase
         $chat->resources()->create(['department_id' => null, 'department_name' => 'Whole organization', 'budget' => 7]);
 
         $this->assertSame('Whole organization', app(MyGoals::class)->for($w['pm'])->first()['resources']->department_name);
+    }
+
+    private function salesGoalId(): int
+    {
+        return (int) ExpectedState::where('role', 'Sales')->value('id');
+    }
+
+    public function test_a_member_records_and_then_changes_their_decision(): void
+    {
+        $w = $this->world();
+        $this->publishedGoal($w);
+
+        $this->actingAs($w['rep'])->from('/dashboard')->post(route('my-goals.decide'), ['goal_id' => $this->salesGoalId(), 'decision' => 'review_in_detail'])
+            ->assertRedirect('/dashboard');
+        $this->actingAs($w['rep'])->post(route('my-goals.decide'), ['goal_id' => $this->salesGoalId(), 'decision' => 'act_on_it']);
+
+        $this->assertSame(1, GoalResponse::count());
+        $this->assertSame('act_on_it', GoalResponse::first()->decision);
+        $this->assertSame($w['rep']->id, (int) GoalResponse::first()->user_id);
+    }
+
+    public function test_deciding_on_a_goal_you_cannot_see_is_not_found(): void
+    {
+        $w = $this->world();
+        $this->publishedGoal($w);
+
+        $this->actingAs($w['pm'])->post(route('my-goals.decide'), ['goal_id' => $this->salesGoalId(), 'decision' => 'act_on_it'])
+            ->assertNotFound();
+        $this->assertSame(0, GoalResponse::count());
+    }
+
+    public function test_an_unknown_decision_is_rejected(): void
+    {
+        $w = $this->world();
+        $this->publishedGoal($w);
+
+        $this->actingAs($w['rep'])->post(route('my-goals.decide'), ['goal_id' => $this->salesGoalId(), 'decision' => 'maybe'])
+            ->assertSessionHasErrors('decision');
+    }
+
+    public function test_a_member_reports_an_obstacle(): void
+    {
+        $w = $this->world();
+        $this->publishedGoal($w);
+
+        $this->actingAs($w['rep'])->from('/dashboard')->post(route('my-goals.obstacle'), ['goal_id' => $this->salesGoalId(), 'body' => '  Missing budget for CRM seats  '])
+            ->assertRedirect('/dashboard');
+
+        $obstacle = GoalObstacle::first();
+        $this->assertSame('Missing budget for CRM seats', $obstacle->body);
+        $this->assertSame($w['rep']->id, (int) $obstacle->user_id);
+    }
+
+    public function test_a_blank_or_oversized_obstacle_is_rejected(): void
+    {
+        $w = $this->world();
+        $this->publishedGoal($w);
+
+        $this->actingAs($w['rep'])->post(route('my-goals.obstacle'), ['goal_id' => $this->salesGoalId(), 'body' => '   '])
+            ->assertSessionHasErrors('body');
+        $this->actingAs($w['rep'])->post(route('my-goals.obstacle'), ['goal_id' => $this->salesGoalId(), 'body' => str_repeat('x', 2001)])
+            ->assertSessionHasErrors('body');
+        $this->assertSame(0, GoalObstacle::count());
+    }
+
+    public function test_reporting_on_a_draft_goal_is_not_found(): void
+    {
+        $w = $this->world();
+        $this->publishedGoal($w, draft: true);
+
+        $this->actingAs($w['rep'])->post(route('my-goals.obstacle'), ['goal_id' => $this->salesGoalId(), 'body' => 'x'])
+            ->assertNotFound();
     }
 }

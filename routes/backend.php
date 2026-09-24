@@ -53,6 +53,7 @@ use App\Http\Controllers\Backend\Folders\FoldersController;
 use App\Http\Controllers\Backend\LanguageController;
 use App\Http\Controllers\Backend\MediaManager\MediaManagerController;
 use App\Http\Controllers\Backend\MultiOpenAiController;
+use App\Http\Controllers\Backend\MyGoalController;
 use App\Http\Controllers\Backend\Newsletters\NewslettersController;
 use App\Http\Controllers\Backend\Offline\CustomerReSubmitRequestController;
 use App\Http\Controllers\Backend\Offline\OfflinePaymentMethodController;
@@ -348,6 +349,9 @@ Route::group(
                 Route::post('/users-new-chat-resources-save', [StrategyPublishController::class, 'save'])->name('users-new-chat-resources-save.index');
                 Route::post('/users-new-chat-publish', [StrategyPublishController::class, 'publish'])->name('users-new-chat-publish.index');
                 Route::post('/users-new-chat-goal-role', [StrategyPublishController::class, 'assignRole'])->name('users-new-chat-goal-role.index');
+                // "My goal" card: respond to a published goal, report an obstacle
+                Route::post('/my-goals/decide', [MyGoalController::class, 'decide'])->name('my-goals.decide');
+                Route::post('/my-goals/obstacle', [MyGoalController::class, 'reportObstacle'])->name('my-goals.obstacle');
                 Route::get('/userchathistory', [AiChatController::class, 'userchathistory'])->name('userchathistory.index');
                 Route::get('/user-view-chathistory/{id}', [AiChatController::class, 'user_view_chathistory'])->name('user-view-chathistory.index');
                 Route::get('/users-chat-search-delete/{id}', [AiChatController::class, 'userschat_search_delete'])->name('users-chat-search-delete.index');
