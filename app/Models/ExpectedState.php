@@ -80,6 +80,17 @@ class ExpectedState extends Model
         'revised_at' => 'datetime',
     ];
 
+    protected static function booted(): void
+    {
+        // Starting points were written for this wording and role; once either
+        // changes they are stale, and the next "Act on it" suggests new ones.
+        static::updating(function (ExpectedState $goal) {
+            if ($goal->isDirty(['recommended_action', 'org_role_id']) && ! $goal->isDirty('starting_options')) {
+                $goal->starting_options = null;
+            }
+        });
+    }
+
     /**
      * A calibrated commitment: the user opened "Review in Detail" and saved a
      * revised baseline, so it tracks in the Closed-Loop Tracker like an

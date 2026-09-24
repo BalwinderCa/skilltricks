@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Department;
+use App\Models\Document;
 use App\Models\ExpectedState;
 use App\Models\GoalResponse;
 use App\Models\Organization;
@@ -327,5 +328,57 @@ class WhereToBeginTest extends TestCase
             ->assertOk()
             ->assertDontSee('Where to begin')
             ->assertSee('name="body" maxlength="2000" required', false);
+    }
+
+    public function test_dropping_the_goal_after_committing_no_longer_counts(): void
+    {
+        $w = $this->world();
+        $chat = $this->publishedGoals($w);
+        GoalResponse::create(['expected_state_id' => $this->goal('Sales')->id, 'user_id' => $w['rep1']->id, 'decision' => 'not_viable', 'starting_point' => 'X']);
+
+        $this->assertSame(0, app(Alignment::class)->forStrategy($chat)['overall']['committed']);
+    }
+
+    public function test_shared_options_are_built_without_the_members_private_documents(): void
+    {
+        $w = $this->world();
+        $this->publishedGoals($w);
+        Document::forceCreate([
+            'user_id' => $w['rep1']->id, 'name' => 'Board memo', 'file_path' => 'x.pdf', 'file_name' => 'x.pdf',
+            'parsed_text' => 'SECRET-ACQUISITION-PLAN', 'parse_status' => 'completed',
+        ]);
+        $system = null;
+        $ai = Mockery::mock(AiProviderService::class)->shouldIgnoreMissing();
+        $ai->shouldReceive('generate')->andReturnUsing(function ($sys) use (&$system) {
+            $system = $sys;
+
+            return new ClientResponse(new PsrResponse(200, [], json_encode(['candidates' => [['content' => ['parts' => [['text' => self::OPTIONS]]]]]])));
+        });
+        $ai->shouldReceive('extractText')->andReturn(self::OPTIONS);
+        $ai->shouldReceive('parseJson')->andReturnUsing(fn ($t) => json_decode((string) $t, true));
+        $this->instance(AiProviderService::class, $ai);
+
+        app(StartingPoints::class)->ensureOptions($this->goal('Sales'), $w['rep1']);
+
+        $this->assertNotNull($system);
+        $this->assertStringContainsString('execution guide', $system);
+        $this->assertStringNotContainsString('SECRET-ACQUISITION-PLAN', $system);
+    }
+
+    public function test_changing_a_goals_wording_or_role_clears_its_options(): void
+    {
+        $w = $this->world();
+        $this->publishedGoals($w);
+        $this->goal('Sales')->update(['starting_options' => ['A', 'B']]);
+
+        $this->goal('Sales')->update(['success_metric' => 'Upgrades signed']);
+        $this->assertSame(['A', 'B'], $this->goal('Sales')->starting_options);
+
+        $this->goal('Sales')->update(['recommended_action' => 'A different action']);
+        $this->assertNull($this->goal('Sales')->starting_options);
+
+        $this->goal('Sales')->update(['starting_options' => ['A', 'B']]);
+        $this->goal('Sales')->update(['org_role_id' => $w['product']->id]);
+        $this->assertNull($this->goal('Sales')->starting_options);
     }
 }

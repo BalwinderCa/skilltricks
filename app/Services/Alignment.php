@@ -28,6 +28,7 @@ class Alignment
 
         // Only a pick on the person's own role's goal counts as their commitment.
         $committed = GoalResponse::whereNotNull('starting_point')
+            ->where('decision', 'act_on_it')
             ->whereIn('user_id', $people->pluck('id'))
             ->whereHas('goal', fn ($q) => $q->where('search_user_chat_id', $chat->id))
             ->with('goal:id,org_role_id')->get()
