@@ -61,6 +61,7 @@
                     <div class="small mb-1">
                         <strong>{{ $item['role'] }}</strong>: {{ $item['note'] ?? $item['goal']->recommended_action }}
                         <span class="ms-1">[{{ $statusText[$item['status']] }}]</span>
+                        @if ($item['cascaded']) <span class="text-muted">· {{ $item['cascaded']['total'] }} {{ \Illuminate\Support\Str::plural('sub-goal', $item['cascaded']['total']) }} cascaded ({{ $item['cascaded']['completed'] }} completed)</span>@endif
                         @if ($item['days_behind']) <span style="color:#b42318">— {{ $item['days_behind'] }} {{ \Illuminate\Support\Str::plural('day', $item['days_behind']) }} behind baseline</span>@endif
                     </div>
                 @endforeach

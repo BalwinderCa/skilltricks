@@ -157,6 +157,9 @@
                             </form>
                         </details>
                     @endif
+                    @if (($myReports ?? collect())->isNotEmpty())
+                        @include('backend.pages.goals.cascade', ['root' => $card['goal'], 'parent' => null])
+                    @endif
                     <form method="POST" action="{{ route('my-goals.obstacle') }}" class="mt-2">
                         @csrf
                         <input type="hidden" name="goal_id" value="{{ $card['goal']->id }}">
@@ -169,6 +172,37 @@
                     @foreach ($card['obstacles'] as $obstacle)
                         <div class="mg-obstacle">{{ $obstacle->body }} <span class="text-muted">· {{ optional($obstacle->created_at)->diffForHumans() }}</span></div>
                     @endforeach
+                </div>
+            @endforeach
+        @endif
+        @if (($cascadedToMe ?? collect())->isNotEmpty())
+            <h6 class="mt-4 mb-1">{{ localize('Cascaded to you') }}</h6>
+            @foreach ($cascadedToMe as $item)
+                <div class="mg-goal">
+                    <div class="mg-label">{{ localize('Company goal') }}</div>
+                    <div class="mb-1">{{ $cascades->companyGoal($item->root->searchUserChat) }}</div>
+                    <div class="small text-muted mb-2">{{ localize('From') }} {{ $item->creator?->name }} · {{ localize('Part of') }}: {{ $item->parent?->text ?? $item->root->recommended_action }}</div>
+                    <div class="mg-action mb-2">{{ $item->text }}</div>
+                    <form method="POST" action="{{ route('my-goals.cascade.progress') }}" class="row g-2 align-items-center">
+                        @csrf
+                        <input type="hidden" name="cascade_id" value="{{ $item->id }}">
+                        <div class="col-md-3">
+                            <select name="status" class="form-select form-select-sm">
+                                @foreach ($statusLabels as $value => $label)
+                                    <option value="{{ $value }}" @selected(($item->status ?? 'in_progress') === $value)>{{ $label }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-2"><input type="number" name="pct" min="0" max="100" required value="{{ $item->pct ?? 0 }}" class="form-control form-control-sm"></div>
+                        <div class="col-md-5"><input type="text" name="note" maxlength="500" class="form-control form-control-sm" placeholder="{{ localize('What changed?') }}"></div>
+                        <div class="col-md-2"><button type="submit" class="btn btn-sm mg-btn w-100">{{ localize('Update status') }}</button></div>
+                    </form>
+                    @if ($item->progress_at)
+                        <div class="small text-muted mt-1">{{ $statusLabels[$item->status] ?? '' }} · {{ $item->pct }}%@if ($item->note) · {{ $item->note }}@endif · {{ $item->progress_at->diffForHumans() }}</div>
+                    @endif
+                    @if ($myReports->isNotEmpty())
+                        @include('backend.pages.goals.cascade', ['root' => $item->root, 'parent' => $item])
+                    @endif
                 </div>
             @endforeach
         @endif

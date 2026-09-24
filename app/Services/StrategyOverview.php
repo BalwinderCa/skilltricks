@@ -143,6 +143,7 @@ class StrategyOverview
         $holderDepts = User::whereIn('id', $holderIds)->whereNotNull('department_id')->distinct()->count('department_id');
         $contributors = GoalResponse::whereIn('expected_state_id', $ids)->distinct()->count('user_id');
         $lastUpdates = GoalProgressUpdate::whereIn('expected_state_id', $ids)->orderBy('id')->get()->keyBy('expected_state_id');
+        $cascadeCounts = Cascades::countsFor($ids);
 
         return [
             'chat' => $chat,
@@ -174,7 +175,7 @@ class StrategyOverview
                 'drift_level' => $state['level'],
                 'projected' => $state['projected'],
             ],
-            'deliverables' => $goals->map(function (ExpectedState $goal) use ($responses, $metrics, $lastUpdates) {
+            'deliverables' => $goals->map(function (ExpectedState $goal) use ($responses, $metrics, $lastUpdates, $cascadeCounts) {
                 $mine = $responses->get($goal->id, collect())->whereNotNull('progress_status');
                 $status = match (true) {
                     $mine->contains('progress_status', 'blocked') => 'blocked',
@@ -184,7 +185,7 @@ class StrategyOverview
                 };
 
                 return ['goal' => $goal, 'role' => $goal->orgRole->name ?? $goal->role, 'status' => $status,
-                    'note' => $lastUpdates->get($goal->id)?->note, 'days_behind' => $metrics->get((int) $goal->id)['days_behind'] ?? null];
+                    'note' => $lastUpdates->get($goal->id)?->note, 'cascaded' => $cascadeCounts[(int) $goal->id] ?? null, 'days_behind' => $metrics->get((int) $goal->id)['days_behind'] ?? null];
             }),
             'blockers' => $goals->filter(fn (ExpectedState $g) => $flagged->contains((int) $g->id) && $goals->contains(fn ($o) => (int) $o->depends_on_id === (int) $g->id))
                 ->map(fn (ExpectedState $g) => $g->orgRole->name ?? $g->role)->values(),

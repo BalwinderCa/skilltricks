@@ -187,4 +187,45 @@ class GoalCascadeTest extends TestCase
 
         $this->assertTrue(collect($route->gatherMiddleware())->contains(fn ($m) => str_starts_with($m, 'throttle:')));
     }
+
+    public function test_a_manager_sees_the_cascade_controls_and_drafts(): void
+    {
+        $w = $this->world();
+        GoalCascade::create(['expected_state_id' => $w['goal']->id, 'created_by' => $w['vp']->id, 'assignee_user_id' => $w['lead1']->id, 'text' => 'Draft the contract']);
+
+        $this->actingAs($w['vp'])->get('/dashboard')
+            ->assertOk()
+            ->assertSee('Cascade to your team')
+            ->assertSee('Suggest line-item actions for my team')
+            ->assertSee('Draft the contract')
+            ->assertSee(route('my-goals.cascade.send'), false);
+    }
+
+    public function test_the_assignee_sees_sent_sub_goals_only(): void
+    {
+        $w = $this->world();
+        GoalCascade::create(['expected_state_id' => $w['goal']->id, 'created_by' => $w['vp']->id, 'assignee_user_id' => $w['lead1']->id, 'text' => 'Unsent draft']);
+        GoalCascade::create(['expected_state_id' => $w['goal']->id, 'created_by' => $w['vp']->id, 'assignee_user_id' => $w['lead1']->id, 'text' => 'Draft the contract', 'sent_at' => now()]);
+
+        $this->actingAs($w['lead1'])->get('/dashboard')
+            ->assertOk()
+            ->assertSee('Cascaded to you')
+            ->assertSee('Draft the contract')
+            ->assertSee('Val VP')
+            ->assertSee('Grow revenue 30%')
+            ->assertDontSee('Unsent draft')
+            ->assertSee(route('my-goals.cascade.progress'), false)
+            ->assertSee('Cascade to your team'); // lead1 has a report
+    }
+
+    public function test_the_executive_view_counts_sub_goals(): void
+    {
+        $w = $this->world();
+        GoalCascade::create(['expected_state_id' => $w['goal']->id, 'created_by' => $w['vp']->id, 'assignee_user_id' => $w['lead1']->id, 'text' => 'A', 'sent_at' => now(), 'status' => 'completed']);
+        GoalCascade::create(['expected_state_id' => $w['goal']->id, 'created_by' => $w['vp']->id, 'assignee_user_id' => $w['lead2']->id, 'text' => 'B', 'sent_at' => now()]);
+        GoalCascade::create(['expected_state_id' => $w['goal']->id, 'created_by' => $w['vp']->id, 'assignee_user_id' => $w['lead2']->id, 'text' => 'Unsent']);
+
+        $this->actingAs($w['ceo'])->get(route('strategies.show', $w['chat']->id))
+            ->assertOk()->assertSee('2 sub-goals cascaded (1 completed)');
+    }
 }

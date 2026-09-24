@@ -15,6 +15,7 @@ use App\Models\SearchUserChat;
 use App\Models\SystemSetting;
 use App\Models\Template;
 use App\Models\User;
+use App\Services\Cascades;
 use App\Services\MyGoals;
 use App\Services\OrganizationService;
 use Carbon\Carbon;
@@ -92,6 +93,11 @@ class DashboardController extends Controller
             'myGoals' => app(MyGoals::class)->for($user),
 
             'isLeader' => app(OrganizationService::class)->isLeader($user),
+
+            // Notion Epic 3: sub-goals cascaded to this user, and their own direct reports.
+            'cascades' => app(Cascades::class),
+            'cascadedToMe' => app(Cascades::class)->forAssignee($user),
+            'myReports' => app(Cascades::class)->reportsOf($user),
 
         ]);
 
