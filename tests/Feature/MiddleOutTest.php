@@ -265,4 +265,33 @@ class MiddleOutTest extends TestCase
         $this->actingAs($w['director'])->get('/dashboard/users-new-chat/'.$w['initiative']->id)
             ->assertOk()->assertSee(route('users-new-chat-match.index'), false)->assertSee(route('users-new-chat-parent.index'), false);
     }
+
+    public function test_goals_cannot_change_while_awaiting_approval(): void
+    {
+        $w = $this->world();
+        $this->link($w);
+        $this->sendForApproval($w);
+
+        $this->actingAs($w['director'])->postJson(route('users-new-chat-save-expected-state.index'), [
+            'chat_id' => $w['initiative']->id, 'role' => 'Brand new role', 'recommended_action' => 'Sneaked in', 'decision' => 'act_on_it',
+        ])->assertStatus(409);
+
+        $this->assertSame(0, ExpectedState::where('recommended_action', 'Sneaked in')->count());
+    }
+
+    public function test_the_approval_card_shows_resources_and_goals(): void
+    {
+        $w = $this->world();
+        $w['initiative']->resources()->create(['department_id' => null, 'department_name' => 'Legal ops', 'budget' => 25000, 'fte' => 1.5, 'tools' => 'Contract AI']);
+        $this->link($w);
+        $this->sendForApproval($w);
+
+        $this->actingAs($w['ceo'])->get(route('strategies.index'))
+            ->assertOk()
+            ->assertSee('Legal ops')
+            ->assertSee('25,000')
+            ->assertSee('1.5 FTE')
+            ->assertSee('Contract AI')
+            ->assertSee('Act on Automate contract review');
+    }
 }

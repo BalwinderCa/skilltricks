@@ -272,6 +272,10 @@ class StrategyOverview
                 'score' => $c->correlation_score,
                 'reason' => $c->correlation_reason,
                 'budget' => (float) $c->resources()->sum('budget'),
+                // The approver decides on the whole mandate, not just its total.
+                'resources' => $c->resources()->orderBy('id')->get(['department_name', 'budget', 'fte', 'tools']),
+                'goal_list' => ExpectedState::where('search_user_chat_id', $c->id)->with('orgRole:id,name')->orderBy('id')->get()
+                    ->map(fn (ExpectedState $g) => ['role' => $g->orgRole->name ?? $g->role, 'action' => $g->recommended_action]),
                 'goals' => ExpectedState::where('search_user_chat_id', $c->id)->count(),
             ])->values();
 

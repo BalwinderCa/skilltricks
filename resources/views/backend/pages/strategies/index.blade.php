@@ -22,6 +22,20 @@
                                 · {{ localize('Budget') }} {{ config('custom.default_currency_symbol') ?: '$' }}{{ number_format($item['budget']) }}
                             </div>
                             @if ($item['reason'])<div class="small">{{ $item['reason'] }}</div>@endif
+                            <div class="row small mt-1">
+                                <div class="col-md-6">
+                                    <strong>{{ localize('Resources requested') }}</strong>
+                                    @foreach ($item['resources'] as $res)
+                                        <div>{{ $res->department_name }}: {{ config('custom.default_currency_symbol') ?: '$' }}{{ number_format((float) $res->budget) }} · {{ $res->fte !== null ? (float) $res->fte.' FTE' : '—' }}@if ($res->tools) · {{ $res->tools }}@endif</div>
+                                    @endforeach
+                                </div>
+                                <div class="col-md-6">
+                                    <strong>{{ localize('Goals') }}</strong>
+                                    @foreach ($item['goal_list'] as $goal)
+                                        <div>{{ $goal['role'] }}: {{ $goal['action'] }}</div>
+                                    @endforeach
+                                </div>
+                            </div>
                             <div class="d-flex flex-wrap gap-2 mt-2">
                                 <form method="POST" action="{{ route('strategies.approve', $item['chat']->id) }}">@csrf
                                     <button type="submit" class="btn btn-sm" style="background:#36839b;color:#fff">{{ localize('Approve and publish') }}</button>

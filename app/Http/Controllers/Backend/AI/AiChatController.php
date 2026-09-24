@@ -1535,6 +1535,11 @@ EOT;
         if (! SearchUserChat::where('id', $chatId)->where('user_id', $user->id)->exists()) {
             return response()->json(['error' => 'Chat not found or access denied.'], 403);
         }
+        // Awaiting approval (Features spec, phase 9): the approver decides on what
+        // was sent, so its goals are frozen until they approve or send it back.
+        if (SearchUserChat::whereKey($chatId)->value('status') === 'pending_approval') {
+            return response()->json(['error' => 'This initiative is awaiting approval; its goals cannot change until it is approved or sent back.'], 409);
+        }
 
         try {
             $attributes = [
