@@ -13,9 +13,14 @@ use App\Models\SearchUserChat;
 use App\Models\SearchUserChatData;
 use App\Models\User;
 use App\Models\WrNotification;
+use App\Services\AI\AiProviderService;
 use App\Services\DriftIndex;
+use App\Services\StrategyOverview;
+use GuzzleHttp\Psr7\Response as PsrResponse;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Response as ClientResponse;
 use Illuminate\Support\Facades\Mail;
+use Mockery;
 use Tests\TestCase;
 
 /**
@@ -276,5 +281,100 @@ class CommandDashboardTest extends TestCase
 
         $this->assertSame('red', $w['chat']->fresh()->drift_level);
         $this->assertSame(1, WrNotification::where('type', 'drift_red')->count());
+    }
+
+    private function fakeRecourse(string $text, int $status = 200): void
+    {
+        $ai = Mockery::mock(AiProviderService::class)->shouldIgnoreMissing();
+        $ai->shouldReceive('generate')->andReturn(new ClientResponse(new PsrResponse($status, [], '{}')));
+        $ai->shouldReceive('extractText')->andReturn($text);
+        $ai->shouldReceive('parseJson')->andReturnUsing(fn ($t) => json_decode((string) $t, true));
+        $this->instance(AiProviderService::class, $ai);
+    }
+
+    public function test_a_leader_gets_cached_recourse_options(): void
+    {
+        $w = $this->world();
+        $this->fakeRecourse('{"options":[{"action":"Reallocate $20k from Product to Sales enablement","why":"Sales is furthest behind"},{"action":"Extend the Sales target by 10 days","why":"Product dependency slipped"}]}');
+
+        $this->actingAs($w['ceo'])->post(route('strategies.recourse', $w['chat']->id))->assertRedirect();
+
+        $recourse = $w['chat']->fresh()->recourse;
+        $this->assertCount(2, $recourse['options']);
+        $this->assertSame('Reallocate $20k from Product to Sales enablement', $recourse['options'][0]['action']);
+        $this->actingAs($w['ceo'])->get(route('strategies.show', $w['chat']->id))->assertSee('Extend the Sales target by 10 days');
+    }
+
+    public function test_recourse_is_for_leaders_and_published_strategies_only(): void
+    {
+        $w = $this->world();
+        $this->fakeRecourse('{"options":[{"action":"x","why":"y"}]}');
+
+        $this->actingAs($w['rep'])->post(route('strategies.recourse', $w['chat']->id))->assertForbidden();
+        $w['chat']->forceFill(['status' => 'draft'])->save();
+        $this->actingAs($w['ceo'])->post(route('strategies.recourse', $w['chat']->id))->assertNotFound();
+    }
+
+    public function test_an_unusable_ai_reply_stores_nothing(): void
+    {
+        $w = $this->world();
+        $this->fakeRecourse('Sorry, I cannot help.');
+
+        $this->actingAs($w['ceo'])->post(route('strategies.recourse', $w['chat']->id))->assertRedirect();
+
+        $this->assertNull($w['chat']->fresh()->recourse);
+    }
+
+    public function test_savings_follow_the_notion_formula_with_the_owners_assumptions(): void
+    {
+        $this->assertSame(
+            ['manual_cost' => 2160.0, 'oi_cost' => 180.0, 'saved' => 1980.0, 'hours_saved' => 16.5],
+            StrategyOverview::savings(3, 0, StrategyOverview::DEFAULT_SETTINGS),
+        );
+    }
+
+    public function test_the_owner_edits_the_assumptions_and_others_cannot(): void
+    {
+        $w = $this->world();
+
+        $this->actingAs($w['ceo'])->post(route('strategies.settings'), ['hourly_rate' => 200, 'manual_hours' => 4, 'oi_minutes' => 15, 'token_cost' => 0.01])->assertRedirect();
+        $this->assertSame(200.0, (float) $w['org']->fresh()->command_settings['hourly_rate']);
+
+        $this->actingAs($w['ceo'])->post(route('strategies.settings'), ['hourly_rate' => -5, 'manual_hours' => 4, 'oi_minutes' => 15, 'token_cost' => 0.01])->assertSessionHasErrors('hourly_rate');
+        $this->actingAs($w['pm'])->post(route('strategies.settings'), ['hourly_rate' => 1, 'manual_hours' => 1, 'oi_minutes' => 1, 'token_cost' => 0])->assertForbidden();
+    }
+
+    public function test_the_command_view_shows_tiles_projection_deliverables_and_drift(): void
+    {
+        $w = $this->world();
+        $this->progress($w['rep'], 'Sales', 'in_progress', 30, 'Contract template in review');
+
+        $this->actingAs($w['ceo'])->get(route('strategies.index'))
+            ->assertOk()->assertSee('40%')->assertSee('$1,980');
+
+        $this->actingAs($w['ceo'])->get(route('strategies.show', $w['chat']->id))
+            ->assertOk()
+            ->assertSee('1 / 1 departments')
+            ->assertSee('1 active contributor')
+            ->assertSee('$1,980')
+            ->assertSee('16.5 meeting hours')
+            ->assertSee('Target 25 vs projected 15')
+            ->assertSee('Contract template in review')
+            ->assertSee('4 days behind baseline')
+            ->assertSee('Zero upstream blockers detected across teams')
+            ->assertSee('Suggest recourse options');
+    }
+
+    public function test_a_blocked_upstream_goal_raises_the_blocker_alert_and_severe_badge(): void
+    {
+        $w = $this->world();
+        $this->progress($w['pm'], 'Product', 'blocked', 10, 'Waiting on the auditor');
+
+        $this->actingAs($w['ceo'])->get(route('strategies.show', $w['chat']->id))
+            ->assertOk()
+            ->assertSee('1 upstream blocker')
+            ->assertSee('Product')
+            ->assertSee('Severe Drift')
+            ->assertSee('1 goal blocked');
     }
 }

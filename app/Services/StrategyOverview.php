@@ -2,11 +2,14 @@
 
 namespace App\Services;
 
+use App\Models\Department;
 use App\Models\DriftEvent;
 use App\Models\ExpectedState;
 use App\Models\GoalObstacle;
+use App\Models\GoalProgressUpdate;
 use App\Models\GoalResponse;
 use App\Models\GoalRevision;
+use App\Models\Organization;
 use App\Models\SearchUserChat;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -30,7 +33,50 @@ class StrategyOverview
 
     private const HIGH_FRICTION = 3;
 
-    public function __construct(protected MyGoals $goals, protected Alignment $alignment) {}
+    public function __construct(protected MyGoals $goals, protected Alignment $alignment, protected DriftIndex $drift) {}
+
+    public const DEFAULT_SETTINGS = ['hourly_rate' => 120.0, 'manual_hours' => 6.0, 'oi_minutes' => 30.0, 'token_cost' => 0.02];
+
+    /** @return array{hourly_rate: float, manual_hours: float, oi_minutes: float, token_cost: float} */
+    public static function settingsFor(?Organization $org): array
+    {
+        $saved = is_array($org?->command_settings) ? $org->command_settings : [];
+
+        return array_map('floatval', array_merge(self::DEFAULT_SETTINGS, array_intersect_key($saved, self::DEFAULT_SETTINGS)));
+    }
+
+    /**
+     * Notion's alignment-savings formula, with the owner's assumptions.
+     *
+     * @param  array{hourly_rate: float, manual_hours: float, oi_minutes: float, token_cost: float}  $s
+     * @return array{manual_cost: float, oi_cost: float, saved: float, hours_saved: float}
+     */
+    public static function savings(int $participants, int $tokens, array $s): array
+    {
+        $manual = $participants * $s['manual_hours'] * $s['hourly_rate'];
+        $oi = $participants * $s['oi_minutes'] / 60 * $s['hourly_rate'] + $tokens / 1000 * $s['token_cost'];
+
+        return [
+            'manual_cost' => round($manual, 2),
+            'oi_cost' => round($oi, 2),
+            'saved' => round($manual - $oi, 2),
+            'hours_saved' => round($participants * ($s['manual_hours'] - $s['oi_minutes'] / 60), 1),
+        ];
+    }
+
+    /** @return Collection<int, int> ids of the people holding one of these goals' roles */
+    private function holders(SearchUserChat $chat, Collection $goals): Collection
+    {
+        $roleIds = $goals->pluck('org_role_id')->filter()->map(fn ($id) => (int) $id)->unique();
+
+        return $roleIds->isEmpty() ? collect() : User::where('organization_id', $chat->organization_id)->whereIn('org_role_id', $roleIds)->pluck('id');
+    }
+
+    /** Goals someone holding them has flagged Blocked. @return Collection<int, int> */
+    private function flaggedBlocked(Collection $goalIds): Collection
+    {
+        return GoalResponse::whereIn('expected_state_id', $goalIds)->where('progress_status', 'blocked')->pluck('expected_state_id')->map(fn ($id) => (int) $id)->unique();
+    }
 
     /** @return Collection<int, array<string, mixed>> */
     public function list(User $viewer): Collection
@@ -41,20 +87,27 @@ class StrategyOverview
 
         // ponytail: a few queries per strategy; batch them if an organization
         // publishes dozens.
+        $settings = self::settingsFor(Organization::find($viewer->organization_id));
         /** @var Collection<int, array<string, mixed>> $rows */
         $rows = $this->published($viewer)->with('publisher:id,name')->orderByDesc('published_at')->get()
-            ->map(function (SearchUserChat $chat) {
+            ->map(function (SearchUserChat $chat) use ($settings) {
                 $ids = ExpectedState::where('search_user_chat_id', $chat->id)->pluck('id');
                 $alignment = $this->alignment->forStrategy($chat)['overall'];
                 $obstacles = GoalObstacle::whereIn('expected_state_id', $ids)->count();
                 $latest = $this->latestDrift($ids);
+                $state = $this->drift->evaluate($chat);
+                $goals = ExpectedState::where('search_user_chat_id', $chat->id)->get(['id', 'org_role_id']);
+                $blocked = $this->blockedGoals($latest) + $this->flaggedBlocked($ids)->count();
 
                 return [
                     'chat' => $chat,
                     'company_goal' => $this->goals->companyGoal($chat),
                     'alignment' => $alignment,
                     'drift' => $this->drift($ids),
-                    'badge' => self::badge($alignment['rate'], $obstacles, $this->blockedGoals($latest)),
+                    'badge' => self::badge($alignment['rate'], $obstacles, $blocked),
+                    'drift_index' => $state['index'],
+                    'drift_level' => $state['level'],
+                    'savings' => self::savings($this->holders($chat, $goals)->push((int) $chat->user_id)->unique()->count(), (int) $chat->total_tokens, $settings),
                     'obstacles' => $obstacles,
                     'not_viable' => GoalResponse::whereIn('expected_state_id', $ids)->where('decision', 'not_viable')->count(),
                 ];
@@ -82,14 +135,22 @@ class StrategyOverview
         $latest = $this->latestDrift($ids);
         $alignment = $this->alignment->forStrategy($chat);
         $obstacles = GoalObstacle::whereIn('expected_state_id', $ids)->with(['user:id,name', 'goal.orgRole:id,name'])->orderByDesc('id')->get();
+        $state = $this->drift->evaluate($chat);
+        $metrics = $state['goals']->keyBy(fn (array $row) => (int) $row['goal']->id);
+        $holderIds = $this->holders($chat, $goals);
+        $flagged = $this->flaggedBlocked($ids);
+        $settings = self::settingsFor(Organization::find($chat->organization_id));
+        $holderDepts = User::whereIn('id', $holderIds)->whereNotNull('department_id')->distinct()->count('department_id');
+        $contributors = GoalResponse::whereIn('expected_state_id', $ids)->distinct()->count('user_id');
+        $lastUpdates = GoalProgressUpdate::whereIn('expected_state_id', $ids)->orderBy('id')->get()->keyBy('expected_state_id');
 
         return [
             'chat' => $chat,
             'company_goal' => $this->goals->companyGoal($chat),
             'alignment' => $alignment,
             'drift' => $this->drift($ids),
-            'badge' => self::badge($alignment['overall']['rate'], $obstacles->count(), $this->blockedGoals($latest)),
-            'goals' => $goals->map(function (ExpectedState $goal) use ($responses, $holders, $latest) {
+            'badge' => self::badge($alignment['overall']['rate'], $obstacles->count(), $this->blockedGoals($latest) + $flagged->count()),
+            'goals' => $goals->map(function (ExpectedState $goal) use ($responses, $holders, $latest, $metrics) {
                 $mine = $responses->get($goal->id, collect());
 
                 return [
@@ -99,10 +160,35 @@ class StrategyOverview
                     'committed' => $mine->whereNotNull('starting_point')->count(),
                     'decisions' => collect(MyGoals::DECISIONS)->mapWithKeys(fn (string $d) => [$d => $mine->where('decision', $d)->count()])->all(),
                     'drift' => $latest->get($goal->id),
+                    'metrics' => $metrics->get((int) $goal->id),
                 ];
             }),
             'obstacles' => $obstacles,
             'revisions' => GoalRevision::whereIn('expected_state_id', $ids)->with(['user:id,name', 'goal.orgRole:id,name'])->orderByDesc('id')->get(),
+            'command' => [
+                'teams_involved' => $holderDepts,
+                'teams_total' => Department::where('organization_id', $chat->organization_id)->count(),
+                'contributors' => $contributors,
+                'savings' => self::savings($holderIds->push((int) $chat->user_id)->unique()->count(), (int) $chat->total_tokens, $settings),
+                'drift_index' => $state['index'],
+                'drift_level' => $state['level'],
+                'projected' => $state['projected'],
+            ],
+            'deliverables' => $goals->map(function (ExpectedState $goal) use ($responses, $metrics, $lastUpdates) {
+                $mine = $responses->get($goal->id, collect())->whereNotNull('progress_status');
+                $status = match (true) {
+                    $mine->contains('progress_status', 'blocked') => 'blocked',
+                    $mine->isNotEmpty() && $mine->every(fn ($r) => $r->progress_status === 'completed') => 'completed',
+                    $mine->whereIn('progress_status', ['in_progress', 'completed'])->isNotEmpty() => 'in_progress',
+                    default => 'not_started',
+                };
+
+                return ['goal' => $goal, 'role' => $goal->orgRole->name ?? $goal->role, 'status' => $status,
+                    'note' => $lastUpdates->get($goal->id)?->note, 'days_behind' => $metrics->get((int) $goal->id)['days_behind'] ?? null];
+            }),
+            'blockers' => $goals->filter(fn (ExpectedState $g) => $flagged->contains((int) $g->id) && $goals->contains(fn ($o) => (int) $o->depends_on_id === (int) $g->id))
+                ->map(fn (ExpectedState $g) => $g->orgRole->name ?? $g->role)->values(),
+            'recourse' => $chat->recourse,
         ];
     }
 

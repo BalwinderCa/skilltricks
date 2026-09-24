@@ -16,6 +16,62 @@
                 @include('backend.pages.strategies.badge', ['badge' => $badge])
                 <span class="small text-muted ms-1">{{ implode(' · ', $badge['reasons']) }}</span>
             </div>
+            @php $money = config('custom.default_currency_symbol') ?: '$'; @endphp
+            <div class="row g-3 mb-3">
+                <div class="col-md-4"><div class="card h-100"><div class="card-body">
+                    <div class="small text-muted">{{ localize('Teams involved') }}</div>
+                    <div class="fs-5 fw-bold">{{ $command['teams_involved'] }} / {{ $command['teams_total'] }} {{ localize('departments') }}</div>
+                    <div class="small text-muted">{{ $command['contributors'] }} {{ \Illuminate\Support\Str::plural('active contributor', $command['contributors']) }}</div>
+                </div></div></div>
+                <div class="col-md-4"><div class="card h-100"><div class="card-body">
+                    <div class="small text-muted">{{ localize('Alignment effort saved (estimate)') }}</div>
+                    <div class="fs-5 fw-bold">{{ $money }}{{ number_format($command['savings']['saved']) }}</div>
+                    <div class="small text-muted">{{ rtrim(rtrim(number_format($command['savings']['hours_saved'], 1), '0'), '.') }} {{ localize('meeting hours saved') }}</div>
+                </div></div></div>
+                <div class="col-md-4"><div class="card h-100"><div class="card-body">
+                    <div class="small text-muted">{{ localize('Drift index') }}</div>
+                    <div class="fs-5 fw-bold">@include('backend.pages.strategies.drift-pill', ['index' => $command['drift_index'], 'level' => $command['drift_level']])</div>
+                    <div class="small text-muted">
+                        @if ($command['projected']){{ localize('Projected completion') }}: {{ $command['projected']->toFormattedDateString() }} ({{ localize('at current pace') }})@else{{ localize('No progress reported yet') }}@endif
+                    </div>
+                </div></div></div>
+            </div>
+
+            @if ($command['drift_level'] === 'red')
+                <div class="card mb-3" style="border:1px solid #b42318;background:#fdecea"><div class="card-body">
+                    <h6 style="color:#b42318">⚠ {{ localize('Severe drift') }}: {{ $command['drift_index'] }}% {{ localize('behind baseline') }}</h6>
+                    @if (! empty($recourse['options']))
+                        <ul class="mb-2">
+                            @foreach ($recourse['options'] as $option)
+                                <li><strong>{{ $option['action'] }}</strong> <span class="text-muted">— {{ $option['why'] }}</span></li>
+                            @endforeach
+                        </ul>
+                    @endif
+                    <form method="POST" action="{{ route('strategies.recourse', $chat->id) }}">
+                        @csrf
+                        <button type="submit" class="btn btn-sm" style="background:#b42318;color:#fff">{{ empty($recourse['options']) ? localize('Suggest recourse options') : localize('Refresh recourse options') }}</button>
+                    </form>
+                </div></div>
+            @endif
+
+            <div class="card mb-3"><div class="card-body">
+                <h6>{{ localize('Departmental progress & deliverables') }}</h6>
+                @php $statusText = ['completed' => '✅ '.localize('Completed'), 'in_progress' => '⏳ '.localize('In progress'), 'blocked' => '⛔ '.localize('Blocked'), 'not_started' => localize('Not started')]; @endphp
+                @foreach ($deliverables as $item)
+                    <div class="small mb-1">
+                        <strong>{{ $item['role'] }}</strong>: {{ $item['note'] ?? $item['goal']->recommended_action }}
+                        <span class="ms-1">[{{ $statusText[$item['status']] }}]</span>
+                        @if ($item['days_behind']) <span style="color:#b42318">— {{ $item['days_behind'] }} {{ \Illuminate\Support\Str::plural('day', $item['days_behind']) }} behind baseline</span>@endif
+                    </div>
+                @endforeach
+                <div class="small mt-2 p-2" style="background:{{ $blockers->isEmpty() ? '#e6f4ea' : '#fdecea' }};border-radius:6px">
+                    @if ($blockers->isEmpty())
+                        {{ localize('Zero upstream blockers detected across teams.') }}
+                    @else
+                        ⚠ {{ $blockers->count() }} {{ \Illuminate\Support\Str::plural('upstream blocker', $blockers->count()) }}: {{ $blockers->implode(', ') }}
+                    @endif
+                </div>
+            </div></div>
             <p class="text-muted small">
                 {{ $chat->selected_strategy }} · {{ localize('Published by') }} {{ $chat->publisher?->name }}
                 {{ optional($chat->published_at)->toFormattedDateString() }} · {{ localize('OI drift') }}: {{ $drift }}
@@ -40,7 +96,7 @@
                 <h6>{{ localize('Goals') }}</h6>
                 <div class="table-responsive">
                     <table class="table table-sm align-middle mb-0">
-                        <thead><tr><th>{{ localize('Role') }}</th><th>{{ localize('Goal') }}</th><th>{{ localize('People') }}</th><th>{{ localize('Committed') }}</th><th>{{ localize('Responses') }}</th><th>{{ localize('OI drift') }}</th></tr></thead>
+                        <thead><tr><th>{{ localize('Role') }}</th><th>{{ localize('Goal') }}</th><th>{{ localize('People') }}</th><th>{{ localize('Committed') }}</th><th>{{ localize('Responses') }}</th><th>{{ localize('Target vs projected') }}</th><th>{{ localize('OI drift') }}</th></tr></thead>
                         <tbody>
                             @foreach ($goals as $row)
                                 <tr>
@@ -52,6 +108,11 @@
                                         @foreach ($row['decisions'] as $decision => $count)
                                             {{ $decisionLabels[$decision] }}: {{ $count }}@if (! $loop->last), @endif
                                         @endforeach
+                                    </td>
+                                    <td class="small">
+                                        @if (($row['metrics']['projected_value'] ?? null) !== null)
+                                            {{ localize('Target') }} {{ $row['goal']->target_value }} vs {{ localize('projected') }} {{ rtrim(rtrim(number_format($row['metrics']['projected_value'], 1), '0'), '.') }} <span class="text-muted">({{ localize('at current pace') }})</span>
+                                        @else — @endif
                                     </td>
                                     <td>{{ $row['drift'] ?? '—' }}</td>
                                 </tr>

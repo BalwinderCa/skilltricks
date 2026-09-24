@@ -38,7 +38,7 @@ class DriftIndex
 
     /**
      * @param  Collection<int, GoalResponse>  $responses
-     * @return array{expected: ?float, observed: float, drift: ?float, measured: bool, projected_completion: ?Carbon, projected_value: ?float, days_behind: ?int}
+     * @return array<string, mixed>
      */
     public function goalMetrics(ExpectedState $goal, SearchUserChat $chat, Collection $responses): array
     {
@@ -73,7 +73,7 @@ class DriftIndex
         return $metrics;
     }
 
-    /** @return array{index: ?float, level: ?string, worst: ?ExpectedState, projected: ?Carbon, goals: Collection<int, array<string, mixed>>} */
+    /** @return array<string, mixed> index, level, worst, projected, goals */
     public function evaluate(SearchUserChat $chat, bool $alert = true): array
     {
         $goals = ExpectedState::where('search_user_chat_id', $chat->id)->with('orgRole:id,name')->orderBy('id')->get();
