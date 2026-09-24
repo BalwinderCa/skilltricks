@@ -13,6 +13,7 @@ use App\Models\StrategyResourceChange;
 use App\Models\User;
 use App\Services\AI\AiProviderService;
 use App\Services\AI\DocumentContextService;
+use App\Services\Alignment;
 use App\Services\OrganizationService;
 use App\Services\RoleGoalLinker;
 use Illuminate\Http\JsonResponse;
@@ -534,6 +535,7 @@ EOT;
                 'body' => $o->body,
                 'at' => $o->created_at?->toIso8601String(),
             ])->values(),
+            'alignment' => $chat->isPublished() ? app(Alignment::class)->forStrategy($chat) : null,
             'rows' => $rows->map(fn (StrategyResource $r) => [
                 'id' => $r->id,
                 'department_id' => $r->department_id,

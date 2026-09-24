@@ -11,6 +11,7 @@ use App\Models\SearchUserChat;
 use App\Models\SearchUserChatData;
 use App\Models\User;
 use App\Services\AI\AiProviderService;
+use App\Services\Alignment;
 use App\Services\StartingPoints;
 use GuzzleHttp\Psr7\Response as PsrResponse;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -236,5 +237,57 @@ class WhereToBeginTest extends TestCase
 
         $this->actingAs($w['pm'])->post(route('my-goals.commit'), ['goal_id' => $this->goal('Sales')->id, 'option' => 0])->assertNotFound();
         $this->actingAs($w['pm'])->post(route('my-goals.suggest'), ['goal_id' => $this->goal('Sales')->id])->assertNotFound();
+    }
+
+    public function test_alignment_counts_commitments_per_department(): void
+    {
+        $w = $this->world();
+        $chat = $this->publishedGoals($w);
+        GoalResponse::create(['expected_state_id' => $this->goal('Sales')->id, 'user_id' => $w['rep1']->id, 'decision' => 'act_on_it', 'starting_point' => 'X']);
+        GoalResponse::create(['expected_state_id' => $this->goal('Product')->id, 'user_id' => $w['pm']->id, 'decision' => 'act_on_it', 'starting_point' => 'Y']);
+        // rep2 holds Sales; a pick on the Product goal is not their commitment.
+        GoalResponse::create(['expected_state_id' => $this->goal('Product')->id, 'user_id' => $w['rep2']->id, 'decision' => 'act_on_it', 'starting_point' => 'Z']);
+        // An undecided response is not a commitment either.
+        GoalResponse::create(['expected_state_id' => $this->goal('Sales')->id, 'user_id' => $w['ceo']->id, 'decision' => 'review_in_detail']);
+
+        $alignment = app(Alignment::class)->forStrategy($chat);
+
+        $this->assertSame(['people' => 3, 'committed' => 2, 'rate' => 67], $alignment['overall']);
+        $this->assertSame([
+            ['name' => 'No department', 'people' => 2, 'committed' => 1, 'rate' => 50],
+            ['name' => 'Sales', 'people' => 1, 'committed' => 1, 'rate' => 100],
+        ], $alignment['departments']);
+    }
+
+    public function test_alignment_ignores_other_organizations(): void
+    {
+        $w = $this->world();
+        $chat = $this->publishedGoals($w);
+        $globex = Organization::create(['domain' => 'globex.com', 'name' => 'Globex']);
+        User::factory()->create(['email' => 'x@globex.com', 'user_type' => 'customer', 'organization_id' => $globex->id, 'org_role_id' => $w['sales']->id]);
+
+        $this->assertSame(3, app(Alignment::class)->forStrategy($chat)['overall']['people']);
+    }
+
+    public function test_a_strategy_nobody_holds_a_goal_for_has_no_rate(): void
+    {
+        $w = $this->world();
+        $chat = $this->publishedGoals($w);
+        ExpectedState::query()->update(['org_role_id' => null]);
+
+        $this->assertSame(['people' => 0, 'committed' => 0, 'rate' => null], app(Alignment::class)->forStrategy($chat)['overall']);
+    }
+
+    public function test_the_published_publish_card_carries_alignment(): void
+    {
+        $w = $this->world();
+        $published = $this->publishedGoals($w);
+
+        $this->actingAs($w['ceo'])->getJson(route('users-new-chat-resources.show', ['chat' => $published->id]))
+            ->assertOk()->assertJsonPath('alignment.overall.people', 3);
+
+        $draft = $this->publishedGoals($w, draft: true);
+        $this->actingAs($w['ceo'])->getJson(route('users-new-chat-resources.show', ['chat' => $draft->id]))
+            ->assertOk()->assertJsonPath('alignment', null);
     }
 }

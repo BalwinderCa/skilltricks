@@ -155,6 +155,15 @@
         </tr>`;
     }
 
+    function alignmentHtml() {
+        const a = state.alignment;
+        if (!a) return '';
+        const pct = r => r === null ? '—' : r + '%';
+        const rows = a.departments.map(d => `<tr><td>${esc(d.name)}</td><td>${d.committed} / ${d.people}</td><td>${pct(d.rate)}</td></tr>`).join('');
+        return `<div class="pg-goals"><strong>Alignment</strong> — ${a.overall.committed} of ${a.overall.people} people committed (${pct(a.overall.rate)})
+            ${rows ? `<div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>Department</th><th>Committed</th><th>Rate</th></tr></thead><tbody>${rows}</tbody></table></div>` : ''}</div>`;
+    }
+
     function obstaclesHtml() {
         if (!state.obstacles || !state.obstacles.length) return '';
         return `<div class="pg-history"><strong>Reported obstacles</strong><ul class="mb-0">${state.obstacles.map(o =>
@@ -227,6 +236,7 @@
             ${error ? `<div class="pg-error">${esc(error)}</div>` : ''}
             ${busy ? '<div class="pg-sub">Working…</div>' : ''}
             ${goalsHtml(published)}
+            ${alignmentHtml()}
             ${obstaclesHtml()}
             <div class="table-responsive">
                 <table class="table table-sm align-middle mb-2">
