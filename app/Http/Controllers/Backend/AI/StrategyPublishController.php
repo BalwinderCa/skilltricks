@@ -284,8 +284,15 @@ class StrategyPublishController extends Controller
         if (! ExpectedState::where('search_user_chat_id', $chat->id)->exists()) {
             return response()->json(['error' => 'This strategy has no goals to rank yet.'], 422);
         }
-        if (! $ranking->rank($chat, $request->user())) {
+        $scores = $ranking->score($chat, $request->user());
+        if ($scores === null) {
             return response()->json(['error' => 'Could not rank the goals right now. Try again.'], 502);
+        }
+        // The AI call takes seconds: store only if it is still a draft, under the
+        // same lock publishing takes, so weights never change after publishing.
+        $stored = DB::transaction(fn () => $this->publishedUnderLock($chat) ? false : $ranking->apply($chat, $scores) > 0);
+        if (! $stored) {
+            return $this->publishedMeanwhile();
         }
 
         return response()->json($this->payload($chat->fresh(), $request->user()));

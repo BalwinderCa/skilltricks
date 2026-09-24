@@ -25,12 +25,25 @@ class ImpactRanking
         return max(1, min(5, (int) ceil($score / 2)));
     }
 
-    /** Score every goal; false when the AI gave nothing usable. */
+    /** Score and store every goal; false when the AI gave nothing usable. */
     public function rank(SearchUserChat $chat, User $author): bool
+    {
+        $scores = $this->score($chat, $author);
+
+        return $scores !== null && $this->apply($chat, $scores) > 0;
+    }
+
+    /**
+     * Ask the AI for scores. Nothing is written, so a caller can store them under
+     * a lock after this (slow) call returns.
+     *
+     * @return array<int, array{score: int, reason: ?string}>|null keyed by goal id; null when unusable
+     */
+    public function score(SearchUserChat $chat, User $author): ?array
     {
         $goals = ExpectedState::where('search_user_chat_id', $chat->id)->with('orgRole:id,name')->orderBy('id')->get();
         if ($goals->isEmpty()) {
-            return false;
+            return null;
         }
 
         $line = fn ($v) => str_replace('---', '--', trim((string) preg_replace('/\s+/', ' ', (string) $v)));
@@ -48,33 +61,43 @@ class ImpactRanking
         } catch (\Throwable $e) {
             report($e);
 
-            return false;
+            return null;
         }
         if (! $response->successful()) {
-            return false;
+            return null;
         }
 
         $parsed = $this->ai->parseJson($this->ai->extractText($response));
-        $byId = $goals->keyBy(fn (ExpectedState $g) => (int) $g->id);
-        $scored = 0;
+        $ids = $goals->pluck('id')->map(fn ($id) => (int) $id);
+        $scores = [];
         foreach (is_array($parsed['scores'] ?? null) ? $parsed['scores'] : [] as $row) {
-            if (! is_array($row)) {
+            if (! is_array($row) || ! $ids->contains((int) ($row['id'] ?? 0))) {
                 continue;
             }
-            $goal = $byId->get((int) ($row['id'] ?? 0));
             $score = filter_var($row['score'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 10]]);
-            if (! $goal || $score === false) {
+            if ($score === false) {
                 continue;
             }
             $reason = mb_substr(trim(is_scalar($row['reason'] ?? null) ? (string) $row['reason'] : ''), 0, 300);
-            $goal->forceFill([
-                'impact_score' => $score,
-                'impact_reason' => $reason !== '' ? $reason : null,
-                'weight' => $goal->weight ?? self::defaultWeight($score),
-            ])->save();
-            $scored++;
+            $scores[(int) $row['id']] = ['score' => $score, 'reason' => $reason !== '' ? $reason : null];
         }
 
-        return $scored > 0;
+        return $scores === [] ? null : $scores;
+    }
+
+    /**
+     * Store scores; a goal keeps a weight it already has.
+     *
+     * @param  array<int, array{score: int, reason: ?string}>  $scores
+     */
+    public function apply(SearchUserChat $chat, array $scores): int
+    {
+        $goals = ExpectedState::where('search_user_chat_id', $chat->id)->whereIn('id', array_keys($scores))->get();
+        foreach ($goals as $goal) {
+            $s = $scores[(int) $goal->id];
+            $goal->forceFill(['impact_score' => $s['score'], 'impact_reason' => $s['reason'], 'weight' => $goal->weight ?? self::defaultWeight($s['score'])])->save();
+        }
+
+        return $goals->count();
     }
 }

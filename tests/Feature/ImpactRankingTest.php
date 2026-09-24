@@ -173,4 +173,24 @@ class ImpactRankingTest extends TestCase
         $this->actingAs($w['ceo'])->get(route('strategies.show', $w['chat']->id))
             ->assertOk()->assertSee('8/10')->assertSee('weight 4');
     }
+
+    public function test_a_ranking_that_finishes_after_publishing_writes_nothing(): void
+    {
+        $w = $this->world();
+        $text = json_encode(['scores' => [['id' => $w['salesGoal']->id, 'score' => 9, 'reason' => 'x']]]);
+        $ai = Mockery::mock(AiProviderService::class)->shouldIgnoreMissing();
+        $ai->shouldReceive('generate')->andReturnUsing(function () use ($w) {
+            $this->publish($w); // published from another tab while the model was thinking
+
+            return new ClientResponse(new PsrResponse(200, [], '{}'));
+        });
+        $ai->shouldReceive('extractText')->andReturn($text);
+        $ai->shouldReceive('parseJson')->andReturnUsing(fn ($t) => json_decode((string) $t, true));
+        $this->instance(AiProviderService::class, $ai);
+
+        $this->actingAs($w['ceo'])->postJson(route('users-new-chat-rank-goals.index'), ['chat_id' => $w['chat']->id])->assertStatus(409);
+
+        $this->assertNull($w['salesGoal']->fresh()->impact_score);
+        $this->assertNull($w['salesGoal']->fresh()->weight);
+    }
 }

@@ -207,23 +207,46 @@ return `<tr><td>${esc(g.action)}<div class="pg-role-text">AI role: ${esc(g.role_
             <thead><tr><th>Goal</th><th>Role</th><th>Impact</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
     }
 
+    // Role, rank and weight calls re-render the whole card from the server; carry
+    // the resource figures the author typed but has not saved across that.
+    function unsavedRows() {
+        if (!state || state.status !== 'draft' || !card() || !card().querySelector('tr[data-row]')) return null;
+        const before = state.rows || [];
+        return readRows().map(r => ({ ...(before.find(p => r.id !== null && p.id === r.id) || {}), ...r }));
+    }
+
     async function rankGoals() {
+        const unsaved = unsavedRows();
+        if (unsaved) state.rows = unsaved;
         busy = true; error = ''; render();
-        try { state = await call(urls.rankGoals, { chat_id: chatId }); }
+        try {
+            state = await call(urls.rankGoals, { chat_id: chatId });
+            if (unsaved && state.status === 'draft') state.rows = unsaved;
+        }
         catch (e) { error = e.message; }
         busy = false; render();
     }
 
     async function setWeight(goalId, weight) {
+        const unsaved = unsavedRows();
+        if (unsaved) state.rows = unsaved;
         busy = true; error = ''; render();
-        try { state = await call(urls.goalWeight, { chat_id: chatId, goal_id: goalId, weight }); }
+        try {
+            state = await call(urls.goalWeight, { chat_id: chatId, goal_id: goalId, weight });
+            if (unsaved && state.status === 'draft') state.rows = unsaved;
+        }
         catch (e) { error = e.message; }
         busy = false; render();
     }
 
     async function assignRole(goalId, roleId) {
+        const unsaved = unsavedRows();
+        if (unsaved) state.rows = unsaved;
         busy = true; error = ''; render();
-        try { state = await call(urls.goalRole, { chat_id: chatId, goal_id: goalId, org_role_id: roleId }); }
+        try {
+            state = await call(urls.goalRole, { chat_id: chatId, goal_id: goalId, org_role_id: roleId });
+            if (unsaved && state.status === 'draft') state.rows = unsaved;
+        }
         catch (e) { error = e.message; }
         busy = false; render();
     }
