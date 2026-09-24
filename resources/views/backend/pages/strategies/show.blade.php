@@ -12,6 +12,10 @@
         <div class="container">
             <a href="{{ route('strategies.index') }}" class="small" style="color:#2c6d82">&larr; {{ localize('Executive view') }}</a>
             <h4 class="mt-2 mb-1">{{ $company_goal }}</h4>
+            <div class="mb-2">
+                @include('backend.pages.strategies.badge', ['badge' => $badge])
+                <span class="small text-muted ms-1">{{ implode(' · ', $badge['reasons']) }}</span>
+            </div>
             <p class="text-muted small">
                 {{ $chat->selected_strategy }} · {{ localize('Published by') }} {{ $chat->publisher?->name }}
                 {{ optional($chat->published_at)->toFormattedDateString() }} · {{ localize('Drift') }}: {{ $drift }}

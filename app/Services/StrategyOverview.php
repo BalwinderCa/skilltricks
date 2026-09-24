@@ -19,6 +19,17 @@ use Illuminate\Support\Str;
  */
 class StrategyOverview
 {
+    /*
+     * Notion "Drift Status Logic". The page leaves friction undefined, so:
+     * "high friction" = this many obstacles reported on the strategy, and a
+     * "critical bottleneck" = a goal whose latest OI drift is Execution Blocked.
+     */
+    private const ON_TRACK_RATE = 85;
+
+    private const MINOR_DRIFT_RATE = 60;
+
+    private const HIGH_FRICTION = 3;
+
     public function __construct(protected MyGoals $goals, protected Alignment $alignment) {}
 
     /** @return Collection<int, array<string, mixed>> */
@@ -34,13 +45,17 @@ class StrategyOverview
         $rows = $this->published($viewer)->with('publisher:id,name')->orderByDesc('published_at')->get()
             ->map(function (SearchUserChat $chat) {
                 $ids = ExpectedState::where('search_user_chat_id', $chat->id)->pluck('id');
+                $alignment = $this->alignment->forStrategy($chat)['overall'];
+                $obstacles = GoalObstacle::whereIn('expected_state_id', $ids)->count();
+                $latest = $this->latestDrift($ids);
 
                 return [
                     'chat' => $chat,
                     'company_goal' => $this->goals->companyGoal($chat),
-                    'alignment' => $this->alignment->forStrategy($chat)['overall'],
+                    'alignment' => $alignment,
                     'drift' => $this->drift($ids),
-                    'obstacles' => GoalObstacle::whereIn('expected_state_id', $ids)->count(),
+                    'badge' => self::badge($alignment['rate'], $obstacles, $this->blockedGoals($latest)),
+                    'obstacles' => $obstacles,
                     'not_viable' => GoalResponse::whereIn('expected_state_id', $ids)->where('decision', 'not_viable')->count(),
                 ];
             });
@@ -65,12 +80,15 @@ class StrategyOverview
         $holders = User::where('organization_id', $chat->organization_id)->whereNotNull('org_role_id')
             ->selectRaw('org_role_id, count(*) as n')->groupBy('org_role_id')->pluck('n', 'org_role_id');
         $latest = $this->latestDrift($ids);
+        $alignment = $this->alignment->forStrategy($chat);
+        $obstacles = GoalObstacle::whereIn('expected_state_id', $ids)->with(['user:id,name', 'goal.orgRole:id,name'])->orderByDesc('id')->get();
 
         return [
             'chat' => $chat,
             'company_goal' => $this->goals->companyGoal($chat),
-            'alignment' => $this->alignment->forStrategy($chat),
+            'alignment' => $alignment,
             'drift' => $this->drift($ids),
+            'badge' => self::badge($alignment['overall']['rate'], $obstacles->count(), $this->blockedGoals($latest)),
             'goals' => $goals->map(function (ExpectedState $goal) use ($responses, $holders, $latest) {
                 $mine = $responses->get($goal->id, collect());
 
@@ -83,9 +101,44 @@ class StrategyOverview
                     'drift' => $latest->get($goal->id),
                 ];
             }),
-            'obstacles' => GoalObstacle::whereIn('expected_state_id', $ids)->with(['user:id,name', 'goal.orgRole:id,name'])->orderByDesc('id')->get(),
+            'obstacles' => $obstacles,
             'revisions' => GoalRevision::whereIn('expected_state_id', $ids)->with(['user:id,name', 'goal.orgRole:id,name'])->orderByDesc('id')->get(),
         ];
+    }
+
+    /**
+     * The Notion drift badge: On Track (alignment >= 85% and low friction),
+     * Minor Drift (60-84% or high friction), Severe Drift (< 60% or a blocked goal).
+     *
+     * @return array{level: string, label: string, reasons: list<string>}
+     */
+    public static function badge(?int $rate, int $obstacles, int $blockedGoals): array
+    {
+        if ($rate === null) {
+            return ['level' => 'none', 'label' => 'Not started', 'reasons' => ['Nobody holds a goal in this strategy yet']];
+        }
+
+        $reasons = ['Alignment '.$rate.'%'];
+        if ($obstacles > 0) {
+            $reasons[] = $obstacles.' '.Str::plural('obstacle', $obstacles).' reported';
+        }
+        if ($blockedGoals > 0) {
+            $reasons[] = $blockedGoals.' '.Str::plural('goal', $blockedGoals).' blocked';
+        }
+
+        [$level, $label] = match (true) {
+            $rate < self::MINOR_DRIFT_RATE || $blockedGoals > 0 => ['red', 'Severe Drift'],
+            $rate < self::ON_TRACK_RATE || $obstacles >= self::HIGH_FRICTION => ['yellow', 'Minor Drift'],
+            default => ['green', 'On Track'],
+        };
+
+        return ['level' => $level, 'label' => $label, 'reasons' => $reasons];
+    }
+
+    /** @param  Collection<int, string>  $latest */
+    private function blockedGoals(Collection $latest): int
+    {
+        return $latest->filter(fn (string $type) => $type === 'Execution Blocked')->count();
     }
 
     /** @return Builder<SearchUserChat> */

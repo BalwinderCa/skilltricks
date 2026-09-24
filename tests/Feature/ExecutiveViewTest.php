@@ -12,6 +12,7 @@ use App\Models\OrgRole;
 use App\Models\SearchUserChat;
 use App\Models\SearchUserChatData;
 use App\Models\User;
+use App\Services\StrategyOverview;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -120,5 +121,34 @@ class ExecutiveViewTest extends TestCase
 
         DriftEvent::create(['expected_state_id' => $goal->id, 'drift_type' => 'None', 'detected_at' => now()]);
         $this->actingAs($w['ceo'])->get(route('strategies.index'))->assertSee('On track');
+    }
+
+    public function test_the_notion_drift_badge_thresholds(): void
+    {
+        $badge = fn (?int $rate, int $obstacles, int $blocked) => StrategyOverview::badge($rate, $obstacles, $blocked)['label'];
+
+        $this->assertSame('On Track', $badge(85, 2, 0));
+        $this->assertSame('Minor Drift', $badge(84, 0, 0));
+        $this->assertSame('Minor Drift', $badge(95, 3, 0), 'high friction');
+        $this->assertSame('Minor Drift', $badge(60, 0, 0));
+        $this->assertSame('Severe Drift', $badge(59, 0, 0));
+        $this->assertSame('Severe Drift', $badge(100, 0, 1), 'a blocked goal');
+        $this->assertSame('Not started', $badge(null, 0, 0));
+    }
+
+    public function test_the_badge_and_its_reasons_show_in_the_executive_view(): void
+    {
+        $w = $this->world();
+        $chat = $this->strategy($w, 'Grow revenue 30%');
+
+        $this->actingAs($w['ceo'])->get(route('strategies.index'))->assertOk()->assertSee('Severe Drift');
+
+        GoalResponse::create(['expected_state_id' => ExpectedState::first()->id, 'user_id' => $w['rep']->id, 'decision' => 'act_on_it', 'starting_point' => 'Book a sync']);
+        $this->actingAs($w['ceo'])->get(route('strategies.show', $chat->id))
+            ->assertOk()->assertSee('On Track')->assertSee('Alignment 100%');
+
+        DriftEvent::create(['expected_state_id' => ExpectedState::first()->id, 'drift_type' => 'Execution Blocked', 'detected_at' => now()]);
+        $this->actingAs($w['ceo'])->get(route('strategies.show', $chat->id))
+            ->assertOk()->assertSee('Severe Drift')->assertSee('1 goal blocked');
     }
 }

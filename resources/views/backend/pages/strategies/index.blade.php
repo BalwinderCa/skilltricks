@@ -20,6 +20,7 @@
                                     <tr>
                                         <th>{{ localize('Company goal') }}</th>
                                         <th>{{ localize('Published') }}</th>
+                                        <th>{{ localize('Status') }}</th>
                                         <th>{{ localize('Committed') }}</th>
                                         <th>{{ localize('Drift') }}</th>
                                         <th>{{ localize('Obstacles') }}</th>
@@ -34,6 +35,7 @@
                                                 <div class="small text-muted">{{ $row['chat']->selected_strategy }}</div>
                                             </td>
                                             <td class="small">{{ $row['chat']->publisher?->name }}<br>{{ optional($row['chat']->published_at)->toFormattedDateString() }}</td>
+                                            <td>@include('backend.pages.strategies.badge', ['badge' => $row['badge']])</td>
                                             <td>{{ $row['alignment']['committed'] }} of {{ $row['alignment']['people'] }}
                                                 @if ($row['alignment']['rate'] !== null)<span class="text-muted small">({{ $row['alignment']['rate'] }}%)</span>@endif
                                             </td>
