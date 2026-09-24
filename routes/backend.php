@@ -40,6 +40,7 @@ use App\Http\Controllers\Backend\Appearance\VideoUploadController;
 use App\Http\Controllers\Backend\BlogSystem\BlogCategoriesController;
 use App\Http\Controllers\Backend\BlogSystem\BlogsController;
 use App\Http\Controllers\Backend\BlogSystem\TagsController;
+use App\Http\Controllers\Backend\CascadeController;
 use App\Http\Controllers\Backend\ConstantController;
 use App\Http\Controllers\Backend\Contacts\ContactUsMessagesController;
 use App\Http\Controllers\Backend\CurrenciesController;
@@ -359,6 +360,11 @@ Route::group(
                 Route::post('/my-goals/commit', [MyGoalController::class, 'commit'])->name('my-goals.commit');
                 Route::post('/my-goals/revise', [MyGoalController::class, 'revise'])->name('my-goals.revise');
                 Route::post('/my-goals/progress', [MyGoalController::class, 'progress'])->name('my-goals.progress');
+                // Notion Epic 3: cascade a goal to direct reports
+                Route::post('/my-goals/cascade/suggest', [CascadeController::class, 'suggest'])->middleware('throttle:10,1')->name('my-goals.cascade.suggest');
+                Route::post('/my-goals/cascade/add', [CascadeController::class, 'add'])->name('my-goals.cascade.add');
+                Route::post('/my-goals/cascade/send', [CascadeController::class, 'send'])->name('my-goals.cascade.send');
+                Route::post('/my-goals/cascade/progress', [CascadeController::class, 'progress'])->name('my-goals.cascade.progress');
                 // Executive view: every published strategy in the organization, leaders only
                 Route::get('/strategies', [StrategyOverviewController::class, 'index'])->name('strategies.index');
                 Route::get('/strategies/{chat}', [StrategyOverviewController::class, 'show'])->name('strategies.show');
