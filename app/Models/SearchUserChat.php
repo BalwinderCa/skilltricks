@@ -37,6 +37,13 @@ class SearchUserChat extends Model
         'drift_alerted_level',
         'drift_checked_at',
         'recourse',
+        'parent_chat_id',
+        'correlation_score',
+        'correlation_reason',
+        'approval_requested_at',
+        'approval_decided_by',
+        'approval_decided_at',
+        'approval_note',
     ];
 
     protected $casts = [
@@ -47,6 +54,9 @@ class SearchUserChat extends Model
         'published_at' => 'datetime',
         'drift_checked_at' => 'datetime',
         'recourse' => 'array',
+        'approval_requested_at' => 'datetime',
+        'approval_decided_at' => 'datetime',
+        'correlation_score' => 'integer',
     ];
 
     /** Matches the column default, so a freshly created model reads 'draft' too. */
@@ -79,6 +89,24 @@ class SearchUserChat extends Model
     public function isPublished(): bool
     {
         return $this->status === 'published';
+    }
+
+    /** Published, or waiting for upstream approval: either way the author can no longer edit it. */
+    public function isLocked(): bool
+    {
+        return in_array($this->status, ['published', 'pending_approval'], true);
+    }
+
+    /** @return BelongsTo<SearchUserChat, $this> */
+    public function parentChat()
+    {
+        return $this->belongsTo(SearchUserChat::class, 'parent_chat_id');
+    }
+
+    /** @return HasMany<SearchUserChat, $this> */
+    public function childChats()
+    {
+        return $this->hasMany(SearchUserChat::class, 'parent_chat_id');
     }
 
     public function isFirstMessage(): bool

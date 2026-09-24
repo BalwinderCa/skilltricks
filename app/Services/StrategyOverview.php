@@ -228,6 +228,14 @@ class StrategyOverview
         return $latest->filter(fn (string $type) => $type === 'Execution Blocked')->count();
     }
 
+    /** The parent priority's author, or the organization owner. */
+    public function canApprove(User $viewer, SearchUserChat $child): bool
+    {
+        $ownerId = Organization::whereKey((int) $child->organization_id)->value('owner_user_id');
+
+        return (int) $viewer->id === (int) $ownerId || (int) $viewer->id === (int) $child->parentChat?->user_id;
+    }
+
     /** @return Builder<SearchUserChat> */
     private function published(User $viewer): Builder
     {

@@ -14,9 +14,12 @@ use App\Models\User;
 use App\Services\AI\AiProviderService;
 use App\Services\AI\DocumentContextService;
 use App\Services\Alignment;
+use App\Services\Correlation;
 use App\Services\ImpactRanking;
+use App\Services\MyGoals;
 use App\Services\OrganizationService;
 use App\Services\RoleGoalLinker;
+use App\Services\StrategyAlerts;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -41,6 +44,7 @@ class StrategyPublishController extends Controller
         protected DocumentContextService $docs,
         protected OrganizationService $orgs,
         protected RoleGoalLinker $linker,
+        protected Correlation $correlation,
     ) {}
 
     public function show(Request $request, $chat): JsonResponse
@@ -51,7 +55,7 @@ class StrategyPublishController extends Controller
         }
 
         // Links are final once published: only a draft is linked by name.
-        if (! $record->isPublished()) {
+        if (! $record->isLocked()) {
             $this->linker->autoLink($record);
         }
 
@@ -143,8 +147,8 @@ class StrategyPublishController extends Controller
         if (! $chat) {
             return $this->denied();
         }
-        if ($chat->isPublished()) {
-            return response()->json(['error' => 'This strategy is already published.'], 409);
+        if ($chat->isLocked()) {
+            return response()->json(['error' => 'This strategy is published or awaiting approval.'], 409);
         }
 
         $goals = ExpectedState::where('search_user_chat_id', $chat->id)->orderBy('id')->get(['role', 'recommended_action']);
@@ -206,8 +210,8 @@ class StrategyPublishController extends Controller
         // Re-read under a row lock so a double click cannot publish twice.
         $result = DB::transaction(function () use ($request, $user) {
             $chat = SearchUserChat::whereKey($request->input('chat_id'))->lockForUpdate()->firstOrFail();
-            if ($chat->isPublished()) {
-                return response()->json(['error' => 'This strategy is already published.'], 409);
+            if ($chat->isLocked()) {
+                return response()->json(['error' => 'This strategy is already published or awaiting approval.'], 409);
             }
             if (! $chat->resources()->exists()) {
                 return response()->json(['error' => 'Add at least one department\'s resources before publishing.'], 422);
@@ -218,6 +222,23 @@ class StrategyPublishController extends Controller
                 ->exists();
             if ($unlinked) {
                 return response()->json(['error' => 'Link every goal to a role before publishing.'], 422);
+            }
+
+            // Notion Illustration 2: a director's or VP's initiative rolls up into a
+            // C-suite priority, and goes live only once that priority's owner approves.
+            if ($this->correlation->requiresApproval($user)) {
+                if (! $chat->parent_chat_id || ! $this->correlation->isCandidate($user, $chat, (int) $chat->parent_chat_id)) {
+                    return response()->json(['error' => 'Link this initiative to a corporate priority before sending it for approval.'], 422);
+                }
+                $chat->forceFill([
+                    'status' => 'pending_approval',
+                    'published_by' => $user->id,
+                    'approval_requested_at' => now(),
+                    'approval_note' => null,
+                    'organization_id' => $user->organization_id,
+                ])->save();
+
+                return $chat;
             }
 
             $chat->forceFill([
@@ -232,6 +253,12 @@ class StrategyPublishController extends Controller
 
         if ($result instanceof JsonResponse) {
             return $result;
+        }
+
+        if ($result->status === 'pending_approval' && ($approver = User::find($result->parentChat?->user_id))) {
+            app(StrategyAlerts::class)->send($approver, localize('Approval requested').': '.app(MyGoals::class)->companyGoal($result),
+                'dashboard/strategies', $user->name.' asks you to approve an initiative supporting "'.app(MyGoals::class)->companyGoal($result->parentChat).'".',
+                'approval_request');
         }
 
         return response()->json($this->payload($result->fresh(), $user));
@@ -278,7 +305,7 @@ class StrategyPublishController extends Controller
         if (! $chat) {
             return $this->denied();
         }
-        if ($chat->isPublished()) {
+        if ($chat->isLocked()) {
             return response()->json(['error' => 'Rank before publishing; a published strategy is final.'], 409);
         }
         if (! ExpectedState::where('search_user_chat_id', $chat->id)->exists()) {
@@ -324,6 +351,57 @@ class StrategyPublishController extends Controller
         });
 
         return $saved ? response()->json($this->payload($chat->fresh(), $request->user())) : $this->publishedMeanwhile();
+    }
+
+    public function matchParent(Request $request): JsonResponse
+    {
+        $chat = $this->ownChat($request, $request->input('chat_id'));
+        if (! $chat) {
+            return $this->denied();
+        }
+        if ($chat->isLocked()) {
+            return $this->publishedMeanwhile();
+        }
+        if ($this->correlation->candidates($request->user(), $chat)->isEmpty()) {
+            return response()->json(['error' => 'There is no corporate priority to link to yet.'], 422);
+        }
+        $best = $this->correlation->match($chat, $request->user());
+        if (! $best) {
+            return response()->json(['error' => 'Could not find a matching priority right now. Try again, or pick one.'], 502);
+        }
+
+        return $this->storeParent($chat, $request->user(), $best['id'], $best['score'], $best['reason']);
+    }
+
+    public function setParent(Request $request): JsonResponse
+    {
+        $data = $request->validate(['chat_id' => 'required|integer', 'parent_chat_id' => 'required|integer']);
+        $chat = $this->ownChat($request, $data['chat_id']);
+        if (! $chat) {
+            return $this->denied();
+        }
+        if ($chat->isLocked()) {
+            return $this->publishedMeanwhile();
+        }
+        if (! $this->correlation->isCandidate($request->user(), $chat, (int) $data['parent_chat_id'])) {
+            return response()->json(['error' => 'Pick one of the corporate priorities listed.'], 422);
+        }
+
+        return $this->storeParent($chat, $request->user(), (int) $data['parent_chat_id'], null, null);
+    }
+
+    private function storeParent(SearchUserChat $chat, User $user, int $parentId, ?int $score, ?string $reason): JsonResponse
+    {
+        $stored = DB::transaction(function () use ($chat, $parentId, $score, $reason) {
+            if ($this->publishedUnderLock($chat)) {
+                return false;
+            }
+            $chat->forceFill(['parent_chat_id' => $parentId, 'correlation_score' => $score, 'correlation_reason' => $reason])->save();
+
+            return true;
+        });
+
+        return $stored ? response()->json($this->payload($chat->fresh(), $user)) : $this->publishedMeanwhile();
     }
 
     // -------------------------------------------------------------------------
@@ -384,12 +462,12 @@ class StrategyPublishController extends Controller
     /** Re-read the strategy under a row lock; call inside a transaction. */
     private function publishedUnderLock(SearchUserChat $chat): bool
     {
-        return SearchUserChat::whereKey($chat->id)->lockForUpdate()->firstOrFail()->isPublished();
+        return SearchUserChat::whereKey($chat->id)->lockForUpdate()->firstOrFail()->isLocked();
     }
 
     private function publishedMeanwhile(): JsonResponse
     {
-        return response()->json(['error' => 'This strategy was published in the meantime. Reload to see it.'], 409);
+        return response()->json(['error' => 'This strategy has been published or sent for approval. Reload to see it.'], 409);
     }
 
     private function aiFailed(): JsonResponse
@@ -594,6 +672,16 @@ EOT;
                 'at' => $o->created_at?->toIso8601String(),
             ])->values(),
             'alignment' => $chat->isPublished() ? app(Alignment::class)->forStrategy($chat) : null,
+            'requires_approval' => $this->correlation->requiresApproval($user),
+            'parent_candidates' => $this->correlation->candidates($user, $chat)
+                ->map(fn (SearchUserChat $c) => ['id' => (int) $c->id, 'goal' => app(MyGoals::class)->companyGoal($c)])->values(),
+            'parent' => $chat->parent_chat_id ? ['id' => (int) $chat->parent_chat_id, 'score' => $chat->correlation_score, 'reason' => $chat->correlation_reason] : null,
+            'approval' => $chat->status === 'pending_approval'
+                ? ['requested_at' => $chat->approval_requested_at?->toIso8601String(), 'approver' => User::whereKey($chat->parentChat?->user_id)->value('name')]
+                : null,
+            'rejection' => $chat->status === 'draft' && $chat->approval_note
+                ? ['note' => $chat->approval_note, 'at' => $chat->approval_decided_at?->toIso8601String()]
+                : null,
             'rows' => $rows->map(fn (StrategyResource $r) => [
                 'id' => $r->id,
                 'department_id' => $r->department_id,

@@ -353,6 +353,8 @@ Route::group(
                 Route::post('/users-new-chat-goal-role', [StrategyPublishController::class, 'assignRole'])->name('users-new-chat-goal-role.index');
                 Route::post('/users-new-chat-rank-goals', [StrategyPublishController::class, 'rankGoals'])->middleware('throttle:10,1')->name('users-new-chat-rank-goals.index');
                 Route::post('/users-new-chat-goal-weight', [StrategyPublishController::class, 'setWeight'])->name('users-new-chat-goal-weight.index');
+                Route::post('/users-new-chat-match', [StrategyPublishController::class, 'matchParent'])->middleware('throttle:10,1')->name('users-new-chat-match.index');
+                Route::post('/users-new-chat-parent', [StrategyPublishController::class, 'setParent'])->name('users-new-chat-parent.index');
                 // "My goal" card: respond to a published goal, report an obstacle
                 Route::post('/my-goals/decide', [MyGoalController::class, 'decide'])->name('my-goals.decide');
                 Route::post('/my-goals/obstacle', [MyGoalController::class, 'reportObstacle'])->name('my-goals.obstacle');
@@ -369,6 +371,8 @@ Route::group(
                 Route::get('/strategies', [StrategyOverviewController::class, 'index'])->name('strategies.index');
                 Route::get('/strategies/{chat}', [StrategyOverviewController::class, 'show'])->name('strategies.show');
                 Route::post('/strategies/{chat}/recourse', [StrategyOverviewController::class, 'recourse'])->middleware('throttle:10,1')->name('strategies.recourse');
+                Route::post('/strategies/{chat}/approve', [StrategyOverviewController::class, 'approve'])->name('strategies.approve');
+                Route::post('/strategies/{chat}/reject', [StrategyOverviewController::class, 'reject'])->name('strategies.reject');
                 Route::post('/strategies/settings', [StrategyOverviewController::class, 'settings'])->name('strategies.settings');
                 Route::get('/userchathistory', [AiChatController::class, 'userchathistory'])->name('userchathistory.index');
                 Route::get('/user-view-chathistory/{id}', [AiChatController::class, 'user_view_chathistory'])->name('user-view-chathistory.index');

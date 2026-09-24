@@ -4,9 +4,12 @@ namespace App\Http\Controllers\Backend;
 
 use App\Http\Controllers\Controller;
 use App\Models\SearchUserChat;
+use App\Models\User;
 use App\Services\DriftIndex;
+use App\Services\MyGoals;
 use App\Services\OrganizationService;
 use App\Services\Recourse;
+use App\Services\StrategyAlerts;
 use App\Services\StrategyOverview;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -73,5 +76,56 @@ class StrategyOverviewController extends Controller
         flash(localize('Savings assumptions updated'))->success();
 
         return back();
+    }
+
+    public function approve(Request $request, $chat, StrategyAlerts $alerts, MyGoals $goals): RedirectResponse
+    {
+        $record = $this->pendingFor($request, (int) $chat);
+        // Conditional on still pending: a double click decides once.
+        $decided = SearchUserChat::whereKey($record->id)->where('status', 'pending_approval')->update([
+            'status' => 'published', 'published_at' => now(), 'approval_decided_by' => $request->user()->id,
+            'approval_decided_at' => now(), 'approval_note' => null,
+        ]);
+        abort_unless($decided, 404);
+        $this->tellRequester($record, $alerts, localize('Initiative approved').': '.$goals->companyGoal($record),
+            $request->user()->name.' approved your initiative. It is now live for your organization.');
+        flash(localize('Initiative approved and published'))->success();
+
+        return back();
+    }
+
+    public function reject(Request $request, $chat, StrategyAlerts $alerts, MyGoals $goals): RedirectResponse
+    {
+        $data = $request->validate(['note' => 'required|string|max:500']);
+        $record = $this->pendingFor($request, (int) $chat);
+        $decided = SearchUserChat::whereKey($record->id)->where('status', 'pending_approval')->update([
+            'status' => 'draft', 'published_by' => null, 'approval_decided_by' => $request->user()->id,
+            'approval_decided_at' => now(), 'approval_note' => trim($data['note']),
+        ]);
+        abort_unless($decided, 404);
+        $this->tellRequester($record, $alerts, localize('Initiative sent back').': '.$goals->companyGoal($record),
+            $request->user()->name.': "'.trim($data['note']).'"');
+        flash(localize('Initiative sent back to its author'))->success();
+
+        return back();
+    }
+
+    private function pendingFor(Request $request, int $chatId): SearchUserChat
+    {
+        $record = SearchUserChat::whereKey($chatId)->where('status', 'pending_approval')
+            ->where('organization_id', (int) $request->user()->organization_id)->with('parentChat')->first();
+        abort_unless($record, 404);
+        abort_unless($this->overview->canApprove($request->user(), $record), 403);
+
+        return $record;
+    }
+
+    private function tellRequester(SearchUserChat $record, StrategyAlerts $alerts, string $title, string $body): void
+    {
+        $requester = User::whereKey($record->published_by ?: $record->user_id)
+            ->where('organization_id', $record->organization_id)->first();
+        if ($requester) {
+            $alerts->send($requester, $title, 'dashboard/users-new-chat/'.$record->id, $body, 'approval_decision');
+        }
     }
 }
