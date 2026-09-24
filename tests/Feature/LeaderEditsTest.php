@@ -4,11 +4,13 @@ namespace Tests\Feature;
 
 use App\Models\Department;
 use App\Models\ExpectedState;
+use App\Models\GoalRevision;
 use App\Models\Organization;
 use App\Models\OrgRole;
 use App\Models\SearchUserChat;
 use App\Models\SearchUserChatData;
 use App\Models\User;
+use App\Models\WrNotification;
 use App\Services\OrganizationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -105,5 +107,74 @@ class LeaderEditsTest extends TestCase
         $outsider = User::factory()->create(['email' => 'x@globex.com', 'user_type' => 'customer', 'organization_id' => Organization::create(['domain' => 'globex.com'])->id]);
         $w['ceo']->forceFill(['manager_id' => $outsider->id])->save();
         $this->assertNotContains($outsider->id, $orgs->managerChain($w['rep']->fresh())->pluck('id')->map(fn ($id) => (int) $id)->all());
+    }
+
+    public function test_a_leader_revises_their_goal(): void
+    {
+        $w = $this->world();
+        $chat = $this->published($w);
+
+        $this->actingAs($w['lead'])->from('/dashboard')->post(route('my-goals.revise'), [
+            'goal_id' => $this->goal('Sales')->id, 'text' => '  New wording  ', 'reason' => 'Priorities shifted',
+        ])->assertRedirect('/dashboard');
+
+        $goal = $this->goal('Sales');
+        $this->assertSame('New wording', $goal->recommended_action);
+        $this->assertSame($w['lead']->name, $goal->revised_by_name);
+        $this->assertSame('Sales', $goal->revised_by_role);
+        $this->assertSame('Priorities shifted', $goal->revision_notes);
+        $this->assertNull($goal->starting_options);
+
+        $revision = GoalRevision::first();
+        $this->assertSame(['Old wording', 'New wording', 'Priorities shifted'], [$revision->old_text, $revision->new_text, $revision->reason]);
+
+        // lead's chain is vp then ceo; ceo is also the author: one alert each, none to lead.
+        $this->assertEqualsCanonicalizing([$w['vp']->id, $w['ceo']->id], WrNotification::pluck('user_id')->map(fn ($id) => (int) $id)->all());
+        $alert = WrNotification::first();
+        $this->assertSame('customer', $alert->user_role);
+        $this->assertSame('dashboard/strategies/'.$chat->id, $alert->url);
+        $this->assertStringContainsString('New wording', $alert->description);
+    }
+
+    public function test_saving_the_same_wording_changes_nothing(): void
+    {
+        $w = $this->world();
+        $this->published($w);
+
+        $this->actingAs($w['lead'])->post(route('my-goals.revise'), ['goal_id' => $this->goal('Sales')->id, 'text' => 'Old wording']);
+
+        $this->assertSame(0, GoalRevision::count());
+        $this->assertSame(0, WrNotification::count());
+        $this->assertSame(['A', 'B'], $this->goal('Sales')->starting_options);
+    }
+
+    public function test_a_non_leader_cannot_revise(): void
+    {
+        $w = $this->world();
+        $this->published($w);
+
+        $this->actingAs($w['rep'])->post(route('my-goals.revise'), ['goal_id' => $this->goal('Sales')->id, 'text' => 'Mine now'])
+            ->assertForbidden();
+        $this->assertSame('Old wording', $this->goal('Sales')->recommended_action);
+    }
+
+    public function test_a_leader_cannot_revise_a_goal_they_cannot_see(): void
+    {
+        $w = $this->world();
+        $this->published($w);
+
+        $this->actingAs($w['lead'])->post(route('my-goals.revise'), ['goal_id' => $this->goal('Product')->id, 'text' => 'Hijacked'])
+            ->assertNotFound();
+        $this->assertSame('Ship it', $this->goal('Product')->recommended_action);
+    }
+
+    public function test_empty_or_long_wording_is_rejected(): void
+    {
+        $w = $this->world();
+        $this->published($w);
+
+        $this->actingAs($w['lead'])->post(route('my-goals.revise'), ['goal_id' => $this->goal('Sales')->id, 'text' => '  '])->assertSessionHasErrors('text');
+        $this->actingAs($w['lead'])->post(route('my-goals.revise'), ['goal_id' => $this->goal('Sales')->id, 'text' => str_repeat('x', 501)])->assertSessionHasErrors('text');
+        $this->assertSame(0, GoalRevision::count());
     }
 }

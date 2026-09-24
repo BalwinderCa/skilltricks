@@ -354,6 +354,7 @@ Route::group(
                 Route::post('/my-goals/obstacle', [MyGoalController::class, 'reportObstacle'])->name('my-goals.obstacle');
                 Route::post('/my-goals/suggest', [MyGoalController::class, 'suggestStart'])->name('my-goals.suggest');
                 Route::post('/my-goals/commit', [MyGoalController::class, 'commit'])->name('my-goals.commit');
+                Route::post('/my-goals/revise', [MyGoalController::class, 'revise'])->name('my-goals.revise');
                 Route::get('/userchathistory', [AiChatController::class, 'userchathistory'])->name('userchathistory.index');
                 Route::get('/user-view-chathistory/{id}', [AiChatController::class, 'user_view_chathistory'])->name('user-view-chathistory.index');
                 Route::get('/users-chat-search-delete/{id}', [AiChatController::class, 'userschat_search_delete'])->name('users-chat-search-delete.index');

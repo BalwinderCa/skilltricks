@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Backend;
 use App\Http\Controllers\Controller;
 use App\Models\GoalObstacle;
 use App\Models\GoalResponse;
+use App\Services\GoalRevisions;
 use App\Services\MyGoals;
+use App\Services\OrganizationService;
 use App\Services\StartingPoints;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -17,7 +19,12 @@ use Illuminate\Validation\Rule;
  */
 class MyGoalController extends Controller
 {
-    public function __construct(protected MyGoals $goals, protected StartingPoints $starts) {}
+    public function __construct(
+        protected MyGoals $goals,
+        protected StartingPoints $starts,
+        protected GoalRevisions $revisions,
+        protected OrganizationService $orgs,
+    ) {}
 
     public function decide(Request $request): RedirectResponse
     {
@@ -85,6 +92,24 @@ class MyGoalController extends Controller
             return back()->withErrors(['option' => localize('Pick one of the suggested starting points.')]);
         }
         flash(localize('Your starting point is committed'))->success();
+
+        return back();
+    }
+
+    public function revise(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'goal_id' => 'required|integer',
+            'text' => 'required|string|max:500',
+            'reason' => 'nullable|string|max:500',
+        ]);
+        $goal = $this->goals->visibleGoal($request->user(), (int) $data['goal_id']);
+        abort_unless($goal, 404);
+        abort_unless($this->orgs->isLeader($request->user()), 403);
+
+        if ($this->revisions->revise($goal, $request->user(), $data['text'], $data['reason'] ?? null)) {
+            flash(localize('The goal has been updated'))->success();
+        }
 
         return back();
     }

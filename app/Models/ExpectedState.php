@@ -157,4 +157,10 @@ class ExpectedState extends Model
     {
         return $this->hasMany(GoalObstacle::class);
     }
+
+    /** @return HasMany<GoalRevision, $this> */
+    public function revisions(): HasMany
+    {
+        return $this->hasMany(GoalRevision::class);
+    }
 }
