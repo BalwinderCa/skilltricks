@@ -9,6 +9,10 @@
     .pg-btn-primary { background: #36839b; border-color: #36839b; color: #fff; }
     .pg-btn-primary:hover { background: #2c6d82; border-color: #2c6d82; color: #fff; }
     .pg-btn-confirm { background: #ec883f; border-color: #ec883f; color: #fff; }
+    /* Bootstrap's .btn:hover/:focus/:active outrank a single class and blank the
+       background, so the confirm button vanished just as the mouse reached it. */
+    .pg-btn-confirm:hover, .pg-btn-confirm:focus, .pg-btn-confirm:active { background: #d9772f; border-color: #d9772f; color: #fff; }
+    .pg-btn-primary:focus, .pg-btn-primary:active { background: #2c6d82; border-color: #2c6d82; color: #fff; }
     .pg-published { background: #fbf2ea; border-left: 4px solid #ec883f; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; }
     .pg-error { color: #b42318; font-size: 13px; margin: 8px 0; }
     .pg-history { font-size: 12px; margin-top: 12px; }

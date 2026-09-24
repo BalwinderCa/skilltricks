@@ -14,6 +14,8 @@
     #my-goals .mg-action { font-weight: 600; }
     #my-goals .mg-btn { border: 1px solid #36839b; color: #2c6d82; background: #fff; }
     #my-goals .mg-btn.active { background: #36839b; color: #fff; }
+    /* The theme leaves these inputs content-box, so width:100% plus padding overflowed the card. */
+    #my-goals .form-control { box-sizing: border-box; }
     #my-goals .mg-obstacle { font-size: 12px; background: #fbf2ea; border-left: 3px solid #ec883f; padding: 4px 8px; margin-top: 4px; border-radius: 4px; }
 </style>
 <div class="card mb-4" id="my-goals">
