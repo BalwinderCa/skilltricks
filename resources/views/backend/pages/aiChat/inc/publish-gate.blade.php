@@ -211,7 +211,7 @@
         const published = state.status === 'published';
         const editable = !published || state.is_publisher;
         const header = published
-            ? `<div class="pg-published">Published by <strong>${esc(state.published_by)}</strong> on ${esc(new Date(state.published_at).toLocaleString())}. ${state.is_publisher ? 'You can still change amounts; every change is logged.' : ''}</div>`
+            ? `<div class="pg-published">Published by <strong>${esc(state.published_by)}</strong> on ${esc(new Date(state.published_at).toLocaleString())}. ${state.is_publisher ? 'You can still change amounts; every change is logged.' : ''} <a href="{{ url('dashboard/strategies') }}/${chatId}" style="color:#2c6d82">Open the executive view &rarr;</a></div>`
             : `<div class="pg-sub">Review the resources each department needs. This strategy stays private until it is published.</div>`;
 
         const used = new Set(state.rows.map(r => r.department_id));

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Department;
 use App\Models\ExpectedState;
+use App\Models\GoalResponse;
 use App\Models\GoalRevision;
 use App\Models\Organization;
 use App\Models\OrgRole;
@@ -176,5 +177,35 @@ class LeaderEditsTest extends TestCase
         $this->actingAs($w['lead'])->post(route('my-goals.revise'), ['goal_id' => $this->goal('Sales')->id, 'text' => '  '])->assertSessionHasErrors('text');
         $this->actingAs($w['lead'])->post(route('my-goals.revise'), ['goal_id' => $this->goal('Sales')->id, 'text' => str_repeat('x', 501)])->assertSessionHasErrors('text');
         $this->assertSame(0, GoalRevision::count());
+    }
+
+    public function test_leaders_see_the_revise_form_and_executive_view_link(): void
+    {
+        $w = $this->world();
+        $this->published($w);
+
+        $this->actingAs($w['lead'])->get('/dashboard')
+            ->assertOk()
+            ->assertSee(route('my-goals.revise'), false)
+            ->assertSee(route('strategies.index'), false);
+
+        $this->actingAs($w['rep'])->get('/dashboard')
+            ->assertOk()
+            ->assertDontSee(route('my-goals.revise'), false)
+            ->assertDontSee(route('strategies.index'), false);
+    }
+
+    public function test_a_commitment_made_before_a_revision_is_marked(): void
+    {
+        $w = $this->world();
+        $this->published($w);
+        GoalResponse::create(['expected_state_id' => $this->goal('Sales')->id, 'user_id' => $w['rep']->id, 'decision' => 'act_on_it', 'starting_point' => 'A', 'committed_at' => now()->subDay()]);
+
+        $this->actingAs($w['lead'])->post(route('my-goals.revise'), ['goal_id' => $this->goal('Sales')->id, 'text' => 'New wording']);
+
+        $this->actingAs($w['rep'])->get('/dashboard')
+            ->assertOk()
+            ->assertSee('New wording')
+            ->assertSee('made before this goal changed');
     }
 }

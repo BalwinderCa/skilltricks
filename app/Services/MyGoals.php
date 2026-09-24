@@ -48,7 +48,7 @@ class MyGoals
         }
 
         $goals = $this->query($user)
-            ->with(['searchUserChat', 'orgRole:id,name', 'dependsOn.orgRole:id,name', 'dependents.orgRole:id,name'])
+            ->with(['searchUserChat', 'orgRole:id,name', 'dependsOn.orgRole:id,name', 'dependents.orgRole:id,name', 'revisions'])
             ->get()
             ->sortByDesc(fn (ExpectedState $g) => $g->searchUserChat->published_at)
             ->values();
@@ -69,6 +69,7 @@ class MyGoals
             'waiting_on_you' => $g->dependents,
             'response' => $responses->get($g->id),
             'obstacles' => $obstacles->get($g->id, collect()),
+            'last_revised_at' => $g->revisions->max('created_at'),
         ]);
 
         return $cards;

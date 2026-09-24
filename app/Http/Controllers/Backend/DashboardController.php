@@ -91,6 +91,8 @@ class DashboardController extends Controller
             // Features spec, phase 3: this user's goals from published strategies.
             'myGoals' => app(MyGoals::class)->for($user),
 
+            'isLeader' => app(OrganizationService::class)->isLeader($user),
+
         ]);
 
         if (isAdmin() && $user->hasRole('Super Admin')) {

@@ -18,7 +18,12 @@
 </style>
 <div class="card mb-4" id="my-goals">
     <div class="card-body">
-        <h5 class="mb-1">{{ localize('Your goals') }}</h5>
+        <div class="d-flex justify-content-between align-items-baseline">
+            <h5 class="mb-1">{{ localize('Your goals') }}</h5>
+            @if ($isLeader ?? false)
+                <a href="{{ route('strategies.index') }}" class="small" style="color:#2c6d82">{{ localize('Executive view') }} &rarr;</a>
+            @endif
+        </div>
         @if (! $user->org_role_id)
             <p class="text-muted small mb-0">{{ localize('You will see goals here once your organization gives you a role.') }}</p>
         @elseif ($myGoals->isEmpty())
@@ -85,9 +90,6 @@
                                     {{ $card['response']->starting_point ? localize('Change my starting point') : localize('Commit') }}
                                 </button>
                             </form>
-                            @if ($card['response']->starting_point)
-                                <div class="small mt-1">{{ localize('Committed') }}: <strong>{{ $card['response']->starting_point }}</strong></div>
-                            @endif
                             @error('option')
                                 <div class="small text-danger mt-1">{{ $message }}</div>
                             @enderror
@@ -98,8 +100,27 @@
                                 <button type="submit" class="btn btn-sm mg-btn">{{ localize('Suggest starting points') }}</button>
                             </form>
                         @endif
+                        @if ($card['response']->starting_point)
+                            <div class="small mt-1">{{ localize('Committed') }}: <strong>{{ $card['response']->starting_point }}</strong>
+                                @if ($card['last_revised_at'] && $card['response']->committed_at && $card['response']->committed_at->lt($card['last_revised_at']))
+                                    <span class="text-muted">({{ localize('made before this goal changed') }})</span>
+                                @endif
+                            </div>
+                        @endif
                     @endif
 
+                    @if ($isLeader ?? false)
+                        <details class="mt-2">
+                            <summary class="small" style="color:#2c6d82;cursor:pointer">{{ localize('Refine this goal') }}</summary>
+                            <form method="POST" action="{{ route('my-goals.revise') }}" class="mt-2">
+                                @csrf
+                                <input type="hidden" name="goal_id" value="{{ $card['goal']->id }}">
+                                <textarea name="text" rows="2" maxlength="500" required class="form-control form-control-sm mb-1">{{ $card['goal']->recommended_action }}</textarea>
+                                <input type="text" name="reason" maxlength="500" class="form-control form-control-sm mb-1" placeholder="{{ localize('Why? (optional)') }}">
+                                <button type="submit" class="btn btn-sm mg-btn">{{ localize('Save and notify') }}</button>
+                            </form>
+                        </details>
+                    @endif
                     <form method="POST" action="{{ route('my-goals.obstacle') }}" class="mt-2">
                         @csrf
                         <input type="hidden" name="goal_id" value="{{ $card['goal']->id }}">
