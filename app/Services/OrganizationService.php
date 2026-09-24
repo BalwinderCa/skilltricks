@@ -117,10 +117,12 @@ class OrganizationService
      */
     public function seedDefaultRoles(Organization $org): void
     {
-        foreach (self::RANK_LABELS as $level => $name) {
+        // Roles carry no level (levels were cut); a stale 'level' key here was
+        // silently dropped by mass assignment, but broke seeders, which run unguarded.
+        foreach (self::RANK_LABELS as $name) {
             OrgRole::firstOrCreate(
                 ['organization_id' => $org->id, 'name' => $name],
-                ['level' => $level, 'can_read' => true, 'can_write' => false],
+                ['can_read' => true, 'can_write' => false],
             );
         }
     }
