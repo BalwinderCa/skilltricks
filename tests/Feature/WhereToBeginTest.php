@@ -164,4 +164,77 @@ class WhereToBeginTest extends TestCase
         $this->assertFalse(app(StartingPoints::class)->commit($this->goal('Sales'), $w['rep1'], -1));
         $this->assertSame(0, GoalResponse::count());
     }
+
+    public function test_choosing_act_on_it_generates_options(): void
+    {
+        $w = $this->world();
+        $this->publishedGoals($w);
+        $this->fakeAi(self::OPTIONS);
+
+        $this->actingAs($w['rep1'])->from('/dashboard')->post(route('my-goals.decide'), ['goal_id' => $this->goal('Sales')->id, 'decision' => 'act_on_it'])
+            ->assertRedirect('/dashboard');
+
+        $this->assertCount(3, $this->goal('Sales')->starting_options);
+    }
+
+    public function test_other_decisions_make_no_ai_call(): void
+    {
+        $w = $this->world();
+        $this->publishedGoals($w);
+        $this->fakeAi(self::OPTIONS, 200, 0);
+
+        $this->actingAs($w['rep1'])->post(route('my-goals.decide'), ['goal_id' => $this->goal('Sales')->id, 'decision' => 'review_in_detail']);
+
+        $this->assertNull($this->goal('Sales')->starting_options);
+    }
+
+    public function test_an_ai_failure_keeps_the_decision_and_suggest_retries(): void
+    {
+        $w = $this->world();
+        $this->publishedGoals($w);
+        $this->fakeAi('error', 500);
+
+        $this->actingAs($w['rep1'])->post(route('my-goals.decide'), ['goal_id' => $this->goal('Sales')->id, 'decision' => 'act_on_it']);
+        $this->assertSame('act_on_it', GoalResponse::first()->decision);
+        $this->assertNull($this->goal('Sales')->starting_options);
+
+        $this->fakeAi(self::OPTIONS);
+        $this->actingAs($w['rep1'])->post(route('my-goals.suggest'), ['goal_id' => $this->goal('Sales')->id]);
+        $this->assertCount(3, $this->goal('Sales')->starting_options);
+    }
+
+    public function test_committing_through_the_card(): void
+    {
+        $w = $this->world();
+        $this->publishedGoals($w);
+        $this->goal('Sales')->update(['starting_options' => ['First', 'Second']]);
+
+        $this->actingAs($w['rep1'])->from('/dashboard')->post(route('my-goals.commit'), ['goal_id' => $this->goal('Sales')->id, 'option' => 1])
+            ->assertRedirect('/dashboard');
+
+        $this->assertSame('Second', GoalResponse::first()->starting_point);
+    }
+
+    public function test_a_bad_option_is_refused(): void
+    {
+        $w = $this->world();
+        $this->publishedGoals($w);
+        $this->goal('Sales')->update(['starting_options' => ['First', 'Second']]);
+
+        foreach ([5, -1, 'first'] as $bad) {
+            $this->actingAs($w['rep1'])->post(route('my-goals.commit'), ['goal_id' => $this->goal('Sales')->id, 'option' => $bad])
+                ->assertSessionHasErrors('option');
+        }
+        $this->assertSame(0, GoalResponse::count());
+    }
+
+    public function test_committing_on_a_goal_you_cannot_see_is_not_found(): void
+    {
+        $w = $this->world();
+        $this->publishedGoals($w);
+        $this->goal('Sales')->update(['starting_options' => ['First', 'Second']]);
+
+        $this->actingAs($w['pm'])->post(route('my-goals.commit'), ['goal_id' => $this->goal('Sales')->id, 'option' => 0])->assertNotFound();
+        $this->actingAs($w['pm'])->post(route('my-goals.suggest'), ['goal_id' => $this->goal('Sales')->id])->assertNotFound();
+    }
 }

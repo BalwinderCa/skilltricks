@@ -352,6 +352,8 @@ Route::group(
                 // "My goal" card: respond to a published goal, report an obstacle
                 Route::post('/my-goals/decide', [MyGoalController::class, 'decide'])->name('my-goals.decide');
                 Route::post('/my-goals/obstacle', [MyGoalController::class, 'reportObstacle'])->name('my-goals.obstacle');
+                Route::post('/my-goals/suggest', [MyGoalController::class, 'suggestStart'])->name('my-goals.suggest');
+                Route::post('/my-goals/commit', [MyGoalController::class, 'commit'])->name('my-goals.commit');
                 Route::get('/userchathistory', [AiChatController::class, 'userchathistory'])->name('userchathistory.index');
                 Route::get('/user-view-chathistory/{id}', [AiChatController::class, 'user_view_chathistory'])->name('user-view-chathistory.index');
                 Route::get('/users-chat-search-delete/{id}', [AiChatController::class, 'userschat_search_delete'])->name('users-chat-search-delete.index');
