@@ -12,6 +12,14 @@ use App\Models\SearchUserChat;
 use App\Models\SearchUserChatData;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use App\Mail\EmailManager;
+use App\Models\WrNotification;
+use App\Services\AI\AiProviderService;
+use App\Services\DriftIndex;
+use GuzzleHttp\Psr7\Response as PsrResponse;
+use Illuminate\Http\Client\Response as ClientResponse;
+use Illuminate\Support\Facades\Mail;
+use Mockery;
 use Tests\TestCase;
 
 /**
@@ -123,5 +131,89 @@ class CommandDashboardTest extends TestCase
             ->assertOk()
             ->assertSee(route('my-goals.progress'), false)
             ->assertSee('Blocked — flag a bottleneck');
+    }
+
+    public function test_drift_follows_the_notion_formula_and_thresholds(): void
+    {
+        $w = $this->world();
+        $drift = app(DriftIndex::class);
+
+        // Baseline 50%. Observed 30 → (50−30)/50 = 40% → red.
+        $this->progress($w['rep'], 'Sales', 'in_progress', 30);
+        $state = $drift->evaluate($w['chat']->fresh(), alert: false);
+        $this->assertEqualsWithDelta(40.0, $state['index'], 0.5);
+        $this->assertSame('red', $state['level']);
+
+        $this->progress($w['rep'], 'Sales', 'in_progress', 45); // 10% → yellow
+        $this->assertSame('yellow', $drift->evaluate($w['chat']->fresh(), alert: false)['level']);
+
+        $this->progress($w['rep'], 'Sales', 'in_progress', 48); // 4% → green
+        $this->assertSame('green', $drift->evaluate($w['chat']->fresh(), alert: false)['level']);
+
+        $this->progress($w['rep'], 'Sales', 'completed', 0); // 100 → no drift
+        $this->assertSame(0.0, (float) $drift->evaluate($w['chat']->fresh(), alert: false)['index']);
+    }
+
+    public function test_the_index_is_persisted_on_the_strategy(): void
+    {
+        $w = $this->world();
+
+        $this->progress($w['rep'], 'Sales', 'in_progress', 30);
+
+        $chat = $w['chat']->fresh();
+        $this->assertSame('red', $chat->drift_level);
+        $this->assertEqualsWithDelta(40.0, (float) $chat->drift_index, 0.5);
+        $this->assertNotNull($chat->drift_checked_at);
+    }
+
+    public function test_goals_are_not_measured_in_the_grace_period_or_without_a_target_date(): void
+    {
+        $w = $this->world();
+        $w['chat']->forceFill(['published_at' => now()->subDay()])->save(); // 1/11 of the window < 10%
+
+        $state = app(DriftIndex::class)->evaluate($w['chat']->fresh(), alert: false);
+
+        $this->assertNull($state['index']);
+        $this->assertNull($state['level']);
+        $product = $state['goals']->firstWhere('goal.role', 'Product');
+        $this->assertFalse($product['measured']);
+        $this->assertNull($product['expected']);
+    }
+
+    public function test_a_target_date_before_publishing_is_not_measured(): void
+    {
+        $w = $this->world();
+        $this->goal('Sales')->update(['target_date' => now()->subDays(20)->toDateString()]);
+
+        $state = app(DriftIndex::class)->evaluate($w['chat']->fresh(), alert: false);
+
+        $this->assertNull($state['index']);
+    }
+
+    public function test_a_draft_is_not_persisted(): void
+    {
+        $w = $this->world(publish: false);
+
+        app(DriftIndex::class)->evaluate($w['chat']->fresh());
+
+        $this->assertNull($w['chat']->fresh()->drift_level);
+        $this->assertSame(0, WrNotification::count());
+    }
+
+    public function test_projections_follow_the_current_pace(): void
+    {
+        $w = $this->world();
+        $this->progress($w['rep'], 'Sales', 'in_progress', 50); // on baseline after 10 of 20 days
+
+        $row = app(DriftIndex::class)->evaluate($w['chat']->fresh(), alert: false)['goals']->firstWhere('goal.role', 'Sales');
+
+        $this->assertSame(now()->addDays(10)->toDateString(), $row['projected_completion']->toDateString());
+        $this->assertEqualsWithDelta(25.0, $row['projected_value'], 0.01);
+        $this->assertSame(0, $row['days_behind']);
+
+        $this->progress($w['rep'], 'Sales', 'in_progress', 30);
+        $row = app(DriftIndex::class)->evaluate($w['chat']->fresh(), alert: false)['goals']->firstWhere('goal.role', 'Sales');
+        $this->assertEqualsWithDelta(15.0, $row['projected_value'], 0.01);
+        $this->assertSame(4, $row['days_behind']);
     }
 }
