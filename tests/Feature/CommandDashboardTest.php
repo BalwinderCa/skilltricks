@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Mail\EmailManager;
 use App\Models\Department;
 use App\Models\ExpectedState;
 use App\Models\GoalProgressUpdate;
@@ -11,15 +12,10 @@ use App\Models\OrgRole;
 use App\Models\SearchUserChat;
 use App\Models\SearchUserChatData;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
-use App\Mail\EmailManager;
 use App\Models\WrNotification;
-use App\Services\AI\AiProviderService;
 use App\Services\DriftIndex;
-use GuzzleHttp\Psr7\Response as PsrResponse;
-use Illuminate\Http\Client\Response as ClientResponse;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
-use Mockery;
 use Tests\TestCase;
 
 /**
@@ -215,5 +211,70 @@ class CommandDashboardTest extends TestCase
         $row = app(DriftIndex::class)->evaluate($w['chat']->fresh(), alert: false)['goals']->firstWhere('goal.role', 'Sales');
         $this->assertEqualsWithDelta(15.0, $row['projected_value'], 0.01);
         $this->assertSame(4, $row['days_behind']);
+    }
+
+    public function test_yellow_nudges_the_bottleneck_roles_holders_once(): void
+    {
+        Mail::fake();
+        $w = $this->world();
+
+        $this->progress($w['rep'], 'Sales', 'in_progress', 45); // yellow
+        app(DriftIndex::class)->evaluate($w['chat']->fresh()); // same level again
+
+        $nudges = WrNotification::where('type', 'drift_nudge')->get();
+        $this->assertSame([$w['rep']->id], $nudges->pluck('user_id')->map(fn ($id) => (int) $id)->all());
+        Mail::assertQueued(EmailManager::class, fn ($m) => $m->hasTo('rep@acme.com'));
+    }
+
+    public function test_red_alerts_the_author_and_rearms_after_green(): void
+    {
+        Mail::fake();
+        $w = $this->world();
+
+        $this->progress($w['rep'], 'Sales', 'in_progress', 30); // red
+        $this->progress($w['rep'], 'Sales', 'in_progress', 50); // green
+        $this->progress($w['rep'], 'Sales', 'in_progress', 20); // red again
+
+        $alerts = WrNotification::where('type', 'drift_red')->get();
+        $this->assertCount(2, $alerts);
+        $this->assertSame($w['ceo']->id, (int) $alerts->first()->user_id);
+        $this->assertSame('dashboard/strategies/'.$w['chat']->id, $alerts->first()->url);
+        Mail::assertQueued(EmailManager::class, fn ($m) => $m->hasTo('ceo@acme.com'));
+    }
+
+    public function test_an_alert_to_someone_without_email_still_lands_in_app(): void
+    {
+        Mail::fake();
+        $w = $this->world();
+        $w['ceo']->forceFill(['email' => ''])->save();
+
+        $this->progress($w['rep'], 'Sales', 'in_progress', 30);
+
+        $this->assertSame(1, WrNotification::where('type', 'drift_red')->count());
+        Mail::assertNotQueued(EmailManager::class, fn ($m) => $m->hasTo(''));
+    }
+
+    public function test_goal_revisions_are_emailed_too(): void
+    {
+        Mail::fake();
+        $w = $this->world();
+        $w['rep']->forceFill(['manager_id' => null])->save();
+        User::where('id', $w['pm']->id)->update(['manager_id' => $w['rep']->id]); // rep leads someone → leader
+
+        $this->actingAs($w['rep'])->post(route('my-goals.revise'), ['goal_id' => $this->goal('Sales')->id, 'text' => 'New wording']);
+
+        Mail::assertQueued(EmailManager::class, fn ($m) => $m->hasTo('ceo@acme.com'));
+    }
+
+    public function test_the_daily_command_evaluates_published_strategies(): void
+    {
+        Mail::fake();
+        $w = $this->world();
+        GoalResponse::create(['expected_state_id' => $this->goal('Sales')->id, 'user_id' => $w['rep']->id, 'decision' => 'act_on_it', 'progress_status' => 'in_progress', 'progress_pct' => 30]);
+
+        $this->artisan('strategies:evaluate-drift')->assertExitCode(0);
+
+        $this->assertSame('red', $w['chat']->fresh()->drift_level);
+        $this->assertSame(1, WrNotification::where('type', 'drift_red')->count());
     }
 }

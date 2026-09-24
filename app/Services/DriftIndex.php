@@ -5,8 +5,10 @@ namespace App\Services;
 use App\Models\ExpectedState;
 use App\Models\GoalResponse;
 use App\Models\SearchUserChat;
+use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 /**
  * Notion's "Live Strategic Drift Engine" (Features spec, phase 6):
@@ -94,6 +96,42 @@ class DriftIndex
         return ['index' => $index, 'level' => $level, 'worst' => $worst, 'projected' => $projected, 'goals' => $rows];
     }
 
-    /** Task 3 fills this in. */
-    private function alertOnChange(SearchUserChat $chat, ?float $index, ?string $level, ?ExpectedState $worst): void {}
+    /**
+     * Notion's threshold actions, once per level change: yellow nudges the
+     * people holding the worst-drifting goal; red alerts the strategy's author.
+     * Back to green re-arms them.
+     */
+    private function alertOnChange(SearchUserChat $chat, ?float $index, ?string $level, ?ExpectedState $worst): void
+    {
+        if ($level === $chat->drift_alerted_level) {
+            return;
+        }
+        if ($level === null || $level === 'green') {
+            $chat->forceFill(['drift_alerted_level' => $level])->save();
+
+            return;
+        }
+        // Claim the alert first, so two concurrent evaluations cannot both send it.
+        $claimed = SearchUserChat::whereKey($chat->id)
+            ->where(fn ($q) => $q->whereNull('drift_alerted_level')->orWhere('drift_alerted_level', '!=', $level))
+            ->update(['drift_alerted_level' => $level]);
+        if (! $claimed) {
+            return;
+        }
+
+        $role = $worst ? ($worst->orgRole->name ?? $worst->role) : '';
+        if ($level === 'yellow' && $worst && $worst->org_role_id) {
+            $holders = User::where('organization_id', $chat->organization_id)->where('org_role_id', $worst->org_role_id)->get();
+            foreach ($holders as $holder) {
+                $this->alerts->send($holder, localize('Your goal is falling behind').': '.$role, 'dashboard',
+                    'A published strategy is drifting ('.$index.'%), and your goal "'.Str::limit((string) $worst->recommended_action, 120).'" is furthest behind its baseline. Post an update, or flag what is blocking you.',
+                    'drift_nudge');
+            }
+        }
+        if ($level === 'red' && ($author = User::find($chat->user_id))) {
+            $this->alerts->send($author, localize('Severe strategy drift').': '.$index.'%', 'dashboard/strategies/'.$chat->id,
+                'Execution is more than '.self::RED.'% behind its baseline'.($worst ? ', furthest on the '.$role.' goal' : '').'. Open the executive view for the breakdown and AI-suggested recourse.',
+                'drift_red');
+        }
+    }
 }

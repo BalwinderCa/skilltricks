@@ -14,7 +14,7 @@ use Illuminate\Support\Str;
  */
 class GoalRevisions
 {
-    public function __construct(protected OrganizationService $orgs) {}
+    public function __construct(protected OrganizationService $orgs, protected StrategyAlerts $alerts) {}
 
     /** False when the wording did not change: nothing is written or sent. */
     public function revise(ExpectedState $goal, User $leader, string $text, ?string $reason): bool
@@ -43,16 +43,14 @@ class GoalRevisions
             ->unique()
             ->reject(fn (int $id) => $id === (int) $leader->id);
 
-        foreach ($recipients as $userId) {
+        foreach (User::whereIn('id', $recipients->all())->get() as $recipient) {
             // Relative on purpose: the notification controller redirects to '/'.$url.
-            saveNotification(
+            $this->alerts->send(
+                $recipient,
                 localize('Goal changed').': '.$role,
                 'dashboard/strategies/'.$chat->id,
-                'customer',
-                $userId,
-                null,
-                'goal_revision',
                 $leader->name.': "'.Str::limit($old, 120).'" → "'.Str::limit($text, 120).'"',
+                'goal_revision',
             );
         }
 
