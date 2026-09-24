@@ -18,7 +18,7 @@
             </div>
             <p class="text-muted small">
                 {{ $chat->selected_strategy }} · {{ localize('Published by') }} {{ $chat->publisher?->name }}
-                {{ optional($chat->published_at)->toFormattedDateString() }} · {{ localize('Drift') }}: {{ $drift }}
+                {{ optional($chat->published_at)->toFormattedDateString() }} · {{ localize('OI drift') }}: {{ $drift }}
             </p>
 
             <div class="card mb-3"><div class="card-body">
@@ -40,7 +40,7 @@
                 <h6>{{ localize('Goals') }}</h6>
                 <div class="table-responsive">
                     <table class="table table-sm align-middle mb-0">
-                        <thead><tr><th>{{ localize('Role') }}</th><th>{{ localize('Goal') }}</th><th>{{ localize('People') }}</th><th>{{ localize('Committed') }}</th><th>{{ localize('Responses') }}</th><th>{{ localize('Drift') }}</th></tr></thead>
+                        <thead><tr><th>{{ localize('Role') }}</th><th>{{ localize('Goal') }}</th><th>{{ localize('People') }}</th><th>{{ localize('Committed') }}</th><th>{{ localize('Responses') }}</th><th>{{ localize('OI drift') }}</th></tr></thead>
                         <tbody>
                             @foreach ($goals as $row)
                                 <tr>

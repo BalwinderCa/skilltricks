@@ -22,7 +22,7 @@
                                         <th>{{ localize('Published') }}</th>
                                         <th>{{ localize('Status') }}</th>
                                         <th>{{ localize('Committed') }}</th>
-                                        <th>{{ localize('Drift') }}</th>
+                                        <th>{{ localize('OI drift') }}</th>
                                         <th>{{ localize('Obstacles') }}</th>
                                         <th>{{ localize('Not viable') }}</th>
                                     </tr>
