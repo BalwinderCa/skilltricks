@@ -1554,6 +1554,13 @@ EOT;
                 $attributes += $this->calibrationAttributes($request, $chatId, $role, $user);
             }
 
+            // Once published, leaders own a goal's wording (Features spec, phase 5):
+            // a stale Action Table must not write the old text back over their edit.
+            if (SearchUserChat::whereKey($chatId)->value('status') === 'published'
+                && ExpectedState::where('search_user_chat_id', $chatId)->where('role', $role)->exists()) {
+                unset($attributes['recommended_action']);
+            }
+
             $expectedState = ExpectedState::updateOrCreate(
                 [
                     'search_user_chat_id' => $chatId,

@@ -112,7 +112,9 @@ class StrategyOverview
     {
         $latest = $this->latestDrift($goalIds);
         if ($latest->isEmpty()) {
-            return 'Not measured yet';
+            // The OI engine only records events once a goal has drifted, so no
+            // events means no drift seen, not "never measured".
+            return 'No drift recorded';
         }
         $drifting = $latest->reject(fn (string $type) => $type === '' || $type === 'None')->count();
 

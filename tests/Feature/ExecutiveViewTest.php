@@ -68,7 +68,7 @@ class ExecutiveViewTest extends TestCase
             ->assertSee('Grow revenue 30%')
             ->assertDontSee('Secret draft')
             ->assertDontSee('Their plan')
-            ->assertSee('Not measured yet')
+            ->assertSee('No drift recorded')
             ->assertSee('0 of 1');
     }
 

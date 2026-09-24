@@ -26,9 +26,11 @@ the same check. `canPublish()` stays, delegating to it.
 - **Edits are allowed after publishing.** This is the one deliberate exception
   to "published is final": the spec asks for it by name.
 - **History:** every edit is a `goal_revisions` row (who, when, old, new,
-  reason). The goal's existing OI fields are kept in sync so the author's
-  Action Table shows the change: `revised_by_name`, `revised_by_role`,
-  `revised_at`, `revision_notes`.
+  reason). The goal's OI `revised_*` fields are **not** touched. They mean
+  "the author calibrated this in Review in Detail", and a leader's edit
+  isn't that. The author sees leader edits on the executive page, which the
+  Publish card links to. After publishing, the author's Action Table can no
+  longer write a goal's wording back.
 - **Starting points after an edit:** the goal's `starting_options` are cleared,
   so the next "Act on it" generates options for the new wording. Existing
   commitments are kept, since they are history, but the card marks a
@@ -54,8 +56,9 @@ the same check. `canPublish()` stays, delegating to it.
     - goal revisions, newest first.
 - **Drift status** reuses the OI engine's audit trail rather than recomputing
   it. For each goal, the latest `drift_events.drift_type` counts. The
-  strategy shows "On track" when every measured goal is `None`, "Drift on N
-  goals" otherwise, and "Not measured yet" when there are no events. Events are
+  strategy shows "On track" when every goal's latest event is `None`, "Drift
+  on N goals" otherwise, and "No drift recorded" when there are no events. The
+  engine only records events once a goal has drifted. Events are
   recorded when the author views OI progress, so this status is as fresh as
   that.
 - **Navigation:** leaders see an "Executive view" link on the "Your goals"
@@ -77,8 +80,8 @@ goal_revisions(id,
 - `OrganizationService::managerChain(User): Collection<User>` walks up the
   chain within the organization, cycle-safe, capped at 20.
 - `App\Services\GoalRevisions::revise(ExpectedState $goal, User $leader, string
-  $text, ?string $reason): void`. It writes the revision, updates the goal and
-  its OI fields, clears `starting_options`, and sends the alerts.
+  $text, ?string $reason): void`. It writes the revision, updates the goal's
+  wording, clears `starting_options`, and sends the alerts.
 - `MyGoalController::revise` (POST `goal_id`, `text` 1–500, `reason` ≤ 500)
   returns 404 for an unseen goal and 403 for a non-leader. Route
   `my-goals.revise`.
@@ -103,8 +106,8 @@ goal_revisions(id,
 
 - `isLeader` matches the existing `canPublish` cases, and `managerChain`
   stops at loops and at the organization boundary.
-- A leader's revision updates the wording, writes history, syncs the OI
-  fields, clears the options, and alerts the manager chain plus the author
+- A leader's revision updates the wording, writes history, leaves the OI
+  `revised_*` fields alone, clears the options, and alerts the manager chain plus the author
   exactly once each, never the editor.
 - A non-leader gets 403 on revise, and an unseen goal gets 404.
 - The executive list shows only published strategies in the viewer's
@@ -112,7 +115,7 @@ goal_revisions(id,
 - The detail page shows per-goal decision counts, obstacles and revisions. It
   returns 404 for a draft or another organization's strategy, and 403 for a
   non-leader.
-- Drift status: "Not measured yet", "On track", and "Drift on N goals" from
+- Drift status: "No drift recorded", "On track", and "Drift on N goals" from
   seeded `drift_events`.
 - The dashboard shows the revise form and the "Executive view" link to
   leaders only.

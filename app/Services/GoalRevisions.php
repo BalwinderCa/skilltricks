@@ -28,16 +28,11 @@ class GoalRevisions
 
         DB::transaction(function () use ($goal, $leader, $old, $text, $reason) {
             GoalRevision::create(['expected_state_id' => $goal->id, 'user_id' => $leader->id, 'old_text' => $old, 'new_text' => $text, 'reason' => $reason]);
-            // Keep the author's OI Action Table in step, and let the next
-            // "Act on it" suggest starting points for the new wording.
-            $goal->forceFill([
-                'recommended_action' => $text,
-                'revised_by_name' => $leader->name,
-                'revised_by_role' => $leader->orgRole?->name,
-                'revised_at' => now(),
-                'revision_notes' => $reason,
-                'starting_options' => null,
-            ])->save();
+            // Only the wording changes. The OI revised_* fields mean "the author
+            // calibrated this in Review in Detail" and stay the author's; the
+            // leader's edit lives in goal_revisions. Clearing the options lets
+            // the next "Act on it" suggest starting points for the new wording.
+            $goal->forceFill(['recommended_action' => $text, 'starting_options' => null])->save();
         });
 
         $chat = $goal->searchUserChat;

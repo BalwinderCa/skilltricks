@@ -121,9 +121,10 @@ class LeaderEditsTest extends TestCase
 
         $goal = $this->goal('Sales');
         $this->assertSame('New wording', $goal->recommended_action);
-        $this->assertSame($w['lead']->name, $goal->revised_by_name);
-        $this->assertSame('Sales', $goal->revised_by_role);
-        $this->assertSame('Priorities shifted', $goal->revision_notes);
+        // A leader edit is not the author's OI calibration: those fields stay untouched.
+        $this->assertNull($goal->revised_by_name);
+        $this->assertNull($goal->revised_at);
+        $this->assertNull($goal->revision_notes);
         $this->assertNull($goal->starting_options);
 
         $revision = GoalRevision::first();
@@ -207,5 +208,19 @@ class LeaderEditsTest extends TestCase
             ->assertOk()
             ->assertSee('New wording')
             ->assertSee('made before this goal changed');
+    }
+
+    public function test_the_authors_chat_page_cannot_write_back_old_wording_after_publishing(): void
+    {
+        $w = $this->world();
+        $chat = $this->published($w);
+        $this->actingAs($w['lead'])->post(route('my-goals.revise'), ['goal_id' => $this->goal('Sales')->id, 'text' => 'New wording']);
+
+        $this->actingAs($w['ceo'])->postJson(route('users-new-chat-save-expected-state.index'), [
+            'chat_id' => $chat->id, 'role' => 'Sales', 'recommended_action' => 'Old wording', 'decision' => 'act_on_it',
+        ])->assertOk();
+
+        $this->assertSame('New wording', $this->goal('Sales')->recommended_action);
+        $this->assertSame('act_on_it', $this->goal('Sales')->decision);
     }
 }
