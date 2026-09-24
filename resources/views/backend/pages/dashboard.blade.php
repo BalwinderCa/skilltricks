@@ -94,6 +94,8 @@
                     </div>
                 </div>
 
+                @include('backend.pages.goals.my-goals')
+
                 <div class="card mb-4">
                     <div class="card-body">
                         <h5 class="mb-2">{{ localize('Active strategic context') }}</h5>

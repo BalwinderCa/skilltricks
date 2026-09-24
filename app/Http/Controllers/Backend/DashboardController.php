@@ -15,6 +15,7 @@ use App\Models\SearchUserChat;
 use App\Models\SystemSetting;
 use App\Models\Template;
 use App\Models\User;
+use App\Services\MyGoals;
 use App\Services\OrganizationService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -86,6 +87,9 @@ class DashboardController extends Controller
             'totalTemplateWordsData' => $totalTemplateWordsData,
 
             'profileCompletion' => $this->profileCompletion($user),
+
+            // Features spec, phase 3: this user's goals from published strategies.
+            'myGoals' => app(MyGoals::class)->for($user),
 
         ]);
 

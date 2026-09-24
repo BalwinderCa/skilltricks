@@ -206,4 +206,42 @@ class MyGoalCardTest extends TestCase
         $this->actingAs($w['rep'])->post(route('my-goals.obstacle'), ['goal_id' => $this->salesGoalId(), 'body' => 'x'])
             ->assertNotFound();
     }
+
+    public function test_the_dashboard_shows_the_members_goal_card(): void
+    {
+        $w = $this->world();
+        $this->publishedGoal($w);
+
+        $this->actingAs($w['rep'])->get('/dashboard')
+            ->assertOk()
+            ->assertSee('Your goals')
+            ->assertSee('Grow enterprise revenue 30%')
+            ->assertSee('Launch the upgrade motion')
+            ->assertSee('Ship SOC2 controls')
+            ->assertSee('CRM seats')
+            ->assertSee(route('my-goals.decide'), false);
+    }
+
+    public function test_the_card_renders_without_resources(): void
+    {
+        $w = $this->world();
+        $chat = $this->publishedGoal($w);
+        $chat->resources()->delete();
+
+        $this->actingAs($w['rep'])->get('/dashboard')
+            ->assertOk()
+            ->assertSee('Launch the upgrade motion')
+            ->assertDontSee('Your team\'s resources');
+    }
+
+    public function test_a_member_without_a_role_sees_the_hint(): void
+    {
+        $w = $this->world();
+        $this->publishedGoal($w);
+
+        $this->actingAs($w['nobody'])->get('/dashboard')
+            ->assertOk()
+            ->assertSee('once your organization gives you a role')
+            ->assertDontSee('Launch the upgrade motion');
+    }
 }
