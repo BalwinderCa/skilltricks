@@ -114,8 +114,10 @@
     }
 
     async function save() {
+        // Read before render(): render() rebuilds the inputs from state and drops the typed values.
+        const rows = readRows();
         busy = true; error = ''; render();
-        try { state = await call(urls.save, { chat_id: chatId, rows: readRows() }); }
+        try { state = await call(urls.save, { chat_id: chatId, rows }); }
         catch (e) { error = e.message; }
         busy = false; render();
         return !error;
