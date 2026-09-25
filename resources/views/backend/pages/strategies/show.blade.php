@@ -80,9 +80,11 @@
                         @if ($item['days_behind']) <span style="color:#b42318">— {{ $item['days_behind'] }} {{ \Illuminate\Support\Str::plural('day', $item['days_behind']) }} behind baseline</span>@endif
                     </div>
                 @endforeach
-                <div class="small mt-2 p-2" style="background:{{ $blockers->isEmpty() ? '#e6f4ea' : '#fdecea' }};border-radius:6px">
-                    @if ($blockers->isEmpty())
-                        {{ localize('Zero upstream blockers detected across teams.') }}
+                <div class="small mt-2 p-2" style="background:{{ $blockers->isNotEmpty() ? '#fdecea' : ($obstacles->isNotEmpty() ? '#fbf2ea' : '#e6f4ea') }};border-radius:6px">
+                    @if ($blockers->isEmpty() && $obstacles->isEmpty())
+                        {{ localize('No goals are marked Blocked and no obstacles have been reported.') }}
+                    @elseif ($blockers->isEmpty())
+                        {{ localize('No goals are marked Blocked, but') }} {{ $obstacles->count() }} {{ \Illuminate\Support\Str::plural('obstacle', $obstacles->count()) }} {{ $obstacles->count() === 1 ? localize('has') : localize('have') }} {{ localize('been reported (see Reported obstacles below).') }}
                     @else
                         ⚠ {{ $blockers->count() }} {{ \Illuminate\Support\Str::plural('upstream blocker', $blockers->count()) }}: {{ $blockers->implode(', ') }}
                     @endif

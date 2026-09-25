@@ -218,6 +218,16 @@ class GoalCascadeTest extends TestCase
             ->assertSee('Cascade to your team'); // lead1 has a report
     }
 
+    public function test_sent_sub_goal_status_shows_outside_the_collapsed_cascade_controls(): void
+    {
+        $w = $this->world();
+        GoalCascade::create(['expected_state_id' => $w['goal']->id, 'created_by' => $w['vp']->id, 'assignee_user_id' => $w['lead1']->id, 'text' => 'Draft the contract', 'sent_at' => now(), 'status' => 'completed', 'pct' => 100]);
+
+        $this->actingAs($w['vp'])->get('/dashboard')
+            ->assertOk()
+            ->assertSeeInOrder(['Draft the contract', 'Completed', '100%', '<details', 'Cascade to your team'], false);
+    }
+
     public function test_the_executive_view_counts_sub_goals(): void
     {
         $w = $this->world();

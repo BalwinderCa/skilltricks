@@ -5,13 +5,14 @@
     $sentItems = $items->whereNotNull('sent_at');
     [$sourceName, $sourceId] = $parent ? ['cascade_id', $parent->id] : ['goal_id', $root->id];
 @endphp
+{{-- Sent sub-goals stay visible; only the controls collapse. --}}
+@foreach ($sentItems as $item)
+    <div class="small mt-1">&rarr; <strong>{{ $item->assignee?->name }}</strong>: {{ $item->text }}
+        <span class="text-muted">[{{ $statusLabels[$item->status] ?? localize('Not started') }}@if ($item->pct !== null) · {{ $item->pct }}%@endif]</span>
+    </div>
+@endforeach
 <details class="mt-2" @if ($drafts->isNotEmpty()) open @endif>
     <summary class="small" style="color:#2c6d82;cursor:pointer">{{ localize('Cascade to your team') }} ({{ $myReports->count() }})</summary>
-    @foreach ($sentItems as $item)
-        <div class="small mt-1">&rarr; <strong>{{ $item->assignee?->name }}</strong>: {{ $item->text }}
-            <span class="text-muted">[{{ $statusLabels[$item->status] ?? localize('Not started') }}@if ($item->pct !== null) · {{ $item->pct }}%@endif]</span>
-        </div>
-    @endforeach
     <form method="POST" action="{{ route('my-goals.cascade.suggest') }}" class="mt-2">
         @csrf
         <input type="hidden" name="{{ $sourceName }}" value="{{ $sourceId }}">

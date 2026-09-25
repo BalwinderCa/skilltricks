@@ -361,8 +361,29 @@ class CommandDashboardTest extends TestCase
             ->assertSee('Target 25 vs projected 15')
             ->assertSee('Contract template in review')
             ->assertSee('4 days behind baseline')
-            ->assertSee('Zero upstream blockers detected across teams')
+            ->assertSee('No goals are marked Blocked and no obstacles have been reported.')
             ->assertSee('Suggest recourse options');
+    }
+
+    public function test_reported_obstacles_are_not_contradicted_by_the_blockers_line(): void
+    {
+        $w = $this->world();
+        $this->actingAs($w['rep'])->post(route('my-goals.obstacle'), ['goal_id' => $this->goal('Sales')->id, 'body' => 'Missing budget'])->assertRedirect();
+
+        $this->actingAs($w['ceo'])->get(route('strategies.show', $w['chat']->id))
+            ->assertOk()
+            ->assertDontSee('Zero upstream blockers')
+            ->assertSee('No goals are marked Blocked, but 1 obstacle has been reported (see Reported obstacles below).');
+    }
+
+    public function test_the_executive_list_labels_the_badge_column_alignment(): void
+    {
+        $w = $this->world();
+
+        $this->actingAs($w['ceo'])->get(route('strategies.index'))
+            ->assertOk()
+            ->assertSeeInOrder(['<th>Published</th>', '<th>Alignment</th>', '<th>Drift index</th>'], false)
+            ->assertDontSee('<th>Status</th>', false);
     }
 
     public function test_a_blocked_upstream_goal_raises_the_blocker_alert_and_severe_badge(): void

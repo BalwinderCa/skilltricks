@@ -60,7 +60,7 @@
                                     <tr>
                                         <th>{{ localize('Company goal') }}</th>
                                         <th>{{ localize('Published') }}</th>
-                                        <th>{{ localize('Status') }}</th>
+                                        <th>{{ localize('Alignment') }}</th>
                                         <th>{{ localize('Drift index') }}</th>
                                         <th>{{ localize('Committed') }}</th>
                                         <th>{{ localize('OI drift') }}</th>
