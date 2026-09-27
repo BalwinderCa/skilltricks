@@ -40,7 +40,7 @@ class MiddleOutTest extends TestCase
     {
         $chat = SearchUserChat::create(['user_id' => $author->id, 'status1' => 0, 'selected_strategy' => 'Path for '.$question, 'leadership_brief' => 'Brief']);
         SearchUserChatData::create(['search_user_chat_id' => $chat->id, 'user_id' => $author->id, 'search' => $question, 'response' => 'ok']);
-        ExpectedState::create(['search_user_chat_id' => $chat->id, 'role' => $role->name, 'recommended_action' => 'Act on '.$question, 'org_role_id' => $role->id]);
+        ExpectedState::create(['search_user_chat_id' => $chat->id, 'role' => $role->name, 'recommended_action' => 'Act on '.$question, 'org_role_id' => $role->id, 'target_date' => now()->addMonths(3)]);
         $chat->resources()->create(['department_id' => null, 'department_name' => 'Whole organization', 'budget' => 1000]);
         $chat->forceFill(['organization_id' => $org->id] + ($published ? ['status' => 'published', 'published_by' => $author->id, 'published_at' => now()] : []))->save();
 

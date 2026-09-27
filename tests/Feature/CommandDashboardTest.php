@@ -373,7 +373,19 @@ class CommandDashboardTest extends TestCase
         $this->actingAs($w['ceo'])->get(route('strategies.show', $w['chat']->id))
             ->assertOk()
             ->assertDontSee('Zero upstream blockers')
-            ->assertSee('No goals are marked Blocked, but 1 obstacle has been reported (see Reported obstacles below).');
+            ->assertSee('No goals are marked Blocked.')
+            ->assertSee('1 obstacle reported (see Reported obstacles below).');
+    }
+
+    public function test_a_blocked_goal_nothing_depends_on_is_not_called_unblocked(): void
+    {
+        $w = $this->world();
+        $this->progress($w['rep'], 'Sales', 'blocked', 10, 'Pricing not approved'); // nothing depends on Sales
+
+        $this->actingAs($w['ceo'])->get(route('strategies.show', $w['chat']->id))
+            ->assertOk()
+            ->assertSee('1 goal marked Blocked, none holding up another goal.')
+            ->assertDontSee('No goals are marked Blocked');
     }
 
     public function test_the_executive_list_labels_the_badge_column_alignment(): void

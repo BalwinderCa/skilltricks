@@ -314,7 +314,9 @@ class DashboardController extends Controller
                 ? $people->firstWhere('id', $department->head_user_id)
                 : null;
 
-            $head = $head ?: $people->first();
+            // Automatic pick: never someone who reports to another person in this
+            // column — they are already drawn under that manager.
+            $head = $head ?: ($people->first(fn ($p) => ! $p->manager_id || ! $people->contains('id', $p->manager_id)) ?: $people->first());
 
             return [
                 'department' => $department,
@@ -367,10 +369,12 @@ class DashboardController extends Controller
         $byManager = $people->groupBy('manager_id');
         $present = $people->keyBy('id');
 
-        $build = function (User $person) use (&$build, $byManager) {
+        $build = function (User $person) use (&$build, $byManager, $head) {
             return [
                 'user' => $person,
                 'children' => $byManager->get($person->id, collect())
+                    // The head is anchored at the top of the column; don't draw them twice.
+                    ->reject(fn ($child) => $head && (int) $child->id === (int) $head->id)
                     ->map(fn ($child) => $build($child))
                     ->values()
                     ->all(),

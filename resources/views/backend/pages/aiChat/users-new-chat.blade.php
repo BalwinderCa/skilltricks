@@ -5327,6 +5327,8 @@ document.addEventListener('click', function (e) {
                     suggestionBox.style.display = 'none';
                 }
                 window.renderRecommendedActionTable(data.rows, resultDiv);
+                // The goals now exist; the Publish card refreshes to show them.
+                document.dispatchEvent(new Event('strategy-goals-saved'));
             } else {
                 resultDiv.innerHTML = '<div class="alert alert-warning"><i class="bi bi-exclamation-triangle me-2"></i>Could not generate table: ' + (data.error || 'no rows returned') + '</div>';
             }
@@ -5362,6 +5364,8 @@ document.addEventListener('click', function (e) {
                     suggestionBox.style.display = 'none';
                 }
                 window.renderRecommendedActionTable(data.rows, resultDiv);
+                // The goals now exist; the Publish card refreshes to show them.
+                document.dispatchEvent(new Event('strategy-goals-saved'));
             } else if (typeof onMissing === 'function') {
                 onMissing();
             }

@@ -291,6 +291,21 @@ class DepartmentTest extends TestCase
         );
     }
 
+    public function test_an_automatic_head_who_reports_in_the_column_is_drawn_once(): void
+    {
+        [, $owner] = $this->orgWithChart();
+
+        // Dana outranks Ivan, so seniority would make her head — but she reports to him.
+        $ivan = User::where('email', 'ivan@acme.com')->first();
+        User::where('email', 'dana@acme.com')->update(['manager_id' => $ivan->id]);
+
+        $content = $this->actingAs($owner)
+            ->get(route('organization.index', ['view' => 'chart']))->getContent();
+
+        $this->assertSame(substr_count($content, 'Ivan Ic'), substr_count($content, 'Dana Director'));
+        $this->assertLessThan(strpos($content, 'Dana Director'), strpos($content, 'Ivan Ic'));
+    }
+
     public function test_clearing_the_head_returns_to_seniority(): void
     {
         [, $owner] = $this->orgWithChart();

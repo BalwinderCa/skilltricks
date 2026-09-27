@@ -13,6 +13,7 @@ use App\Models\Organization;
 use App\Models\SearchUserChat;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
@@ -32,6 +33,8 @@ class StrategyOverview
     private const MINOR_DRIFT_RATE = 60;
 
     private const HIGH_FRICTION = 3;
+
+    private const GRACE_DAYS = 7;
 
     public function __construct(protected MyGoals $goals, protected Alignment $alignment, protected DriftIndex $drift) {}
 
@@ -104,7 +107,7 @@ class StrategyOverview
                     'company_goal' => $this->goals->companyGoal($chat),
                     'alignment' => $alignment,
                     'drift' => $this->drift($ids),
-                    'badge' => self::badge($alignment['rate'], $obstacles, $blocked),
+                    'badge' => self::badge($alignment['rate'], $obstacles, $blocked, $chat->published_at),
                     'drift_index' => $state['index'],
                     'drift_level' => $state['level'],
                     'savings' => self::savings($this->holders($chat, $goals)->push((int) $chat->user_id)->unique()->count(), (int) $chat->total_tokens, $settings),
@@ -152,7 +155,7 @@ class StrategyOverview
             'company_goal' => $this->goals->companyGoal($chat),
             'alignment' => $alignment,
             'drift' => $this->drift($ids),
-            'badge' => self::badge($alignment['overall']['rate'], $obstacles->count(), $this->blockedGoals($latest) + $flagged->count()),
+            'badge' => self::badge($alignment['overall']['rate'], $obstacles->count(), $this->blockedGoals($latest) + $flagged->count(), $chat->published_at),
             'goals' => $goals->map(function (ExpectedState $goal) use ($responses, $holders, $latest, $metrics) {
                 $mine = $responses->get($goal->id, collect());
 
@@ -202,7 +205,7 @@ class StrategyOverview
                         'company_goal' => $this->goals->companyGoal($child),
                         'owner' => $child->user?->name,
                         'alignment' => $alignment,
-                        'badge' => self::badge($alignment['rate'], GoalObstacle::whereIn('expected_state_id', $childIds)->count(), $this->flaggedBlocked($childIds)->count()),
+                        'badge' => self::badge($alignment['rate'], GoalObstacle::whereIn('expected_state_id', $childIds)->count(), $this->flaggedBlocked($childIds)->count(), $child->published_at),
                         'drift_index' => $child->drift_index !== null ? (float) $child->drift_index : null,
                         'drift_level' => $child->drift_level,
                     ];
@@ -213,10 +216,12 @@ class StrategyOverview
     /**
      * The Notion drift badge: On Track (alignment >= 85% and low friction),
      * Minor Drift (60-84% or high friction), Severe Drift (< 60% or a blocked goal).
+     * For the first GRACE_DAYS after publishing, low alignment alone reads
+     * "Gathering commitments": nobody can have committed on day one.
      *
      * @return array{level: string, label: string, reasons: list<string>}
      */
-    public static function badge(?int $rate, int $obstacles, int $blockedGoals): array
+    public static function badge(?int $rate, int $obstacles, int $blockedGoals, ?\DateTimeInterface $publishedAt = null): array
     {
         if ($rate === null) {
             return ['level' => 'none', 'label' => 'Not started', 'reasons' => ['Nobody holds a goal in this strategy yet']];
@@ -230,7 +235,10 @@ class StrategyOverview
             $reasons[] = $blockedGoals.' '.Str::plural('goal', $blockedGoals).' blocked';
         }
 
+        $inGrace = $publishedAt && now()->lt(Carbon::instance($publishedAt)->addDays(self::GRACE_DAYS));
+
         [$level, $label] = match (true) {
+            $inGrace && $blockedGoals === 0 && $rate < self::ON_TRACK_RATE => ['none', 'Gathering commitments'],
             $rate < self::MINOR_DRIFT_RATE || $blockedGoals > 0 => ['red', 'Severe Drift'],
             $rate < self::ON_TRACK_RATE || $obstacles >= self::HIGH_FRICTION => ['yellow', 'Minor Drift'],
             default => ['green', 'On Track'],

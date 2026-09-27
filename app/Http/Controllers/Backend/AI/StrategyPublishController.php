@@ -223,6 +223,15 @@ class StrategyPublishController extends Controller
             if ($unlinked) {
                 return response()->json(['error' => 'Link every goal to a role before publishing.'], 422);
             }
+            // The role goals are written by "Complete Intelligence Cycle"; publishing
+            // before that would send nobody anything.
+            if (! ExpectedState::where('search_user_chat_id', $chat->id)->exists()) {
+                return response()->json(['error' => 'Finish the strategy (Complete Intelligence Cycle) so its role goals exist before publishing.'], 422);
+            }
+            // Drift, projections and nudges only measure goals with a target date.
+            if (ExpectedState::where('search_user_chat_id', $chat->id)->whereNull('target_date')->exists()) {
+                return response()->json(['error' => 'Set a target date for every goal before publishing.'], 422);
+            }
 
             // Notion Illustration 2: a director's or VP's initiative rolls up into a
             // C-suite priority, and goes live only once that priority's owner approves.
@@ -346,6 +355,34 @@ class StrategyPublishController extends Controller
                 return false;
             }
             $goal->forceFill(['weight' => (int) $data['weight']])->save();
+
+            return true;
+        });
+
+        return $saved ? response()->json($this->payload($chat->fresh(), $request->user())) : $this->publishedMeanwhile();
+    }
+
+    public function setTargetDate(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'chat_id' => 'required|integer',
+            'goal_id' => 'required|integer',
+            'target_date' => 'required|date|after:today',
+        ]);
+        $chat = $this->ownChat($request, $data['chat_id']);
+        if (! $chat) {
+            return $this->denied();
+        }
+        $goal = ExpectedState::whereKey($data['goal_id'])->where('search_user_chat_id', $chat->id)->first();
+        if (! $goal) {
+            return response()->json(['error' => 'That goal is not part of this strategy.'], 422);
+        }
+
+        $saved = DB::transaction(function () use ($chat, $goal, $data) {
+            if ($this->publishedUnderLock($chat)) {
+                return false;
+            }
+            $goal->forceFill(['target_date' => $data['target_date']])->save();
 
             return true;
         });
@@ -658,6 +695,7 @@ EOT;
                 'impact_score' => $g->impact_score,
                 'impact_reason' => $g->impact_reason,
                 'weight' => $g->weight,
+                'target_date' => $g->target_date?->toDateString(),
             ])->values(),
             'roles' => $roles->map(fn (OrgRole $r) => [
                 'id' => $r->id,

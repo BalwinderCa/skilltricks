@@ -80,6 +80,11 @@ class AiChatController extends Controller
 
     private function goalSyncJsonPrompt(string $question, string $documentNamesList): string
     {
+        // With nothing uploaded, "cite a document" made the model invent file names.
+        $insightRule = trim($documentNamesList) === ''
+            ? '3-5 insights drawn from the goal and the organization context. No company documents were uploaded: do NOT name, cite or invent any document or file'
+            : '3-5 insights; at least one MUST reference a specific document by name from the Available Documents list, and never a document that is not on it';
+
         return <<<EOT
 You are an executive strategy assistant trained in the GoalSync 7-step framework.
 
@@ -90,7 +95,7 @@ Return a SINGLE valid JSON object (no markdown, no code fences, no commentary) w
 
 {
   "acknowledgement": "1-2 warm sentences acknowledging the goal",
-  "documentInsights": ["3-5 insights; at least one MUST reference a specific document by name"],
+  "documentInsights": ["{$insightRule}"],
   "goalAssessment": "2-3 sentences assessing alignment of the goal with the company",
   "scoring": [
     {"label": "Alignment with Company Goals", "value": "High"},

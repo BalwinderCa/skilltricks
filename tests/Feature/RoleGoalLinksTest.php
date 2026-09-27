@@ -62,7 +62,7 @@ class RoleGoalLinksTest extends TestCase
             'leadership_brief' => 'Brief.',
         ]);
         foreach ($roleTexts as $text) {
-            ExpectedState::create(['search_user_chat_id' => $chat->id, 'role' => $text, 'recommended_action' => 'Act for '.$text]);
+            ExpectedState::create(['search_user_chat_id' => $chat->id, 'role' => $text, 'recommended_action' => 'Act for '.$text, 'target_date' => now()->addMonths(3)]);
         }
 
         return $chat;
@@ -323,11 +323,31 @@ class RoleGoalLinksTest extends TestCase
         $this->assertTrue($chat->fresh()->isPublished());
     }
 
-    public function test_a_strategy_with_no_goals_can_still_be_published(): void
+    public function test_a_strategy_with_no_goals_cannot_be_published(): void
     {
         [, $author, $chat] = $this->publishable([]);
 
-        $this->actingAs($author)->postJson(route('users-new-chat-publish.index'), ['chat_id' => $chat->id])->assertOk();
+        $this->actingAs($author)->postJson(route('users-new-chat-publish.index'), ['chat_id' => $chat->id])
+            ->assertStatus(422)->assertJsonFragment(['error' => 'Finish the strategy (Complete Intelligence Cycle) so its role goals exist before publishing.']);
+        $this->assertFalse($chat->fresh()->isPublished());
+    }
+
+    public function test_every_goal_needs_a_target_date_before_publishing(): void
+    {
+        [$org, $author, $chat] = $this->publishable(['Sales']);
+        $goal = ExpectedState::where('search_user_chat_id', $chat->id)->first();
+        $goal->update(['org_role_id' => $this->role($org, 'Director')->id, 'target_date' => null]);
+
+        $publish = fn () => $this->actingAs($author)->postJson(route('users-new-chat-publish.index'), ['chat_id' => $chat->id]);
+        $publish()->assertStatus(422)->assertJsonFragment(['error' => 'Set a target date for every goal before publishing.']);
+
+        $this->actingAs($author)->postJson(route('users-new-chat-goal-date.index'), ['chat_id' => $chat->id, 'goal_id' => $goal->id, 'target_date' => now()->addMonth()->toDateString()])
+            ->assertOk()->assertJsonPath('goals.0.target_date', now()->addMonth()->toDateString());
+        $publish()->assertOk();
+
+        // Locked once published, like role links and weights.
+        $this->actingAs($author)->postJson(route('users-new-chat-goal-date.index'), ['chat_id' => $chat->id, 'goal_id' => $goal->id, 'target_date' => now()->addMonths(2)->toDateString()])
+            ->assertStatus(409);
     }
 
     public function test_the_chat_page_carries_the_goal_role_route(): void

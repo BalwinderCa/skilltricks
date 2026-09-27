@@ -31,6 +31,7 @@
         goalRole: '{{ route('users-new-chat-goal-role.index') }}',
         rankGoals: '{{ route('users-new-chat-rank-goals.index') }}',
         goalWeight: '{{ route('users-new-chat-goal-weight.index') }}',
+        goalDate: '{{ route('users-new-chat-goal-date.index') }}',
         match: '{{ route('users-new-chat-match.index') }}',
         parent: '{{ route('users-new-chat-parent.index') }}',
     };
@@ -124,7 +125,12 @@
     }
 
     async function publish() {
-        if (!confirmPublish) { confirmPublish = true; armedAt = Date.now(); render(); return; }
+        if (!confirmPublish) {
+            // Arming re-renders the card; carry the typed figures through it.
+            const unsaved = unsavedRows();
+            if (unsaved) state.rows = unsaved;
+            confirmPublish = true; armedAt = Date.now(); render(); return;
+        }
         // Publishing cannot be undone: the second click of a double-click lands on
         // the re-rendered button, so a confirm that fast is not a confirm.
         if (Date.now() - armedAt < 600) return;
@@ -224,6 +230,7 @@
         if (!state.goals || !state.goals.length) return '';
         const holders = Object.fromEntries((state.roles || []).map(r => [r.id, r.member_count]));
         // Notion Epic 1: once scored, highest impact first; unscored keep their order.
+        const tomorrow = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
         const ordered = [...state.goals].sort((a, b) => (b.impact_score ?? -1) - (a.impact_score ?? -1));
         const rows = ordered.map(g => {
             const impact = g.impact_score === null || g.impact_score === undefined ? '<span class="pg-hint">—</span>'
@@ -232,6 +239,10 @@
                 : `<select class="form-select form-select-sm" data-weight-goal="${g.id}" ${busy ? 'disabled' : ''} style="width:auto;display:inline-block">
                     ${[1, 2, 3, 4, 5].map(n => `<option value="${n}" ${(g.weight ?? 1) === n ? 'selected' : ''}>weight ${n}</option>`).join('')}
                    </select>`;
+            // Drift and projections only measure goals with a target date.
+            const due = published ? esc(g.target_date ?? '—')
+                : `<input type="date" class="form-control form-control-sm" data-date-goal="${g.id}" value="${esc(g.target_date ?? '')}" min="${tomorrow}" ${busy ? 'disabled' : ''}>`
+                  + (g.target_date ? '' : '<div class="pg-flag-red">Needs a target date</div>');
             // Flags ask for action, so only a draft shows them.
             const flag = published ? '' : g.org_role_id === null
                 ? '<div class="pg-flag-red">No matching role — pick one</div>'
@@ -242,13 +253,13 @@
                     ${g.org_role_id === null ? '<option value="" selected disabled>Pick a role…</option>' : ''}
                     ${(state.roles || []).map(r => `<option value="${r.id}" ${r.id === g.org_role_id ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}
                    </select>`;
-return `<tr><td>${esc(g.action)}<div class="pg-role-text">AI role: ${esc(g.role_text)}</div></td><td style="min-width:180px">${picker}${flag}</td><td style="min-width:150px">${impact}<div>${weight}</div></td></tr>`;
+return `<tr><td>${esc(g.action)}<div class="pg-role-text">AI role: ${esc(g.role_text)}</div></td><td style="min-width:180px">${picker}${flag}</td><td style="min-width:150px">${impact}<div>${weight}</div></td><td style="min-width:150px">${due}</td></tr>`;
         }).join('');
         const noRoles = !published && !(state.roles || []).length
             ? '<div class="pg-hint">Your organization has no roles yet. Add them on the Roles page, then reload.</div>' : '';
         return `<div class="pg-goals"><strong>Who gets which goal</strong>${published ? '' : ` <button type="button" class="btn btn-sm btn-outline-secondary ms-2" data-act="rank" ${busy ? 'disabled' : ''}>Rank by impact</button>`}${noRoles}
             <div class="table-responsive"><table class="table table-sm align-middle mb-0">
-            <thead><tr><th>Goal</th><th>Role</th><th>Impact</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+            <thead><tr><th>Goal</th><th>Role</th><th>Impact</th><th>Target date</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
     }
 
     // Role, rank and weight calls re-render the whole card from the server; carry
@@ -265,6 +276,18 @@ return `<tr><td>${esc(g.action)}<div class="pg-role-text">AI role: ${esc(g.role_
         busy = true; error = ''; render();
         try {
             state = await call(urls.rankGoals, { chat_id: chatId });
+            if (unsaved && state.status === 'draft') state.rows = unsaved;
+        }
+        catch (e) { error = e.message; }
+        busy = false; render();
+    }
+
+    async function setDate(goalId, targetDate) {
+        const unsaved = unsavedRows();
+        if (unsaved) state.rows = unsaved;
+        busy = true; error = ''; render();
+        try {
+            state = await call(urls.goalDate, { chat_id: chatId, goal_id: goalId, target_date: targetDate });
             if (unsaved && state.status === 'draft') state.rows = unsaved;
         }
         catch (e) { error = e.message; }
@@ -326,7 +349,10 @@ return `<tr><td>${esc(g.action)}<div class="pg-role-text">AI role: ${esc(g.role_
                 `<li>${esc(new Date(c.at).toLocaleString())} — ${esc(c.user)} changed ${esc(c.department_name)} ${esc(c.field)} from ${esc(c.old_value ?? '—')} to ${esc(c.new_value ?? '—')}</li>`).join('')}</ul></div>`
             : '';
 
-        const publishBtn = published ? '' : (state.can_publish
+        const publishBtn = published ? '' : !(state.goals || []).length
+            ? `<button type="button" class="btn btn-sm pg-btn-primary" disabled>🔒 Commit Resources &amp; Publish</button>
+               <div class="pg-hint mt-1">Click "Complete Intelligence Cycle" first: it creates the role goals this strategy publishes.</div>`
+            : (state.can_publish
             ? `<button type="button" class="btn btn-sm ${confirmPublish ? 'pg-btn-confirm' : 'pg-btn-primary'}" data-act="publish" ${busy ? 'disabled' : ''}>${confirmPublish ? (state.requires_approval ? 'Click again to send for approval' : 'Click again to publish to your organization') : (state.requires_approval ? '🔒 Commit Resources &amp; Send for Approval' : '🔒 Commit Resources &amp; Publish')}</button>`
             : `<button type="button" class="btn btn-sm pg-btn-primary" disabled>🔒 Commit Resources &amp; Publish</button>
                <div class="pg-hint mt-1">Only department heads, managers and the organization owner can publish. This strategy stays private to you.</div>`);
@@ -373,12 +399,16 @@ return `<tr><td>${esc(g.action)}<div class="pg-role-text">AI role: ${esc(g.role_
         const el = card();
         const w = e.target.closest && e.target.closest('select[data-weight-goal]');
         if (el && w && el.contains(w) && !busy) return setWeight(Number(w.dataset.weightGoal), Number(w.value));
+        const d = e.target.closest && e.target.closest('input[data-date-goal]');
+        if (el && d && el.contains(d) && !busy && d.value !== '') return setDate(Number(d.dataset.dateGoal), d.value);
         const p = e.target.closest && e.target.closest('select[data-parent]');
         if (el && p && el.contains(p) && !busy && p.value !== '') return setParent(Number(p.value));
         const sel = e.target.closest && e.target.closest('select[data-goal]');
         if (!el || !sel || !el.contains(sel) || busy || sel.value === '') return;
         assignRole(Number(sel.dataset.goal), Number(sel.value));
     });
+
+    document.addEventListener('strategy-goals-saved', () => { if (card() && !busy) load(); });
 
     new MutationObserver(mount).observe(document.body, { childList: true, subtree: true });
     mount();

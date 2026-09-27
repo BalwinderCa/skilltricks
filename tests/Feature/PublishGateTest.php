@@ -78,7 +78,7 @@ class PublishGateTest extends TestCase
             $orgRoleId = $author->organization_id
                 ? OrgRole::firstOrCreate(['organization_id' => $author->organization_id, 'name' => $role])->id
                 : null;
-            ExpectedState::create(['search_user_chat_id' => $chat->id, 'role' => $role, 'recommended_action' => $action, 'org_role_id' => $orgRoleId]);
+            ExpectedState::create(['search_user_chat_id' => $chat->id, 'role' => $role, 'recommended_action' => $action, 'org_role_id' => $orgRoleId, 'target_date' => now()->addMonths(3)]);
         }
 
         return $chat;

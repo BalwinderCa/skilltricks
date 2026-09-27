@@ -134,6 +134,11 @@ class ExecutiveViewTest extends TestCase
         $this->assertSame('Severe Drift', $badge(59, 0, 0));
         $this->assertSame('Severe Drift', $badge(100, 0, 1), 'a blocked goal');
         $this->assertSame('Not started', $badge(null, 0, 0));
+
+        // Grace week: low alignment alone is expected right after publishing, a blocked goal is not.
+        $this->assertSame('Gathering commitments', StrategyOverview::badge(0, 0, 0, now()->subDays(2))['label']);
+        $this->assertSame('Severe Drift', StrategyOverview::badge(0, 0, 1, now()->subDays(2))['label']);
+        $this->assertSame('Severe Drift', StrategyOverview::badge(0, 0, 0, now()->subDays(8))['label']);
     }
 
     public function test_the_badge_and_its_reasons_show_in_the_executive_view(): void
@@ -141,6 +146,9 @@ class ExecutiveViewTest extends TestCase
         $w = $this->world();
         $chat = $this->strategy($w, 'Grow revenue 30%');
 
+        $this->actingAs($w['ceo'])->get(route('strategies.index'))->assertOk()->assertSee('Gathering commitments');
+
+        $chat->forceFill(['published_at' => now()->subDays(8)])->save();
         $this->actingAs($w['ceo'])->get(route('strategies.index'))->assertOk()->assertSee('Severe Drift');
 
         GoalResponse::create(['expected_state_id' => ExpectedState::first()->id, 'user_id' => $w['rep']->id, 'decision' => 'act_on_it', 'starting_point' => 'Book a sync']);
