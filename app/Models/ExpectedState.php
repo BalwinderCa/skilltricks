@@ -18,7 +18,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $decided_at
  * @property string|null $success_metric
  * @property string|null $target_value
- * @property \Illuminate\Support\Carbon|null $target_date
+ * @property Carbon|null $target_date
  * @property bool $resources_committed
  * @property int|null $depends_on_id
  * @property string|null $assumption_ref
