@@ -1161,6 +1161,38 @@ class DashboardController extends Controller
     }
 
     /**
+     * Set a member's password by hand, from the roster's Password dialog.
+     *
+     * The owner typed it and will pass it on, so there is nothing to force a
+     * change of and no mailbox involved. The address is marked verified for the
+     * same reason sendInvitation() does it: otherwise the new password only
+     * gets them as far as the verification notice.
+     */
+    public function resetMemberPassword(Request $request)
+    {
+        $org = $this->ownedOrganization();
+
+        $validated = $request->validate([
+            'user_id' => 'required|integer',
+            // Same floor registration uses.
+            'password' => 'required|string|min:6|max:255',
+        ]);
+
+        $member = $this->memberOfOwnedOrganization($org, (int) $validated['user_id']);
+
+        $member->forceFill([
+            'password' => Hash::make($validated['password']),
+            'must_change_password' => false,
+            'email_verified_at' => $member->email_verified_at ?: now(),
+            'email_or_otp_verified' => 1,
+        ])->save();
+
+        flash(localize('Password updated for').' '.$member->name.'.')->success();
+
+        return back();
+    }
+
+    /**
      * Take a member off the roster.
      *
      * The service owns the detach: it has to clear the membership and re-elect

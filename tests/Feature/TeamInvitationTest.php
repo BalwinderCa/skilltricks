@@ -230,6 +230,32 @@ class TeamInvitationTest extends TestCase
         $this->assertTrue((bool) $member->fresh()->must_change_password);
     }
 
+    public function test_the_owner_sets_a_members_password_but_not_another_organizations(): void
+    {
+        [$org, $owner] = $this->ownedOrg();
+        $member = $this->member($org);
+        $member->forceFill(['must_change_password' => true])->save();
+
+        $this->actingAs($owner)->post(route('organization.members.password'), [
+            'user_id' => $member->id, 'password' => 'demo-secret',
+        ])->assertRedirect();
+
+        $fresh = $member->fresh();
+
+        $this->assertTrue(Hash::check('demo-secret', $fresh->password));
+        $this->assertFalse((bool) $fresh->must_change_password);
+        $this->assertNotNull($fresh->email_verified_at);
+
+        $other = Organization::create(['domain' => 'other.com', 'name' => 'Other']);
+        $outsider = $this->member($other, 'eve@other.com');
+
+        $this->actingAs($owner)->post(route('organization.members.password'), [
+            'user_id' => $outsider->id, 'password' => 'demo-secret',
+        ])->assertNotFound();
+
+        $this->assertFalse(Hash::check('demo-secret', $outsider->fresh()->password));
+    }
+
     /** Nobody who has not been invited is affected by any of this. */
     public function test_an_ordinary_member_is_not_blocked(): void
     {

@@ -71,6 +71,30 @@
         </form>
     </dialog>
 
+    <dialog id="passwordDialog" class="st-modal" aria-labelledby="passwordDialogTitle">
+        <form method="POST" action="{{ route('organization.members.password') }}">
+            @csrf
+            <input type="hidden" name="user_id" id="passwordMemberId">
+
+            <h2 class="st-dialog-title" id="passwordDialogTitle">{{ localize('Reset password') }}</h2>
+
+            <p class="text-muted small mb-2" id="passwordMemberName"></p>
+
+            {{-- Plain text on purpose: the owner has to read it back to pass it
+                 on, and nothing is emailed. --}}
+            <div class="mb-3">
+                <label class="form-label" for="passwordNew">{{ localize('New password') }}<span class="text-danger">*</span></label>
+                <input class="form-control" type="text" id="passwordNew" name="password" required minlength="6" maxlength="255" autocomplete="off">
+                <small class="text-muted">{{ localize('At least 6 characters. It works straight away and is not emailed — pass it on yourself.') }}</small>
+            </div>
+
+            <div class="st-dialog-actions">
+                <button type="button" class="st-dialog-cancel" data-password-cancel>{{ localize('Cancel') }}</button>
+                <button type="submit" class="st-dialog-ok">{{ localize('Set password') }}</button>
+            </div>
+        </form>
+    </dialog>
+
     <dialog id="bulkDialog" class="st-modal" aria-labelledby="bulkDialogTitle">
         <form method="POST" action="{{ route('organization.members.import') }}" enctype="multipart/form-data">
             @csrf
@@ -120,12 +144,13 @@
     (function () {
         var dialog = document.getElementById('memberDialog');
         var bulk = document.getElementById('bulkDialog');
+        var passwordDialog = document.getElementById('passwordDialog');
 
         // No <dialog> support: every button here would open nothing, so say why
         // rather than dying silently on click.
         if (!dialog || typeof dialog.showModal !== 'function') {
             document.addEventListener('click', function (e) {
-                if (e.target.closest('[data-member-add], [data-member-edit], [data-bulk-open]')) {
+                if (e.target.closest('[data-member-add], [data-member-edit], [data-member-password], [data-bulk-open]')) {
                     if (window.stAlert) stAlert(@json(localize('This browser cannot open dialogs. Please update it to add team members.')));
                 }
             });
@@ -186,6 +211,17 @@
                 });
                 return;
             }
+
+            var pw = e.target.closest('[data-member-password]');
+            if (pw) {
+                e.preventDefault();
+                document.getElementById('passwordMemberId').value = pw.dataset.id;
+                document.getElementById('passwordMemberName').textContent = pw.dataset.name;
+                document.getElementById('passwordNew').value = '';
+                passwordDialog.showModal();
+                return;
+            }
+            if (e.target.closest('[data-password-cancel]')) { e.preventDefault(); passwordDialog.close(); return; }
 
             if (e.target.closest('[data-bulk-open]')) { e.preventDefault(); bulk.showModal(); return; }
             if (e.target.closest('[data-bulk-cancel]')) { e.preventDefault(); bulk.close(); return; }

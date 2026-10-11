@@ -319,6 +319,7 @@ Route::group(
                 Route::post('/organization/members/update', [DashboardController::class, 'updateMember'])->name('organization.members.update');
                 Route::post('/organization/members/remove', [DashboardController::class, 'removeMember'])->name('organization.members.remove');
                 Route::post('/organization/members/invite', [DashboardController::class, 'inviteMembers'])->name('organization.members.invite');
+                Route::post('/organization/members/password', [DashboardController::class, 'resetMemberPassword'])->name('organization.members.password');
                 Route::post('/organization/departments', [DashboardController::class, 'storeDepartment'])->name('organization.departments.store');
                 Route::post('/organization/departments/delete', [DashboardController::class, 'destroyDepartment'])->name('organization.departments.destroy');
                 Route::post('/organization/departments/head', [DashboardController::class, 'updateDepartmentHead'])->name('organization.departments.head');
