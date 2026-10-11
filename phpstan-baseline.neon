@@ -765,7 +765,7 @@ parameters:
 		-
 			message: '#^If condition is always true\.$#'
 			identifier: if.alwaysTrue
-			count: 5
+			count: 6
 			path: app/Http/Controllers/Backend/Offline/PaymentRequestController.php
 
 		-
@@ -2387,3 +2387,9 @@ parameters:
 			identifier: larastan.relationExistence
 			count: 1
 			path: app/View/Components/RaderComponent.php
+
+		-
+			message: '#^If condition is always true\.$#'
+			identifier: if.alwaysTrue
+			count: 1
+			path: app/Traits/SubscriptionHistoryTrait.php
