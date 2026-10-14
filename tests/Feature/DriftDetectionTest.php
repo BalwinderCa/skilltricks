@@ -469,7 +469,7 @@ class DriftDetectionTest extends TestCase
         $this->assertContains('Marketing', $first['affected_roles']);
         $this->assertEquals('At Risk', $data['assumptions'][0]['status']);
 
-        // Studio stores the assessment on the drift event
+        // OI stores the assessment on the drift event
         $event = DriftEvent::where('expected_state_id', $state->id)->orderByDesc('id')->first();
         $this->assertEquals('Overdue', $event->status);
         $this->assertEquals('At Risk', $event->assumption_status);
@@ -566,7 +566,7 @@ class DriftDetectionTest extends TestCase
             'status2' => 1,
         ]);
 
-        // Studio's original proposal: target 10, no decision yet.
+        // OI's original proposal: target 10, no decision yet.
         $state = ExpectedState::create([
             'search_user_chat_id' => $chat->id,
             'role' => 'VP Operations',

@@ -61,31 +61,6 @@
                                         </div>
                                         <div class="col-md-12">
                                             <div class="form-group position-relative">
-                                                <label>Mobile Number</label>
-                                                @php
-                                                    $required = getSetting('registration_with') == 'email_and_phone' ? true :false;
-                                                @endphp
-                                                 {!! Form::text('phone', old('phone'), ['class'=>"form-control", 'name'=>"phone", 'id'=>"phone",
-                                                    'placeholder'=>localize('+880xxxxxxxxxx'), 'aria-label'=>"phone", 'required'=>$required]) !!}
-                                            </div>
-                                        </div>
-                                        <div class="col-md-12">
-                                            <div class="form-group position-relative">
-                                                <label>Are you representing a company?</label>
-                                                <div class="d-flex align-items-center">
-                                                    <div class="d-flex align-items-center">
-                                                        <input type="radio" id="yes" name="company" value="yes" required>&nbsp;
-                                                        <label for="yes">Yes</label>
-                                                    </div> &nbsp;
-                                                    <div class="d-flex align-items-center mx-2">
-                                                        <input type="radio" id="no" name="company" value="no" required>&nbsp;
-                                                        <label for="no">No</label>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-12">
-                                            <div class="form-group position-relative">
                                                 <label>Email Address</label>
                                                 {!! Form::email('email', old('email'), ['class'=>"form-control", 'name'=>"email", 'id'=>"email",
                                                  'placeholder'=>localize('Type your email'), 'aria-label'=>"email", 'required'=>true]) !!}
@@ -100,19 +75,6 @@
                                                     'placeholder'=>localize('Enter your password'), 'aria-label'=>"Password", 'required'=>true]) !!}
                                                     <span class="toggle-password" onclick="togglePassword('password', 'eye-icon1')">
                                                         <i id="eye-icon1" class="fas fa-eye"></i>
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-12">
-                                            <div class="form-group position-relative">
-                                                <label>Confirm Your Password</label>
-                                                <div class="position-relative">
-                                                    {!! Form::password('password_confirmation', ['class'=>"form-control", 'name'=>"password_confirmation",
-                                                    'id'=>"password_confirmation", 'placeholder'=>localize('Confirm password'),
-                                                    'aria-label'=>"password_confirmation", 'required'=>true]) !!}
-                                                    <span class="toggle-password" onclick="togglePassword('password_confirmation', 'eye-icon2')">
-                                                        <i id="eye-icon2" class="fas fa-eye"></i>
                                                     </span>
                                                 </div>
                                             </div>

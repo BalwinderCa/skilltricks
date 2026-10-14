@@ -55,7 +55,7 @@
                 <div class="contact-info">
                     <div class="info-text">
                         <h2>Interested in working with us?</h2>
-                        <p class="description">Whether you're looking to explore our solutions or ready to take your organization to new heights, we're here to help. Schedule a free strategy session to discuss how StrategyStudio can drive results for you.</p>
+                        <p class="description">Whether you're looking to explore our solutions or ready to take your organization to new heights, we're here to help. Schedule a free strategy session to discuss how OI can drive results for you.</p>
                     </div>
                     <div class="contact-address">
                         <h3>SkillTricks</h3>

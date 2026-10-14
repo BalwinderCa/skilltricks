@@ -48,7 +48,7 @@
     </li>
 
     <!-- organization roles: owner-only, like every other write on the org -->
-    @if(user()?->organization && (int) user()->organization->owner_user_id === (int) user()->id)
+    @if(user()?->organization?->isAdmin(user()))
     <li class="side-nav-item nav-item {{ areActiveRoutes(['organization.roles.index'], 'tt-menu-item-active') }}">
         <a href="{{ route('organization.roles.index') }}" class="side-nav-link">
             <span class="tt-nav-link-icon"><i data-feather="shield"></i></span>
@@ -422,7 +422,7 @@
     $sidebarDepartments = $sidebarOrg
         ? $sidebarOrg->departments()->withCount('members')->orderBy('name')->get()
         : collect();
-    $sidebarIsOwner = $sidebarOrg && (int) $sidebarOrg->owner_user_id === (int) $user->id;
+    $sidebarIsOwner = $sidebarOrg && $sidebarOrg->isAdmin($user);
     $activeDepartmentId = (int) request()->query('department');
 @endphp
 

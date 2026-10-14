@@ -1,6 +1,6 @@
 @php
     $deptOrg = auth()->user()->organization;
-    $deptIsOwner = $deptOrg && (int) $deptOrg->owner_user_id === (int) auth()->id();
+    $deptIsOwner = $deptOrg && $deptOrg->isAdmin(auth()->user());
 @endphp
 
 @if($deptOrg)

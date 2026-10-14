@@ -17,22 +17,26 @@ class Alignment
     /** @return array{overall: array{people: int, committed: int, rate: int|null}, departments: list<array{name: string, people: int, committed: int, rate: int|null}>} */
     public function forStrategy(SearchUserChat $chat): array
     {
-        $roleIds = ExpectedState::where('search_user_chat_id', $chat->id)->whereNotNull('org_role_id')
-            ->pluck('org_role_id')->map(fn ($id) => (int) $id)->unique()->values();
+        $goals = ExpectedState::where('search_user_chat_id', $chat->id)->whereNotNull('org_role_id')
+            ->get(['id', 'org_role_id', 'department_id']);
+        $roleIds = $goals->pluck('org_role_id')->map(fn ($id) => (int) $id)->unique()->values();
 
+        // Holding the role is not enough when its goals are per department: a
+        // Vice President in a department none of them names is asked nothing.
         $people = $chat->organization_id && $roleIds->isNotEmpty()
             ? User::where('organization_id', $chat->organization_id)->whereIn('org_role_id', $roleIds)
                 ->with('department:id,name')->get(['id', 'org_role_id', 'department_id'])
+                ->filter(fn (User $u) => $goals->contains(fn (ExpectedState $g) => $g->isFor($u)))->values()
             : collect();
-        $roleOf = $people->mapWithKeys(fn (User $u) => [(int) $u->id => (int) $u->org_role_id]);
+        $byId = $people->keyBy('id');
 
-        // Only a pick on the person's own role's goal counts as their commitment.
+        // Only a pick on the person's own goal counts as their commitment.
         $committed = GoalResponse::whereNotNull('starting_point')
             ->where('decision', 'act_on_it')
             ->whereIn('user_id', $people->pluck('id'))
             ->whereHas('goal', fn ($q) => $q->where('search_user_chat_id', $chat->id))
-            ->with('goal:id,org_role_id')->get()
-            ->filter(fn (GoalResponse $r) => (int) $r->goal->org_role_id === ($roleOf[(int) $r->user_id] ?? -1))
+            ->with('goal:id,org_role_id,department_id')->get()
+            ->filter(fn (GoalResponse $r) => $byId->has($r->user_id) && $r->goal->isFor($byId[$r->user_id]))
             ->pluck('user_id')->map(fn ($id) => (int) $id)->unique();
 
         $summary = function (string $name, Collection $group) use ($committed): array {

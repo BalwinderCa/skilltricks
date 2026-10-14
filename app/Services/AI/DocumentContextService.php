@@ -90,6 +90,10 @@ class DocumentContextService
      * The author's organization's role names, as the prompt should show them:
      * sanitised and capped like the roster block. Empty when there are none.
      *
+     * A role is listed once per department its holders sit in, as
+     * "Vice President (Sales)": two people can share a role and still need
+     * different goals. RoleGoalLinker strips the suffix again to find the role.
+     *
      * @return array<int, string>
      */
     public function roleNamesFor($user): array
@@ -99,9 +103,21 @@ class DocumentContextService
             return [];
         }
 
-        return $org->roles()->orderBy('name')->limit(self::ORG_MAX_ROSTER_LINES)->pluck('name')
+        $departments = $org->members()->whereNotNull('org_role_id')->with('department:id,name')
+            ->get(['id', 'org_role_id', 'department_id'])
+            ->groupBy('org_role_id')
+            ->map(fn ($holders) => $holders->map(fn ($u) => $u->department?->name)->unique()->sort()->values());
+
+        // Super Admin is who may manage the company, not a job to set a goal for.
+        return $org->roles()->where('is_admin', false)->orderBy('name')->get(['id', 'name'])
+            ->flatMap(fn ($role) => ($departments[$role->id] ?? collect([null]))->map(
+                // "Sales (Sales)" says nothing the role name did not.
+                fn ($department) => $department === null || strcasecmp($department, $role->name) === 0
+                    ? $role->name
+                    : $role->name.' ('.$department.')'
+            ))
             ->map(fn ($name) => $this->sanitiseForPrompt((string) $name))
-            ->filter()->values()->all();
+            ->filter()->unique()->take(self::ORG_MAX_ROSTER_LINES)->values()->all();
     }
 
     /**
@@ -180,7 +196,9 @@ class DocumentContextService
      */
     private function orgRosterLines($org): string
     {
-        $roles = $org->roles()->orderBy('name')->pluck('name');
+        // Without Super Admin: it says who may manage the company, and listed
+        // here the model reads it as one more job to plan for.
+        $roles = $org->roles()->where('is_admin', false)->orderBy('name')->pluck('name');
         $departments = $org->departments()->with('members.orgRole')->orderBy('name')->get();
 
         if ($roles->isEmpty() && $departments->isEmpty()) {

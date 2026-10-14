@@ -134,7 +134,8 @@ class DriftIndex
 
         $role = $worst ? ($worst->orgRole->name ?? $worst->role) : '';
         if ($level === 'yellow' && $worst && $worst->org_role_id) {
-            $holders = User::where('organization_id', $chat->organization_id)->where('org_role_id', $worst->org_role_id)->get();
+            $holders = User::where('organization_id', $chat->organization_id)->where('org_role_id', $worst->org_role_id)->get()
+                ->filter(fn (User $u) => $worst->isFor($u));
             foreach ($holders as $holder) {
                 $this->alerts->send($holder, localize('Your goal is falling behind').': '.$role, 'dashboard',
                     'A published strategy is drifting ('.$index.'%), and your goal "'.Str::limit((string) $worst->recommended_action, 120).'" is furthest behind its baseline. Post an update, or flag what is blocking you.',

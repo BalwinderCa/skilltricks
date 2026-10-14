@@ -13,7 +13,7 @@
         <div class="text-section" id="section1">
             <div class="round-border-block">
                 <span class="round-animtion"></span>
-                <h1 class="h1-ttl text-primary text-white">Transform Your Organization’s Future with StrategyStudio</h1>
+                <h1 class="h1-ttl text-primary text-white">Transform Your Organization’s Future with OI</h1>
             </div>
         </div>
         
@@ -36,7 +36,7 @@
             <div class="section-header">
                 <h2 class="section-title text-left">Empowering Organizations through Unified Insights</h2>
                 <p class="section-description">
-                    SkillTricks is dedicated to empowering organizations to reach their full potential through strategic innovation and intelligent insights. With StrategyStudio, our flagship solution, we combine data-driven strategies with actionable insights to enhance organizational competitiveness, foster leadership, and create impactful transformations.
+                    SkillTricks is dedicated to empowering organizations to reach their full potential through strategic innovation and intelligent insights. With OI, our flagship solution, we combine data-driven strategies with actionable insights to enhance organizational competitiveness, foster leadership, and create impactful transformations.
                 </p>
             </div>
 
@@ -156,7 +156,7 @@
             <div class="services-cards">
                 <div class="service-card unfocused">
                     <img src="assets/images/Redirect2.png" alt="" id="redirect" class="card-redirect" data-bs-toggle="offcanvas" data-bs-target="#offcanvasRight" aria-controls="offcanvasRight">
-                    <h3 class="card-heading">StrategyStudio Implementation</h3>
+                    <h3 class="card-heading">OI Implementation</h3>
                     <div class="img-wrap">
                         <div class="img-wrap">
                             <svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" fill="none">
@@ -192,14 +192,14 @@
                                 <path class="knight" d="M80 140 C60 120, 70 90, 90 70 C110 50, 130 60, 120 80 C110 100, 90 110, 85 120 L80 140 Z" 
                                       fill="#fff" stroke="#ec883f" stroke-width="2"/>
                             
-                                <!-- Text: StrategyStudio (Fading Effect) -->
-                                <text class="text" x="50" y="155" font-size="14" font-weight="bold" fill="#36839b" font-family="Arial">StrategyStudio</text>
+                                <!-- Text: OI (Fading Effect) -->
+                                <text class="text" x="50" y="155" font-size="14" font-weight="bold" fill="#36839b" font-family="Arial">OI</text>
                             </svg>
                             
                             
                         </div>
                     </div>
-                    <p class="card-content">Our primary offering, StrategyStudio, equips businesses with a structured, AI-powered tool to analyze, strategize, and implement impactful changes. Through a seamless onboarding process, we ensure that you get the most out of your investment.</p>
+                    <p class="card-content">Our primary offering, OI, equips businesses with a structured, AI-powered tool to analyze, strategize, and implement impactful changes. Through a seamless onboarding process, we ensure that you get the most out of your investment.</p>
                 </div>
                 
                 <div class="service-card unfocused">

@@ -393,7 +393,7 @@
       white-space: nowrap;
     }
 
-    /* StrategiStudio side: left card. Kept wide -- these replies are long
+    /* OI side: left card. Kept wide -- these replies are long
        structured briefs, not one-liners, and a 70% bubble would shred them. */
     /* Flat fill, no border -- the reference's received bubble is a plain
        near-white block, and the 1px outline read as a card instead. The avatar
@@ -422,7 +422,7 @@
       border: 1px solid var(--st-line);
     }
     .chat-container .main-content .chat-messages .bot-message::before {
-      content: "StrategiStudio" attr(data-time);
+      content: "OI" attr(data-time);
       position: absolute;
       left: 0;
       bottom: -25px;
@@ -486,7 +486,7 @@
       color: #0066cc;
     }
     .chat-messages .btn svg { width: 24px; height: 24px; font-size: 9px; }
-    /* Anything the JS appends after a Studio reply -- the recommended-action
+    /* Anything the JS appends after an OI reply -- the recommended-action
        table, the export button, the strategy blocks -- is a sibling of the
        bubble, so it starts where the bubble's bottom margin starts and lands
        flush against the meta line sitting in it. Clear the meta line, and line
@@ -1037,8 +1037,7 @@
                 </div>
                 <div class="sidebar-content">
                     <div class="sidebar-section new-chat-row">
-                {{--<!-- <a href="{{url('dashboard/newusers-new-chat/'.$id)}}" style="color:black;"> -->--}}
-                <a href="{{url('dashboard/newchat')}}" style="color:black;">
+                <a href="{{ route('newusers-new-chat.index') }}" style="color:black;">
                     <div class="sidebar-item">
                         <i class="bi bi-chat-square-text"></i>
                         <span>New Chat</span>
@@ -1070,7 +1069,7 @@
                             @foreach ($chats->sortByDesc('created_at')->unique('search_user_chat_id') as $chat)
                                 @php
                                     $rowTitle = \Illuminate\Support\Str::words(strip_tags($chat->search), 8, '...');
-                                    // Responses are stored as the Studio's JSON payload. Its
+                                    // Responses are stored as OI's JSON payload. Its
                                     // acknowledgement is the one human sentence in there; without
                                     // this the row preview renders a raw "{" and the JSON keys.
                                     $stResponse = json_decode((string) ($chat->response ?? ''), true);
@@ -1118,9 +1117,9 @@
                 <!-- Chat Header -->
                 <div class="chat-header">
                     <div class="header-title">
-                        <img class="st-avatar" src="{{ $stBotAvatar }}" alt="StrategiStudio">
+                        <img class="st-avatar" src="{{ $stBotAvatar }}" alt="OI">
                         <span>
-                            <span class="st-name d-block">StrategiStudio</span>
+                            <span class="st-name d-block">OI</span>
                             <span class="st-status">{{ localize('Online') }}</span>
                         </span>
                     </div>
@@ -1253,7 +1252,7 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="button" class="btn btn-primary" id="submitContextBtn">
-                        <i class="bi bi-check-circle me-1"></i> Submit & Send to StrategiStudio
+                        <i class="bi bi-check-circle me-1"></i> Submit & Send to OI
                     </button>
                 </div>
             </div>
@@ -1306,7 +1305,7 @@
                             <select class="form-select" id="commitment-assumption">
                                 <option value="">-- Not tied to a specific assumption --</option>
                             </select>
-                            <small class="text-muted">Link this KPI to the pathway assumption it validates, so Studio can flag that assumption At Risk when this KPI drifts.</small>
+                            <small class="text-muted">Link this KPI to the pathway assumption it validates, so OI can flag that assumption At Risk when this KPI drifts.</small>
                         </div>
                         <div class="form-check mb-3">
                             <input class="form-check-input" type="checkbox" id="commitment-resources">
@@ -1338,8 +1337,8 @@
                 </div>
                 <div class="modal-body">
                     <p class="small text-muted mb-3">
-                        Adjust the Studio recommendation to your team's real constraints before it is committed to the tracker.
-                        Your revised target and date become the baseline Studio measures against — the original AI proposal is kept on record.
+                        Adjust the OI recommendation to your team's real constraints before it is committed to the tracker.
+                        Your revised target and date become the baseline OI measures against — the original AI proposal is kept on record.
                     </p>
                     <form id="reviewDetailForm">
                         <div class="row">
@@ -1356,7 +1355,7 @@
                         <div class="mb-3">
                             <label for="review-action" class="form-label font-weight-bold">1. Refined Action / Scope <span class="text-danger">*</span></label>
                             <textarea class="form-control" id="review-action" rows="3" required></textarea>
-                            <small class="text-muted">Pre-filled with the Studio recommendation. Reword it to match your internal terminology or scope.</small>
+                            <small class="text-muted">Pre-filled with the OI recommendation. Reword it to match your internal terminology or scope.</small>
                         </div>
                         <div class="mb-3">
                             <label for="review-metric" class="form-label font-weight-bold">2. Target KPI / Expected State <span class="text-danger">*</span></label>
@@ -1366,7 +1365,7 @@
                             <div class="col-md-6 mb-3">
                                 <label for="review-value" class="form-label font-weight-bold">Target Value</label>
                                 <input type="text" class="form-control" id="review-value" placeholder="e.g. 2">
-                                <small class="text-muted">The number Studio measures the execution gap against.</small>
+                                <small class="text-muted">The number OI measures the execution gap against.</small>
                             </div>
                             <div class="col-md-6 mb-3">
                                 <label for="review-date" class="form-label font-weight-bold">3. Target Completion Date</label>
@@ -1383,7 +1382,7 @@
                                 @endforeach
                             </div>
                             <textarea class="form-control" id="review-notes" rows="3" placeholder="e.g. We are focusing strictly on the Middle East market first; Mexico rollout is deferred to Q4."></textarea>
-                            <small class="text-muted">Why you are adjusting this. Studio keeps it so future drift assessments read this as a deliberate pivot, not a failure — and so the AI does not recommend actions your constraints rule out.</small>
+                            <small class="text-muted">Why you are adjusting this. OI keeps it so future drift assessments read this as a deliberate pivot, not a failure — and so the AI does not recommend actions your constraints rule out.</small>
                         </div>
                     </form>
                 </div>
@@ -1414,7 +1413,7 @@
                             <input type="text" class="form-control text-dark font-weight-bold" id="rationale-role" readonly style="background-color: #f8f9fa;">
                         </div>
                         <div class="mb-3">
-                            <label class="form-label font-weight-bold">Studio Action</label>
+                            <label class="form-label font-weight-bold">OI Action</label>
                             <textarea class="form-control text-dark" id="rationale-action" rows="2" readonly style="background-color: #f8f9fa;"></textarea>
                         </div>
                         <div class="mb-3">
@@ -1713,7 +1712,7 @@ function stEnsureTodayDivider(container) {
         function sectionAcknowledgement(d) {
             if (!nonEmpty(d.acknowledgement)) return '';
             return `<div class="gs-section gs-ack">
-                <h5>🧩 Studio Interpretation</h5>
+                <h5>🧩 OI Interpretation</h5>
                 <p>${esc(d.acknowledgement)}</p>
             </div>`;
         }
@@ -1723,7 +1722,7 @@ function stEnsureTodayDivider(container) {
             if (!list.length) return '';
             const items = list.map(i => `<li>${esc(i)}</li>`).join('');
             return `<div class="gs-section gs-doc-insights">
-                <h5>📁 Studio drawn insights</h5>
+                <h5>📁 OI drawn insights</h5>
                 <ul>${items}</ul>
             </div>`;
         }
@@ -1731,7 +1730,7 @@ function stEnsureTodayDivider(container) {
         function sectionGoalAssessment(d) {
             if (!nonEmpty(d.goalAssessment)) return '';
             return `<div class="gs-section gs-goal-assessment">
-                <h5>📊 Studio Assessed goal summary</h5>
+                <h5>📊 OI Assessed goal summary</h5>
                 <p>${esc(d.goalAssessment)}</p>
             </div>`;
         }
@@ -1799,7 +1798,7 @@ function stEnsureTodayDivider(container) {
                 </div>`;
             }).join('');
             return `<div class="gs-section gs-scenarios">
-                <h5>🔮 Studio proposed simulations</h5>
+                <h5>🔮 OI proposed simulations</h5>
                 <div class="scenario-options mt-3">${rows}</div>
             </div>`;
         }
@@ -1832,7 +1831,7 @@ function stEnsureTodayDivider(container) {
             if (!list.length) return '';
             const items = list.map(g => `<li>${esc(g)}</li>`).join('');
             return `<div class="gs-section gs-complementary">
-                <h5>📌 Studio suggested goals</h5>
+                <h5>📌 OI suggested goals</h5>
                 <ul>${items}</ul>
             </div>`;
         }
@@ -2069,7 +2068,7 @@ function stEnsureTodayDivider(container) {
                 }
                 const strat = (data.strategyMap || []).find(s => s.id === sid) || {};
                 const assumptions = (data.pathwayAssumptions && data.pathwayAssumptions[sid]) || [];
-                showTransitionCard('⚡', 'Studio is Applying Intelligence...',
+                showTransitionCard('⚡', 'OI is Applying Intelligence...',
                     'Mapping selected scenario constraints • Injecting operational assumptions into the business logic');
                 try {
                     const res = await fetch('/dashboard/users-new-chat-generate-strategy-variant', {
@@ -2237,7 +2236,7 @@ function stEnsureTodayDivider(container) {
                     else if (curFn === STEP_SCENARIOS) {
                         // Scenario chosen → brief "aligning organization" transition
                         // before landing on Contextualized Goals by Role (UX spec).
-                        showTransitionCard('👥', 'Studio is Now Aligning Organization...',
+                        showTransitionCard('👥', 'OI is Now Aligning Organization...',
                             'Generating role-specific actions, ownership, and success targets across the leadership structure');
                         step++;
                         setTimeout(renderStep, 1100);
@@ -2412,7 +2411,7 @@ async function submitContextFromModal() {
             }
         }).catch(() => {});
     } catch (error) {
-        // Continue anyway, context will still be sent to StrategiStudio
+        // Continue anyway, context will still be sent to OI
     }
 
     // Hide modal
@@ -2525,7 +2524,7 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                 <i class="bi bi-plus-circle me-1"></i> Add More Context
             </button>
             <button type="button" class="btn btn-primary btn-sm skip-context-btn">
-                <i class="bi bi-arrow-right me-1"></i> Launch StrategiStudio
+                <i class="bi bi-arrow-right me-1"></i> Launch OI
             </button>
         </div>
     `;
@@ -2571,14 +2570,14 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
         // Show loading
         const loadingDiv = document.createElement('div');
         loadingDiv.className = 'bot-message';
-        // Without this the live reply renders "StrategiStudio" with no time,
-        // while every stored one beside it shows "StrategiStudio - 09:14 PM".
+        // Without this the live reply renders "OI" with no time,
+        // while every stored one beside it shows "OI - 09:14 PM".
         loadingDiv.dataset.time = ' \u2022 ' + stNowLabel();
         loadingDiv.innerHTML = `
             <div class="gs-transition-card">
                 <div class="d-flex align-items-center mb-2">
                     <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true" style="color:#36839b"></div>
-                    <div class="gs-transition-title">⚙️ Studio Gathering Intelligence...</div>
+                    <div class="gs-transition-title">⚙️ OI Gathering Intelligence...</div>
                 </div>
                 <div class="progress" style="height: 8px;">
                     <div class="progress-bar progress-bar-striped progress-bar-animated"
@@ -2634,6 +2633,14 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
                 const parsedAnswer = window.parseAnswerJson(data.answer);
                 if (parsedAnswer) {
                     if (data.chat_id) {
+                        // The server answered under a different chat: this page's
+                        // one was deleted while it was open. Everything else here
+                        // (the publish panel above all) is built around the old
+                        // id, so move to the chat that actually holds the answer.
+                        if (Number(data.chat_id) !== {{ (int) $id }}) {
+                            window.location.href = '{{ url('dashboard/users-new-chat') }}/' + data.chat_id;
+                            return;
+                        }
                         window.chatChatId = data.chat_id;
                         const ci = document.getElementById('chat_id');
                         if (ci) ci.value = data.chat_id;
@@ -4377,12 +4384,25 @@ document.addEventListener('click', function (e) {
         let html = '<div class="response-text"><div class="table-responsive">'
             + '<table class="table table-bordered recommended-action-table">'
             + '<thead><tr>'
-            + '<th>Role</th><th>Studio Action</th><th>Choice / Decision</th>'
+            + '<th>Role</th><th>OI Action</th><th>Choice / Decision</th>'
             + '</tr></thead><tbody>';
+
+        // Lower-cased role name -> the departments its holders sit in.
+        const roleDepartments = @json($roleDepartments);
 
         rows.forEach((r, i) => {
             const role = escapeActionHtml(r.role);
             const action = escapeActionHtml(r.action);
+            // "Vice President (Sales)" is one role in one department; a plain
+            // title gets every department its holders are in. Display only:
+            // `role` above stays whole, it is what a decision is saved against.
+            const split = String(r.role || '').match(/^(.*\S)\s*\(([^()]+)\)\s*$/);
+            const roleName = split ? split[1] : String(r.role || '');
+            const departments = (split ? [split[2]] : (roleDepartments[roleName.trim().toLowerCase()] || []))
+                .filter(d => d.toLowerCase() !== roleName.trim().toLowerCase());
+            const departmentLine = departments.length
+                ? `<div class="small text-muted">${escapeActionHtml(departments.join(', '))}</div>`
+                : '';
             let opts = '';
             choices.forEach((c, j) => {
                 const id = `action_choice_${i}_${j}`;
@@ -4428,7 +4448,7 @@ document.addEventListener('click', function (e) {
             }
 
             html += `<tr class="${rowClass}" ${rowStyle}>
-                <td><strong>${role}</strong></td>
+                <td><strong>${escapeActionHtml(roleName)}</strong>${departmentLine}</td>
                 <td>${action}${rationaleNote}</td>
                 <td>${opts}</td>
             </tr>`;
@@ -4674,7 +4694,7 @@ document.addEventListener('click', function (e) {
             }
         }
 
-        // Review in Detail: calibrate the Studio action before committing it.
+        // Review in Detail: calibrate the OI action before committing it.
         const reviewModalEl = document.getElementById('reviewDetailModal');
         if (reviewModalEl) {
             reviewModalEl.addEventListener('hidden.bs.modal', function () {
@@ -4922,7 +4942,7 @@ document.addEventListener('click', function (e) {
                     }
 
                     // Execution assumptions for the selected pathway, with the
-                    // Studio-derived Holding / At Risk status (Assumption Drift).
+                    // OI-derived Holding / At Risk status (Assumption Drift).
                     let assumptionsHtml = '';
                     if (Array.isArray(data.assumptions) && data.assumptions.length > 0) {
                         const anyAtRisk = data.assumptions.some(a => a.status === 'At Risk');
@@ -4936,7 +4956,7 @@ document.addEventListener('click', function (e) {
                         </div>`;
                     }
 
-                    // Studio-ranked interventions table + spec meta (type / priority / owner)
+                    // OI-ranked interventions table + spec meta (type / priority / owner)
                     // rendered inside an intervention panel above the GPT narrative.
                     const rankedInterventionsHtml = (int) => {
                         let list = int.ranked_interventions;
@@ -4945,7 +4965,7 @@ document.addEventListener('click', function (e) {
                         let out = meta ? `<div class="small text-muted mb-2">${escapeActionHtml(meta)}</div>` : '';
                         if (Array.isArray(list) && list.length) {
                             out += `<div class="table-responsive"><table class="table table-sm table-bordered bg-white mb-2" style="font-size:0.8rem;">
-                                <thead><tr><th style="width:90px;">Priority</th><th>Studio-Ranked Intervention</th></tr></thead>
+                                <thead><tr><th style="width:90px;">Priority</th><th>OI-Ranked Intervention</th></tr></thead>
                                 <tbody>${list.map(r => `<tr><td><span class="badge ${r.priority === 'High' ? 'bg-danger' : 'bg-warning text-dark'}">${escapeActionHtml(r.priority)}</span></td><td>${escapeActionHtml(r.action)}</td></tr>`).join('')}</tbody>
                             </table></div>`;
                         }
@@ -5295,7 +5315,7 @@ document.addEventListener('click', function (e) {
     // Call backend to generate the table from existing chat/scenario/role data
     function generateRecommendedActionTable(roleGoalsSection, genBtn, resultDiv, suggestionBox) {
         if (genBtn) genBtn.disabled = true;
-        resultDiv.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split me-2"></i>Generating studio actions...</div>';
+        resultDiv.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split me-2"></i>Generating OI actions...</div>';
 
         // Role goals text from this card (already collapsed to one-line actions)
         const roleGoalsText = (roleGoalsSection.textContent || roleGoalsSection.innerText || '').trim();
@@ -5409,7 +5429,7 @@ document.addEventListener('click', function (e) {
             const resultDiv = wrap.querySelector('.action-table-result');
 
             // Load the saved table if one exists; otherwise generate it
-            // automatically — no "Generate Studio Actions" click required.
+            // automatically — no "Generate OI Actions" click required.
             checkAndLoadExistingTable(roleGoalsSection, resultDiv, null, function () {
                 generateRecommendedActionTable(roleGoalsSection, null, resultDiv, null);
             });

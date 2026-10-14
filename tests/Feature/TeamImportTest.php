@@ -168,6 +168,26 @@ class TeamImportTest extends TestCase
         Mail::assertSent(TeamInvitationMail::class);
     }
 
+    public function test_a_new_member_always_lands_on_the_organizations_own_domain(): void
+    {
+        Mail::fake();
+
+        [, $owner] = $this->ownedOrg();
+
+        // The dialog sends the name alone; a hand-posted foreign domain is dropped.
+        foreach (['ada' => 'ada@acme.com', 'eve@globex.com' => 'eve@acme.com'] as $typed => $stored) {
+            $this->actingAs($owner)->post(route('organization.members.store'), [
+                'name' => 'New Person', 'email' => $typed, 'org_role_id' => $this->roleId('Manager'),
+            ])->assertRedirect();
+
+            $this->assertNotNull(User::where('email', $stored)->first());
+        }
+
+        $this->assertNull(User::where('email', 'eve@globex.com')->first());
+
+        $this->actingAs($owner)->get(route('organization.index'))->assertSee('@acme.com</span>', false);
+    }
+
     public function test_adding_an_address_that_already_exists_creates_nothing(): void
     {
         Mail::fake();

@@ -511,6 +511,17 @@ class PublishGateTest extends TestCase
             ->assertSee(route('users-new-chat-resources.show', ['chat' => $chat->id]), false);
     }
 
+    public function test_a_deleted_chats_page_redirects_instead_of_rendering(): void
+    {
+        $w = $this->world();
+        $chat = $this->finishedChat($w['owner']);
+        $url = '/dashboard/users-new-chat/'.$chat->id;
+        $chat->delete();
+
+        // Rendering it left the publish card asking for a chat that is gone.
+        $this->actingAs($w['owner'])->get($url)->assertRedirect(route('newusers-new-chat.index'));
+    }
+
     public function test_ai_amounts_ignore_words_that_start_with_k_or_m(): void
     {
         $w = $this->world();

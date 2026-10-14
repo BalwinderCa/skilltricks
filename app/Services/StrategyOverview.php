@@ -72,7 +72,9 @@ class StrategyOverview
     {
         $roleIds = $goals->pluck('org_role_id')->filter()->map(fn ($id) => (int) $id)->unique();
 
-        return $roleIds->isEmpty() ? collect() : User::where('organization_id', $chat->organization_id)->whereIn('org_role_id', $roleIds)->pluck('id');
+        return $roleIds->isEmpty() ? collect() : User::where('organization_id', $chat->organization_id)->whereIn('org_role_id', $roleIds)
+            ->get(['id', 'org_role_id', 'department_id'])
+            ->filter(fn (User $u) => $goals->contains(fn (ExpectedState $g) => $g->isFor($u)))->pluck('id');
     }
 
     /** Goals someone holding them has flagged Blocked. @return Collection<int, int> */
@@ -99,7 +101,7 @@ class StrategyOverview
                 $obstacles = GoalObstacle::whereIn('expected_state_id', $ids)->count();
                 $latest = $this->latestDrift($ids);
                 $state = $this->drift->evaluate($chat);
-                $goals = ExpectedState::where('search_user_chat_id', $chat->id)->get(['id', 'org_role_id']);
+                $goals = ExpectedState::where('search_user_chat_id', $chat->id)->get(['id', 'org_role_id', 'department_id']);
                 $blocked = $this->blockedGoals($latest) + $this->flaggedBlocked($ids)->count();
 
                 return [
@@ -132,11 +134,11 @@ class StrategyOverview
             return null;
         }
 
-        $goals = ExpectedState::where('search_user_chat_id', $chat->id)->with('orgRole:id,name')->orderBy('id')->get();
+        $goals = ExpectedState::where('search_user_chat_id', $chat->id)->with(['orgRole:id,name', 'department:id,name'])->orderBy('id')->get();
         $ids = $goals->pluck('id');
         $responses = GoalResponse::whereIn('expected_state_id', $ids)->get()->groupBy('expected_state_id');
         $holders = User::where('organization_id', $chat->organization_id)->whereNotNull('org_role_id')
-            ->selectRaw('org_role_id, count(*) as n')->groupBy('org_role_id')->pluck('n', 'org_role_id');
+            ->get(['id', 'org_role_id', 'department_id']);
         $latest = $this->latestDrift($ids);
         $alignment = $this->alignment->forStrategy($chat);
         $obstacles = GoalObstacle::whereIn('expected_state_id', $ids)->with(['user:id,name', 'goal.orgRole:id,name'])->orderByDesc('id')->get();
@@ -161,8 +163,8 @@ class StrategyOverview
 
                 return [
                     'goal' => $goal,
-                    'role' => $goal->orgRole->name ?? $goal->role,
-                    'holders' => (int) ($holders[(int) $goal->org_role_id] ?? 0),
+                    'role' => $goal->roleLabel(),
+                    'holders' => $holders->filter(fn (User $u) => $goal->isFor($u))->count(),
                     'committed' => $mine->whereNotNull('starting_point')->count(),
                     'decisions' => collect(MyGoals::DECISIONS)->mapWithKeys(fn (string $d) => [$d => $mine->where('decision', $d)->count()])->all(),
                     'drift' => $latest->get($goal->id),
@@ -189,11 +191,11 @@ class StrategyOverview
                     default => 'not_started',
                 };
 
-                return ['goal' => $goal, 'role' => $goal->orgRole->name ?? $goal->role, 'status' => $status,
+                return ['goal' => $goal, 'role' => $goal->roleLabel(), 'status' => $status,
                     'note' => $lastUpdates->get($goal->id)?->note, 'cascaded' => $cascadeCounts[(int) $goal->id] ?? null, 'days_behind' => $metrics->get((int) $goal->id)['days_behind'] ?? null];
             }),
             'blockers' => $goals->filter(fn (ExpectedState $g) => $flagged->contains((int) $g->id) && $goals->contains(fn ($o) => (int) $o->depends_on_id === (int) $g->id))
-                ->map(fn (ExpectedState $g) => $g->orgRole->name ?? $g->role)->values(),
+                ->map(fn (ExpectedState $g) => $g->roleLabel())->values(),
             'recourse' => $chat->recourse,
             'supporting' => SearchUserChat::where('parent_chat_id', $chat->id)->where('status', 'published')->with('user:id,name')->orderByDesc('published_at')->get()
                 ->map(function (SearchUserChat $child) {

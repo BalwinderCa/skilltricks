@@ -38,7 +38,7 @@
             <a href="{{ url('/products') }}">PRODUCT</a>
             <a href="{{ url('/contact') }}">CONTACT</a>
             @if(Auth::check())
-                <a class="btn btn-bordered btn-strategistudio" href="{{ route('writebot.dashboard') }}" style="text-transform: none !important;">StrategiStudio</a>
+                <a class="btn btn-bordered btn-strategistudio" href="{{ route('writebot.dashboard') }}" style="text-transform: none !important;">OI</a>
             @else
                 <a class="btn btn-bordered" href="{{ url('/register') }}">Register</a>
                 <a class="btn btn-bordered" href="{{ url('/login') }}">Login</a>
@@ -53,7 +53,7 @@
         <a href="{{ url('/products') }}">PRODUCT</a>
         <a href="{{ url('/contact') }}">CONTACT</a>
         @if(Auth::check())
-                <a class="btn btn-bordered btn-strategistudio" href="{{ route('writebot.dashboard') }}" style="text-transform: none !important;">StrategiStudio</a>
+                <a class="btn btn-bordered btn-strategistudio" href="{{ route('writebot.dashboard') }}" style="text-transform: none !important;">OI</a>
             @else
                 <a class="btn btn-bordered" href="{{ url('/register') }}">Register</a>
                 <a class="btn btn-bordered" href="{{ url('/login') }}">Login</a>
@@ -64,7 +64,7 @@
     <div class="about-container">
         <div class="globe-container"></div>
         <section class="hero-section">
-            <h1 class="text-primary">StrategyStudio: Sync. Lead. Succeed.</h1>
+            <h1 class="text-primary">OI: Sync. Lead. Succeed.</h1>
             <p class="text-subtitle">Empower your organization with a holistic, strategic approach to growth. Schedule a demo or contact us today!</p>
             <div class="cta-container">
                 <a href="https://calendly.com/collaborate-skilltricksinc/30min" target="_blank" class="services-cta active">Schedule a Call</a>
@@ -77,8 +77,8 @@
                 <div class="features-etc">
                     <p class="end"></p>
                     <p><span style="color: #D97C3A;font-weight: bold;font-style: italic;">Your Platform for Achieving Organizational Success</span> 
-                    <p class="end"></p>StrategyStudio is more than just a tool—it’s a complete platform for aligning teams, shaping leadership, and building a thriving organizational culture. Designed for simplicity and impact, StrategyStudio helps businesses set clear objectives, track progress, and develop leaders who drive meaningful change.</p>
-                    <p class="end"><b>With StrategyStudio, you can achieve…</b></p>
+                    <p class="end"></p>OI is more than just a tool—it’s a complete platform for aligning teams, shaping leadership, and building a thriving organizational culture. Designed for simplicity and impact, OI helps businesses set clear objectives, track progress, and develop leaders who drive meaningful change.</p>
+                    <p class="end"><b>With OI, you can achieve…</b></p>
                 </div>
                 <div class="features-list">
                     <div class="feature-item">

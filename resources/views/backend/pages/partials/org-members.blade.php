@@ -168,13 +168,6 @@
                                 {{ localize('Edit') }}
                             </button>
 
-                            <button type="button" class="btn btn-sm btn-outline-secondary"
-                                    data-member-password
-                                    data-id="{{ $member->id }}"
-                                    data-name="{{ $member->name }}">
-                                {{ localize('Password') }}
-                            </button>
-
                             {{-- The owner is the one row nobody can evict: the organization
                                  would be left unowned, and attachUser() only ever claims an
                                  unowned org for whoever registers next. --}}

@@ -26,8 +26,10 @@
                 </div>
             @else
 
-                {{-- Setup progress. Hidden once there is nothing left to fill in. --}}
-                @if($profileCompletion['percent'] < 100)
+                {{-- Setup progress. Hidden once there is nothing left to fill in, and
+                     from everyone but the people who run the company: its details
+                     and its team are not an ordinary member's to complete. --}}
+                @if($profileCompletion['percent'] < 100 && $org->isAdmin(auth()->user()))
                     <div class="card mb-3">
                         <div class="card-body">
                             <div class="d-flex align-items-center justify-content-between mb-2">

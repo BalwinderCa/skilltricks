@@ -32,6 +32,8 @@ class OnboardingGateTest extends TestCase
             'organization_id' => $org->id,
             'hierarchy_rank' => null,
         ]);
+        // The setup card is for whoever runs the company, as a new signup does.
+        $org->forceFill(['owner_user_id' => $user->id])->save();
 
         $response = $this->actingAs($user)->get(route('writebot.dashboard'));
 

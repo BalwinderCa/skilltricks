@@ -130,9 +130,10 @@ class ChatTenancyTest extends TestCase
     {
         [, $ic, $chat] = $this->twoColleaguesAndAChat();
 
-        // Same organization, same page, someone else's chat id.
+        // Same organization, same page, someone else's chat id. Sent to a chat
+        // of their own rather than shown an empty page built around this id.
         $this->actingAs($ic)->get('/dashboard/users-new-chat/'.$chat->id)
-            ->assertOk()
+            ->assertRedirect(route('newusers-new-chat.index'))
             ->assertDontSee('CONFIDENTIAL BOARD PLAN')
             ->assertDontSee('should we acquire our competitor?');
     }

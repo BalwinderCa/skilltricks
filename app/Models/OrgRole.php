@@ -18,11 +18,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class OrgRole extends Model
 {
-    protected $fillable = ['organization_id', 'name', 'can_read', 'can_write'];
+    protected $fillable = ['organization_id', 'name', 'can_read', 'can_write', 'is_admin'];
 
     protected $casts = [
         'can_read' => 'boolean',
         'can_write' => 'boolean',
+        // Holders manage the organization as its owner does: Organization::isAdmin().
+        'is_admin' => 'boolean',
     ];
 
     /** The two permissions the roles page offers today. */

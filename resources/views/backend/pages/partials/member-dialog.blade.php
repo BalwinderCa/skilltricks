@@ -24,7 +24,17 @@
 
             <div class="mb-3">
                 <label class="form-label" for="memberEmail">{{ localize('Email') }}<span class="text-danger">*</span></label>
-                <input class="form-control" type="email" id="memberEmail" name="email" required maxlength="255">
+                {{-- A company organization's domain is fixed, so only the name
+                     before the @ is typed; the server appends the rest. --}}
+                @if($org->emailDomain())
+                    <div class="input-group">
+                        <input class="form-control" type="text" id="memberEmail" name="email" required maxlength="190"
+                               pattern="[^@\s]+" title="{{ localize('Only the part before the @') }}" autocomplete="off">
+                        <span class="input-group-text" id="memberEmailDomain">{{ '@'.$org->emailDomain() }}</span>
+                    </div>
+                @else
+                    <input class="form-control" type="email" id="memberEmail" name="email" required maxlength="255">
+                @endif
                 <small class="text-muted" id="memberEmailNote"></small>
             </div>
 
@@ -62,6 +72,14 @@
                 <label class="form-check-label" for="sendInvite">
                     {{ localize('Email them an invitation with a temporary password') }}
                 </label>
+            </div>
+
+            {{-- Editing only: a new member has no password to reset yet. Opens
+                 the Reset password dialog below rather than adding a field here. --}}
+            <div class="mb-3" id="memberPasswordRow" hidden>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="memberPasswordButton" data-member-password>
+                    {{ localize('Reset password') }}
+                </button>
             </div>
 
             <div class="st-dialog-actions">
@@ -183,13 +201,29 @@
             var roleSelect = document.getElementById('memberRole');
             roleSelect.value = (editing && member.role) ? member.role : (roleSelect.options[0] ? roleSelect.options[0].value : '');
 
-            emailInput.value = editing ? member.email : '';
+            // The domain sits beside the box, so the box holds the name alone.
+            // An off-domain member (the CSV import admits them) keeps their
+            // whole address in it instead, with the suffix out of the way.
+            var suffix = document.getElementById('memberEmailDomain');
+            var email = editing ? member.email : '';
+            if (suffix) {
+                var onDomain = !editing || email.toLowerCase().slice(-suffix.textContent.length) === suffix.textContent;
+                suffix.hidden = !onDomain;
+                if (onDomain) { emailInput.pattern = '[^@\\s]+'; email = email.slice(0, email.length - (editing ? suffix.textContent.length : 0)); }
+                else { emailInput.removeAttribute('pattern'); }
+            }
+            emailInput.value = email;
             emailNote.textContent = editing ? EMAIL_NOTE : '';
 
             // Hidden while editing: storeMember() reads it, updateMember() does not.
             var inviteRow = document.getElementById('memberInviteRow');
             inviteRow.hidden = editing;
             document.getElementById('sendInvite').checked = !editing;
+
+            var passwordButton = document.getElementById('memberPasswordButton');
+            document.getElementById('memberPasswordRow').hidden = !editing;
+            passwordButton.dataset.id = editing ? member.id : '';
+            passwordButton.dataset.name = editing ? member.name : '';
 
             dialog.showModal();
             document.getElementById('memberName').focus();
@@ -215,6 +249,8 @@
             var pw = e.target.closest('[data-member-password]');
             if (pw) {
                 e.preventDefault();
+                // Reached from inside the edit dialog, which gives way to this one.
+                dialog.close();
                 document.getElementById('passwordMemberId').value = pw.dataset.id;
                 document.getElementById('passwordMemberName').textContent = pw.dataset.name;
                 document.getElementById('passwordNew').value = '';

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Department;
 use App\Models\ExpectedState;
 use App\Models\OrgRole;
 use App\Models\SearchUserChat;
@@ -25,12 +26,38 @@ class RoleGoalLinker
             ->keyBy(fn (OrgRole $r) => self::normalise($r->name));
 
         ExpectedState::where('search_user_chat_id', $chat->id)->whereNull('org_role_id')->get()
-            ->each(function (ExpectedState $goal) use ($roles) {
-                $role = $roles->get(self::normalise((string) $goal->role));
+            ->each(function (ExpectedState $goal) use ($roles, $chat) {
+                // The prompt lists a role once per department, as
+                // "Vice President (Sales)"; the whole text is tried first so a
+                // role genuinely named with brackets still wins.
+                $role = $roles->get(self::normalise((string) $goal->role))
+                    ?? $roles->get(self::normalise((string) preg_replace('/\s*\([^()]*\)\s*$/', '', (string) $goal->role)));
                 if ($role) {
                     $goal->update(['org_role_id' => $role->id]);
+                    $this->setDepartment($goal, $chat);
                 }
             });
+    }
+
+    /**
+     * Read the department out of a title like "Vice President (Sales)" and put
+     * it on the goal, so only that department's holder of the role receives it.
+     * A title with no department, or one naming no department the organization
+     * has, leaves the goal open to everyone on the role.
+     */
+    public function setDepartment(ExpectedState $goal, SearchUserChat $chat): void
+    {
+        if (! preg_match('/\(([^()]+)\)\s*$/', (string) $goal->role, $m)) {
+            return;
+        }
+
+        $orgId = $chat->organization_id ?: User::whereKey($chat->user_id)->value('organization_id');
+        $department = Department::where('organization_id', $orgId)->get(['id', 'name'])
+            ->first(fn (Department $d) => self::normalise($d->name) === self::normalise($m[1]));
+
+        if ($department) {
+            $goal->update(['department_id' => $department->id]);
+        }
     }
 
     /** Link a goal to a role, only when that role belongs to the author's organization. */

@@ -328,7 +328,6 @@ Route::group(
                 // chat
                 /* Route::get('/newusers-new-chat/{id}', [AiChatController::class, 'newusers_new_chat'])->name('newusers-new-chat.index'); */
                 Route::get('/newusers-new-chat', [AiChatController::class, 'newusers_new_chat'])->name('newusers-new-chat.index');
-                Route::get('/newchat', [AiChatController::class, 'newchat'])->name('newchat.index');
                 Route::get('/users-new-chat/{id}', [AiChatController::class, 'users_new_chat'])->name('users-new-chat.index');
                 Route::post('/users-new-chat-ask', [AiChatController::class, 'users_new_chat_ask'])->name('users-new-chat-ask.index');
                 Route::post('/users-new-chat-update-strategy', [AiChatController::class, 'users_new_chat_update_strategy'])->name('users-new-chat-update-strategy.index');
@@ -379,10 +378,6 @@ Route::group(
                 Route::get('/userchathistory', [AiChatController::class, 'userchathistory'])->name('userchathistory.index');
                 Route::get('/user-view-chathistory/{id}', [AiChatController::class, 'user_view_chathistory'])->name('user-view-chathistory.index');
                 Route::get('/users-chat-search-delete/{id}', [AiChatController::class, 'userschat_search_delete'])->name('users-chat-search-delete.index');
-                Route::post('/chat-search-question', [AiChatController::class, 'chatsearch_question'])->name('chat-search-question');
-                // role -> categories, for the New Chat picker when no role is set yet
-                Route::get('/getcategories', [AiChatController::class, 'getCategories'])->name('getcategories.index');
-                Route::post('/chat-question-store', [AiChatController::class, 'chat_question_store'])->name('chat-question-store');
                 Route::get('/ai-chat', [AiChatController::class, 'index'])->name('chat.index');
                 Route::post('/ai-chat', [AiChatController::class, 'store'])->name('chat.store');
                 Route::post('/ai-chat/update', [AiChatController::class, 'update'])->name('chat.update');

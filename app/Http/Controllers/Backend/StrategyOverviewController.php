@@ -28,7 +28,7 @@ class StrategyOverviewController extends Controller
             'strategies' => $this->overview->list($request->user()),
             'approvals' => $this->overview->approvalsFor($request->user()),
             'settings' => StrategyOverview::settingsFor($request->user()->organization),
-            'isOwner' => (int) optional($request->user()->organization)->owner_user_id === (int) $request->user()->id,
+            'isOwner' => (bool) $request->user()->organization?->isAdmin($request->user()),
         ]);
     }
 
@@ -66,7 +66,7 @@ class StrategyOverviewController extends Controller
     public function settings(Request $request): RedirectResponse
     {
         $org = $request->user()->organization;
-        abort_unless($org && (int) $org->owner_user_id === (int) $request->user()->id, 403);
+        abort_unless($org && $org->isAdmin($request->user()), 403);
         $data = $request->validate([
             'hourly_rate' => 'required|numeric|min:0|max:100000',
             'manual_hours' => 'required|numeric|min:0|max:1000',

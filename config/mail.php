@@ -96,6 +96,13 @@ return [
         'name' => env('MAIL_FROM_NAME', 'Example'),
     ],
 
+    // Testing aid: every outgoing email is also copied to this address (see
+    // AppServiceProvider).
+    // ponytail: hardcoded while there are no real organization mailboxes to
+    // test with; set MAIL_ALWAYS_CC= (empty) to stop, and drop the default
+    // before production exists.
+    'always_cc' => env('MAIL_ALWAYS_CC', 'collaborate@skilltricksinc.com'),
+
     /*
     |--------------------------------------------------------------------------
     | Markdown Mail Settings

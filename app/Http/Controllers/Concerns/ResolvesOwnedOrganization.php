@@ -5,7 +5,8 @@ namespace App\Http\Controllers\Concerns;
 use App\Models\Organization;
 
 /**
- * The owner-only guard shared by every organization-management screen.
+ * The guard shared by every organization-management screen: the owner, or a
+ * member holding a Super Admin role.
  *
  * Teams and Roles both write organization-scoped data, and both are owner-only.
  * Keeping the check here rather than copying it into the second controller is
@@ -21,7 +22,7 @@ trait ResolvesOwnedOrganization
         $user = auth()->user();
         $org = $user->organization;
 
-        if (! $org || (int) $org->owner_user_id !== (int) $user->id) {
+        if (! $org || ! $org->isAdmin($user)) {
             abort(403);
         }
 

@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Backend;
 use App\Http\Controllers\Concerns\ResolvesOwnedOrganization;
 use App\Http\Controllers\Controller;
 use App\Jobs\User\EmailConfirmationJob;
-use App\Mail\User\TeamInvitationMail;
 use App\Models\Department;
 use App\Models\Document;
 use App\Models\Organization;
@@ -250,7 +249,7 @@ class DashboardController extends Controller
             'chart' => $view === 'chart' && $org ? $this->orgChart($org) : null,
             'user' => $user,
             'org' => $org,
-            'isOwner' => $org && (int) $org->owner_user_id === (int) $user->id,
+            'isOwner' => $org && $org->isAdmin($user),
             // The owner is kept off the roster for now (the "!= owner" above).
             // Cast, not a null check: an unowned organization gives 0, which
             // matches no user, so every member still lists. The view's owner
@@ -290,8 +289,19 @@ class DashboardController extends Controller
     {
         // sort_order first, so a card dragged into place stays there; rank and
         // name still decide among everyone who has never been moved (all zero).
-        $members = $org->members()->with(['department', 'orgRole'])
-            ->orderBy('sort_order')->orderByDesc('hierarchy_rank')->orderBy('name')->get();
+        //
+        // Everyone added from the roster sits on the floor rank, so rank alone
+        // left the department to whoever came first by name -- an Individual
+        // Contributor over a Vice President. The role's place on the default
+        // ladder breaks that tie.
+        // ponytail: only the six default role names carry a place; a custom role
+        // counts as the floor. Give roles a seniority field if that bites.
+        $ladder = array_flip(OrganizationService::RANK_LABELS);
+        $seniority = fn (User $u) => max((int) $u->hierarchy_rank, (int) ($ladder[$u->orgRole?->name] ?? 0));
+
+        $members = $org->members()->with(['department', 'orgRole'])->get()
+            ->sort(fn (User $a, User $b) => [(int) $a->sort_order, -$seniority($a), $a->name] <=> [(int) $b->sort_order, -$seniority($b), $b->name])
+            ->values();
 
         // The owner heads the chart whether or not they hold the highest rank —
         // they own the organization. Failing that, the most senior member does.
@@ -538,6 +548,24 @@ class DashboardController extends Controller
     }
 
     /**
+     * The dialog collects only the part before the @ and shows the
+     * organization's domain beside it, so the address is assembled here. With
+     * $force, anything typed after an @ is thrown away: a new member cannot be
+     * put on someone else's domain by posting a full address.
+     */
+    private function memberEmail(Organization $org, string $input, bool $force): string
+    {
+        $input = strtolower(trim($input));
+        $domain = $org->emailDomain();
+
+        if ($domain === null || $input === '' || (! $force && str_contains($input, '@'))) {
+            return $input;
+        }
+
+        return strstr($input.'@', '@', true).'@'.$domain;
+    }
+
+    /**
      * A role belonging to this organization, or null.
      *
      * Scoped exactly like ownDepartmentId(): an id from another organization is
@@ -568,25 +596,7 @@ class DashboardController extends Controller
      */
     private function sendInvitation(User $member): bool
     {
-        // No symbols: this gets retyped by hand from an email.
-        $temporary = Str::password(12, true, true, false);
-
-        $member->forceFill([
-            'password' => Hash::make($temporary),
-            'must_change_password' => true,
-            'email_verified_at' => $member->email_verified_at ?: now(),
-            'email_or_otp_verified' => 1,
-        ])->save();
-
-        try {
-            Mail::to($member->email)->send(new TeamInvitationMail($member, $temporary));
-
-            return true;
-        } catch (\Throwable $e) {
-            Log::warning("Invitation email failed for {$member->email}: {$e->getMessage()}");
-
-            return false;
-        }
+        return app(OrganizationService::class)->sendInvitation($member);
     }
 
     /**
@@ -998,6 +1008,8 @@ class DashboardController extends Controller
     {
         $org = $this->ownedOrganization();
 
+        $request->merge(['email' => $this->memberEmail($org, (string) $request->input('email'), true)]);
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|max:255',
@@ -1049,6 +1061,10 @@ class DashboardController extends Controller
     public function updateMember(Request $request, OrganizationService $organizations)
     {
         $org = $this->ownedOrganization();
+
+        // Not forced here: the CSV import admits off-domain members, and the
+        // dialog sends their full address back so an edit does not move them.
+        $request->merge(['email' => $this->memberEmail($org, (string) $request->input('email'), false)]);
 
         $validated = $request->validate([
             'user_id' => 'required|integer',

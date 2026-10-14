@@ -286,18 +286,6 @@
 
                                 </div>
 
-                                 <div class="mb-3">
-
-                                    <label for="department" class="form-label">{{ localize('Department') }}</label>
-
-                                    <input class="form-control" type="text" id="department"
-
-                                        placeholder="{{ localize('e.g. Marketing') }}" name="department"
-
-                                        value="{{ old('department', $user->department ?? '') }}">
-
-                                </div>
-
                                 <div class="mb-3">
                                     <label for="name" class="form-label">{{ localize('Company category') }}<span class="text-danger">*</span></label>
 

@@ -76,7 +76,7 @@ class Cascades
 
         $line = fn ($v) => str_replace('---', '--', trim((string) preg_replace('/\s+/', ' ', (string) $v)));
         $people = $reports->map(fn (User $u) => '- user_id '.$u->id.' | '.$line($u->name).' | role: '.$line($u->orgRole->name ?? 'n/a').' | department: '.$line($u->department->name ?? 'n/a'))->implode("\n");
-        $system = "You are StrategiStudio's execution guide. Return ONLY valid JSON. No markdown, no code fences, no commentary.".$this->docs->orgContextBlock($leader);
+        $system = "You are OI's execution guide. Return ONLY valid JSON. No markdown, no code fences, no commentary.".$this->docs->orgContextBlock($leader);
         $prompt = 'Company goal: "'.$line($this->goals->companyGoal($root->searchUserChat))."\"\n"
             .'The manager\'s mandate: "'.$line($parent ? $parent->text : $root->recommended_action)."\"\n\n"
             ."Direct reports:\n{$people}\n\n"

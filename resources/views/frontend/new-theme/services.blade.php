@@ -38,7 +38,7 @@
             <a href="{{ url('/products') }}">PRODUCT</a>
             <a href="{{ url('/contact') }}">CONTACT</a>
             @if(Auth::check())
-                <a class="btn btn-bordered btn-strategistudio" href="{{ route('writebot.dashboard') }}" style="text-transform: none !important;">StrategiStudio</a>
+                <a class="btn btn-bordered btn-strategistudio" href="{{ route('writebot.dashboard') }}" style="text-transform: none !important;">OI</a>
             @else
                 <a class="btn btn-bordered" href="{{ url('/register') }}">Register</a>
                 <a class="btn btn-bordered" href="{{ url('/login') }}">Login</a>
@@ -53,7 +53,7 @@
         <a href="{{ url('/products') }}">PRODUCT</a>
         <a href="{{ url('/contact') }}">CONTACT</a>
         @if(Auth::check())
-                <a class="btn btn-bordered btn-strategistudio" href="{{ route('writebot.dashboard') }}" style="text-transform: none !important;">StrategiStudio</a>
+                <a class="btn btn-bordered btn-strategistudio" href="{{ route('writebot.dashboard') }}" style="text-transform: none !important;">OI</a>
             @else
                 <a class="btn btn-bordered" href="{{ url('/register') }}">Register</a>
                 <a class="btn btn-bordered" href="{{ url('/login') }}">Login</a>
@@ -114,8 +114,8 @@
                             <!-- Chess Knight Piece (Slight Movement) -->
                             <path class="knight" d="M80 140 C60 120, 70 90, 90 70 C110 50, 130 60, 120 80 C110 100, 90 110, 85 120 L80 140 Z" fill="#fff" stroke="#ec883f" stroke-width="2"></path>
                         
-                            <!-- Text: StrategyStudio (Fading Effect) -->
-                            <text class="text" x="50" y="155" font-size="14" font-weight="bold" fill="#36839b" font-family="Arial">StrategyStudio</text>
+                            <!-- Text: OI (Fading Effect) -->
+                            <text class="text" x="50" y="155" font-size="14" font-weight="bold" fill="#36839b" font-family="Arial">OI</text>
                         </svg>
                         
                         

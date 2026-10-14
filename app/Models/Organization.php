@@ -48,6 +48,39 @@ class Organization extends Model
         return $this->hasMany(OrgRole::class);
     }
 
+    /**
+     * The domain every member's address ends in, or null when there is none to
+     * share: a free-mail organization's "domain" is its owner's whole address,
+     * and a domain-less one is "user:{id}".
+     */
+    public function emailDomain(): ?string
+    {
+        $domain = (string) $this->domain;
+
+        return $domain === '' || str_contains($domain, '@') || str_contains($domain, ':') ? null : $domain;
+    }
+
+    /**
+     * May this user manage the organization -- its team, roles, departments and
+     * settings? The owner may, and so may anyone holding a Super Admin role.
+     *
+     * Cast, not compared strictly: MySQL hands these ids back as strings.
+     */
+    public function isAdmin(?User $user): bool
+    {
+        if (! $user || (int) $user->organization_id !== (int) $this->id) {
+            return false;
+        }
+
+        if ((int) $this->owner_user_id === (int) $user->id) {
+            return true;
+        }
+
+        $role = $user->orgRole;
+
+        return $role !== null && $role->is_admin && (int) $role->organization_id === (int) $this->id;
+    }
+
     /** @return BelongsTo<User, $this> */
     public function owner(): BelongsTo
     {

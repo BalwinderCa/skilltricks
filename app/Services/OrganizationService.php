@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Mail\User\TeamInvitationMail;
 use App\Models\Department;
 use App\Models\Organization;
 use App\Models\OrgContextVersion;
@@ -10,6 +11,10 @@ use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 
 class OrganizationService
 {
@@ -31,6 +36,9 @@ class OrganizationService
         50 => 'C-Suite',
         60 => 'Board',
     ];
+
+    /** What a new organization's Super Admin role is called until someone renames it. */
+    public const ADMIN_ROLE = 'Super Admin';
 
     /**
      * Find or create the organization an email address belongs to.
@@ -125,6 +133,24 @@ class OrganizationService
                 ['can_read' => true, 'can_write' => false],
             );
         }
+
+        $this->adminRole($org);
+    }
+
+    /**
+     * The organization's Super Admin role, created if it has none.
+     *
+     * Found by its flag, not its name: the owner may have renamed it. Whoever
+     * holds it manages the organization as the owner does -- that is how a
+     * second person is given the run of the company.
+     */
+    public function adminRole(Organization $org): OrgRole
+    {
+        return OrgRole::where('organization_id', $org->id)->where('is_admin', true)->first()
+            ?? tap(OrgRole::firstOrCreate(
+                ['organization_id' => $org->id, 'name' => self::ADMIN_ROLE],
+                ['can_read' => true, 'can_write' => true],
+            ), fn (OrgRole $role) => $role->forceFill(['is_admin' => true])->save());
     }
 
     /**
@@ -215,7 +241,7 @@ class OrganizationService
             return false;
         }
 
-        return Organization::where('id', $orgId)->where('owner_user_id', $user->id)->exists()
+        return (bool) $user->organization?->isAdmin($user)
             || Department::where('organization_id', $orgId)->where('head_user_id', $user->id)->exists()
             || User::where('organization_id', $orgId)->where('manager_id', $user->id)->exists();
     }
@@ -268,8 +294,16 @@ class OrganizationService
 
         $updates = [];
 
-        if (empty($org->owner_user_id)) {
+        $claimed = empty($org->owner_user_id);
+
+        if ($claimed) {
             $updates['owner_user_id'] = $user->id;
+
+            // Whoever signs a company up is its Super Admin from the first
+            // moment, on the same role they can later hand to someone else.
+            if (! $user->org_role_id) {
+                $user->forceFill(['org_role_id' => $this->adminRole($org)->id])->save();
+            }
         }
 
         if (empty($org->name) && ! empty($user->company_name)) {
@@ -278,6 +312,68 @@ class OrganizationService
 
         if ($updates !== []) {
             $org->forceFill($updates)->save();
+        }
+
+        if ($claimed) {
+            $this->provisionSuperAdmin($org, $user);
+        }
+    }
+
+    /**
+     * A new company also gets superadmin@<its domain>: a second account with the
+     * same run of the company as its founder, invited straight away.
+     *
+     * Only for a real company domain -- a Gmail signup's "company" is one
+     * person -- and never twice: not when the founder signed up as that
+     * address, and not when the address already has an account anywhere.
+     */
+    public function provisionSuperAdmin(Organization $org, User $founder): ?User
+    {
+        $domain = $org->emailDomain();
+        $email = $domain ? 'superadmin@'.$domain : null;
+
+        if (! $email || strtolower((string) $founder->email) === $email || User::withTrashed()->where('email', $email)->exists()) {
+            return null;
+        }
+
+        $admin = User::create([
+            'name' => 'Super Admin',
+            'email' => $email,
+            'password' => Hash::make(Str::random(32)),
+            'organization_id' => $org->id,
+            'org_role_id' => $this->adminRole($org)->id,
+            'hierarchy_rank' => min(self::VALID_RANKS),
+        ]);
+
+        $this->sendInvitation($admin);
+
+        return $admin;
+    }
+
+    /**
+     * Issue a temporary password and email it. The member signs in with it and
+     * is made to choose their own. False when the mail could not be sent.
+     */
+    public function sendInvitation(User $member): bool
+    {
+        // No symbols: this gets retyped by hand from an email.
+        $temporary = Str::password(12, true, true, false);
+
+        $member->forceFill([
+            'password' => Hash::make($temporary),
+            'must_change_password' => true,
+            'email_verified_at' => $member->email_verified_at ?: now(),
+            'email_or_otp_verified' => 1,
+        ])->save();
+
+        try {
+            Mail::to($member->email)->send(new TeamInvitationMail($member, $temporary));
+
+            return true;
+        } catch (\Throwable $e) {
+            Log::warning("Invitation email failed for {$member->email}: {$e->getMessage()}");
+
+            return false;
         }
     }
 
@@ -299,7 +395,7 @@ class OrganizationService
 
         $org = $member->organization;
 
-        if (! $org || (int) $org->owner_user_id !== (int) $owner->id) {
+        if (! $org || ! $org->isAdmin($owner)) {
             throw new \RuntimeException('Only the organization owner can change a member rank.');
         }
 
@@ -330,7 +426,7 @@ class OrganizationService
     {
         $org = $member->organization;
 
-        if (! $org || (int) $org->owner_user_id !== (int) $owner->id) {
+        if (! $org || ! $org->isAdmin($owner)) {
             throw new \RuntimeException('Only the organization owner can remove a member.');
         }
 

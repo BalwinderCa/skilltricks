@@ -69,7 +69,7 @@
                             </div>
                             <div class="col-lg-6">
                                 <div class="txt">
-                                    <p>Through StrategyStudio, we provide a platform that offers customized, dialogue-based strategies, helping leaders overcome disruptions, accelerate growth, and build resilient organizations. Designed with versatility in mind, StrategyStudio adapts to your unique needs, making it the ideal partner for long-term success.</p>
+                                    <p>Through OI, we provide a platform that offers customized, dialogue-based strategies, helping leaders overcome disruptions, accelerate growth, and build resilient organizations. Designed with versatility in mind, OI adapts to your unique needs, making it the ideal partner for long-term success.</p>
                                     <div class="btn-block">
                                         <a href="{{ route('home.pages.contactUs') }}" class="btn btn-bordered ">Contact Us</a>
                                     </div>

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\Backend\AI\AiChatController;
 use App\Models\Department;
 use App\Models\ExpectedState;
 use App\Models\Organization;
@@ -9,6 +10,8 @@ use App\Models\OrgRole;
 use App\Models\SearchUserChat;
 use App\Models\User;
 use App\Services\AI\AiProviderService;
+use App\Services\AI\DocumentContextService;
+use App\Services\MyGoals;
 use App\Services\RoleGoalLinker;
 use GuzzleHttp\Psr7\Response as PsrResponse;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -150,6 +153,54 @@ class RoleGoalLinksTest extends TestCase
         ];
     }
 
+    public function test_a_shared_role_is_listed_once_per_department_and_still_links(): void
+    {
+        $org = $this->org();
+        $vp = $this->role($org, 'Vice President');
+        $this->role($org, 'Analyst');
+        $author = $this->member($org, 'ceo@acme.com');
+        foreach (['Sales', 'Marketing'] as $name) {
+            $this->member($org, strtolower($name).'@acme.com', $vp)
+                ->forceFill(['department_id' => Department::create(['organization_id' => $org->id, 'name' => $name, 'color' => '#000000'])->id])->save();
+        }
+
+        $this->assertSame(
+            ['Analyst', 'Vice President (Marketing)', 'Vice President (Sales)'],
+            app(DocumentContextService::class)->roleNamesFor($author)
+        );
+
+        $chat = $this->chatWithGoals($author, ['Vice President (Sales)', 'Vice President (Marketing)']);
+        app(RoleGoalLinker::class)->autoLink($chat);
+
+        $this->assertSame([$vp->id, $vp->id], ExpectedState::where('search_user_chat_id', $chat->id)->pluck('org_role_id')->map(fn ($id) => (int) $id)->all());
+
+        // Same role, but each VP is sent only their own department's goal.
+        $chat->update(['status' => 'published', 'organization_id' => $org->id]);
+        foreach (['sales' => 'Vice President (Sales)', 'marketing' => 'Vice President (Marketing)'] as $who => $title) {
+            $mine = app(MyGoals::class)->for(User::where('email', $who.'@acme.com')->first());
+            $this->assertSame([$title], $mine->map(fn ($card) => $card['goal']->role)->all());
+        }
+    }
+
+    public function test_action_table_rows_get_their_department_titles_back(): void
+    {
+        $controller = app(AiChatController::class);
+        $restore = new \ReflectionMethod($controller, 'restoreDepartmentTitles');
+        $titles = ['Board', 'Vice President (Product)', 'Vice President (Sales)'];
+        $roles = fn (array $given, string $text) => array_column($restore->invoke(
+            $controller, array_map(fn ($role) => ['role' => $role, 'action' => 'Act.'], $given), $titles, $text
+        ), 'role');
+
+        $goals = '1. Board 2. Vice President (Product) 3. Vice President (Sales)';
+
+        // Two bare rows would be saved as one goal: each takes a title, in order.
+        $this->assertSame(['Board', 'Vice President (Product)', 'Vice President (Sales)'], $roles(['Board', 'Vice President', 'Vice President'], $goals));
+        // A row that kept its title keeps it, and the other gets what is left.
+        $this->assertSame(['Vice President (Sales)', 'Vice President (Product)'], $roles(['Vice President (Sales)', 'Vice President'], $goals));
+        // Older chats whose goals never named a department are left alone.
+        $this->assertSame(['Vice President'], $roles(['Vice President'], '1. Vice President'));
+    }
+
     #[DataProvider('rolePrompts')]
     public function test_role_goal_prompts_use_only_the_organizations_roles(string $route, array $input): void
     {
@@ -167,7 +218,9 @@ class RoleGoalLinksTest extends TestCase
         $this->assertNotNull($captured, 'the prompt was never sent');
         $this->assertStringContainsString('Use ONLY these role titles, exactly as written', $captured);
         $this->assertStringContainsString('Data Lead, Head of Sales, VP of Product', $captured);
-        $this->assertStringContainsString('up to 3', $captured);
+        // All three, not a pick of them: every role needs a goal to be linked to.
+        $this->assertStringContainsString('exactly 3', $captured);
+        $this->assertStringContainsString('one goal for EVERY one of them', $captured);
         $this->assertStringNotContainsString('from documents', $captured);
         $this->assertStringNotContainsString('in the documents', $captured);
         $this->assertStringNotContainsString('in the company documents', $captured);

@@ -48,9 +48,55 @@ class OrgRoleTest extends TestCase
         [$org] = $this->orgWithOwnerAndMember();
 
         $this->assertEqualsCanonicalizing(
-            array_values(OrganizationService::RANK_LABELS),
+            [...array_values(OrganizationService::RANK_LABELS), OrganizationService::ADMIN_ROLE],
             $org->roles()->pluck('name')->all()
         );
+    }
+
+    public function test_whoever_signs_a_company_up_is_its_super_admin(): void
+    {
+        $service = app(OrganizationService::class);
+        $org = $service->resolveForEmail('founder@initech.com');
+        $founder = User::factory()->create(['email' => 'founder@initech.com', 'user_type' => 'customer']);
+        $second = User::factory()->create(['email' => 'second@initech.com', 'user_type' => 'customer']);
+
+        $service->attachUser($founder, $org);
+        $service->attachUser($second, $org);
+
+        $this->assertTrue((bool) $founder->fresh()->orgRole?->is_admin);
+        $this->assertNull($second->fresh()->org_role_id);
+        $this->assertTrue($org->fresh()->isAdmin($founder->fresh()));
+        $this->assertFalse($org->fresh()->isAdmin($second->fresh()));
+    }
+
+    public function test_a_member_given_the_super_admin_role_manages_the_company_like_the_owner(): void
+    {
+        $service = app(OrganizationService::class);
+        $org = $service->resolveForEmail('founder@initech.com');
+        $founder = User::factory()->create(['email' => 'founder@initech.com', 'user_type' => 'customer', 'email_verified_at' => now()]);
+        $member = User::factory()->create(['email' => 'second@initech.com', 'user_type' => 'customer', 'email_verified_at' => now()]);
+        $outsider = User::factory()->create(['email' => 'boss@globex.com', 'user_type' => 'customer', 'email_verified_at' => now()]);
+        $service->attachUser($founder, $org);
+        $service->attachUser($member, $org);
+        $service->attachUser($outsider, $service->resolveForEmail('boss@globex.com'));
+
+        // An ordinary member is kept out of the management screens.
+        $this->actingAs($member)->get(route('organization.roles.index'))->assertForbidden();
+
+        $member->forceFill(['org_role_id' => $service->adminRole($org)->id])->save();
+
+        $this->actingAs($member->fresh())->get(route('organization.roles.index'))->assertOk();
+        $this->actingAs($member->fresh())->post(route('organization.members.store'), [
+            'name' => 'New Hire', 'email' => 'hire', 'org_role_id' => $org->roles()->where('name', 'Manager')->value('id'),
+        ])->assertRedirect();
+        $this->assertNotNull(User::where('email', 'hire@initech.com')->first());
+
+        // The founder stays the one person nobody can remove.
+        $this->actingAs($member->fresh())->post(route('organization.members.remove'), ['user_id' => $founder->id]);
+        $this->assertSame((int) $org->id, (int) $founder->fresh()->organization_id);
+
+        // And the role is this company's alone.
+        $this->assertFalse($org->fresh()->isAdmin($outsider->fresh()));
     }
 
     public function test_seeding_twice_adds_nothing(): void
@@ -59,7 +105,7 @@ class OrgRoleTest extends TestCase
 
         app(OrganizationService::class)->seedDefaultRoles($org);
 
-        $this->assertSame(6, $org->roles()->count());
+        $this->assertSame(7, $org->roles()->count());
     }
 
     public function test_the_owner_adds_a_role(): void
@@ -147,7 +193,7 @@ class OrgRoleTest extends TestCase
         ])->assertRedirect();
 
         // Seeded separately, so both ladders already carry the same six names.
-        $this->assertSame(6, $globex->roles()->count());
+        $this->assertSame(7, $globex->roles()->count());
     }
 
     public function test_a_role_from_another_organization_is_a_404(): void

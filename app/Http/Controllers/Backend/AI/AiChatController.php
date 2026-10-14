@@ -10,20 +10,18 @@ use App\Models\AiChatCategory;
 use App\Models\AiChatMessage;
 use App\Models\AiChatPrompt;
 use App\Models\AiChatPromptGroup;
-use App\Models\ChatCategory;
-use App\Models\ChatRoleCategory;
 use App\Models\DriftEvent;
 use App\Models\ExpectedState;
 use App\Models\Intervention;
 use App\Models\ObservedState;
 use App\Models\SearchUserChat;
 use App\Models\SearchUserChatData;
-use App\Models\SubcategoryMenu;
 use App\Models\SubscriptionPackage;
 use App\Models\UserChatAnswer;
 use App\Services\AI\AiProviderService;
 use App\Services\AI\DocumentContextService;
 use App\Services\Integration\IntegrationService;
+use App\Services\RoleGoalLinker;
 use App\Services\WriteBotService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -35,8 +33,8 @@ use Maatwebsite\Excel\Facades\Excel;
 class AiChatController extends Controller
 {
     /**
-     * Studio-owned intervention ranking by drift type (OI spec Step 14:
-     * "Studio ranks interventions… GPT then writes the narrative").
+     * OI-owned intervention ranking by drift type (OI spec Step 14:
+     * "OI ranks interventions… GPT then writes the narrative").
      * Actions come from the spec's own examples.
      */
     private const INTERVENTION_RULES = [
@@ -431,62 +429,6 @@ EOT;
     // GoalSync chat
     // ---------------------------------------------------------------------------
 
-    public function newchat(Request $request)
-    {
-        $user = auth()->user();
-        $chatrolecategories = ChatRoleCategory::active()->get();
-        $roleId = $this->chatRoleIdFor($user);
-
-        // No role resolves for a brand-new account, and the view then offers the
-        // picker instead of a locked box -- so an empty list here is a real state,
-        // not a failure.
-        $chatcategories = $roleId
-            ? ChatCategory::active()->forRole($roleId)->get()
-            : collect();
-
-        return view('backend.pages.aiChat.newchat', compact('user', 'chatrolecategories', 'chatcategories', 'roleId'));
-    }
-
-    /**
-     * Which chat role category a user counts as, or null if nothing says.
-     *
-     * users.chat_role_categories used to be set by a Role picker on the profile
-     * form. 9fdf538 replaced that picker with Department, so nothing writes the
-     * column any more and it is null on every account created since -- which used
-     * to reach scopeForRole() as a null and fatal.
-     *
-     * hierarchy_rank is what the organization manages now, and chat_role_categories
-     * gained a matching `rank` column (2026_08_22_000003, backfilled by
-     * 2026_08_24_000000) precisely so the two line up: rank 50 is role 5, C-Suite.
-     * Rank wins because the roster keeps it current; the legacy column is only a
-     * fallback for accounts written before the swap, and may be stale.
-     */
-    private function chatRoleIdFor($user): ?string
-    {
-        $byRank = $user->hierarchy_rank
-            ? ChatRoleCategory::where('rank', $user->hierarchy_rank)->value('id')
-            : null;
-
-        $roleId = $byRank ?: $user->chat_role_categories;
-
-        return in_array($roleId, [null, ''], true) ? null : (string) $roleId;
-    }
-
-    /**
-     * Categories for one role, for the picker on the New Chat page.
-     *
-     * The role -> category half of the same chain FaqsController::getSubcategories
-     * finishes; it only ever ran for a user whose role was already set.
-     */
-    public function getCategories(Request $request)
-    {
-        $roleId = trim((string) $request->input('role_id'));
-
-        return response()->json(
-            $roleId === '' ? [] : ChatCategory::active()->forRole($roleId)->get()
-        );
-    }
-
     public function userchathistory(Request $request)
     {
         $user = auth()->user();
@@ -518,6 +460,14 @@ EOT;
     public function users_new_chat(Request $request, $id)
     {
         $user = auth()->user();
+
+        // A chat that is gone (deleted in another tab) or was never this user's
+        // used to render anyway. The first question then created a new row
+        // under a different id while the publish panel kept this one, and
+        // answered "Strategy not found or access denied".
+        if (! SearchUserChat::where('id', $id)->where('user_id', $user->id)->exists()) {
+            return redirect()->route('newusers-new-chat.index');
+        }
         $searchKey = null;
         $promptGroups = AiChatPromptGroup::oldest()->get();
         $prompts = AiChatPrompt::latest();
@@ -565,10 +515,20 @@ EOT;
         $selectedStrategyFromDB = $chatRecord->selected_strategy ?? null;
         $leadershipBriefFromDB = ! empty($chatRecord->leadership_brief) ? $chatRecord->leadership_brief : null;
 
+        // Which departments each role's holders sit in, keyed by lower-cased role
+        // name: the action table prints them under the role, from the roster
+        // rather than from whatever the model wrote.
+        $roleDepartments = $user->organization
+            ? $user->organization->members()->whereNotNull('org_role_id')->whereNotNull('department_id')
+                ->with(['orgRole:id,name', 'department:id,name'])->get()
+                ->groupBy(fn ($member) => mb_strtolower(trim((string) $member->orgRole?->name)))
+                ->map(fn ($holders) => $holders->map(fn ($member) => $member->department?->name)->filter()->unique()->sort()->values())
+            : collect();
+
         return view('backend.pages.aiChat.users-new-chat', compact(
             'user', 'promptGroups', 'prompts', 'searchKey', 'searchuserchatdata', 'id',
             'searchuserchatdatanew', 'documentCount', 'selectedStrategyFromDB',
-            'leadershipBriefFromDB', 'chatTotalTokens'
+            'leadershipBriefFromDB', 'chatTotalTokens', 'roleDepartments'
         ));
     }
 
@@ -600,10 +560,10 @@ EOT;
             $assumptionsBlock = "Assumptions derived for this pathway (the simulations MUST be consistent with these):\n{$assumptionsList}\n\n";
         }
 
-        $roles = $this->roleRule($user, 7);
+        $roles = $this->roleRule($user, 10);
         $rolePlaceholder = $roles ? 'Role title from the list above' : 'Role title from documents';
         $roleCountRule = $roles
-            ? "- Each \"rolesGoals\": up to {$roles['max']} DISTINCT roles. {$roles['rule']} \"action\" is EXACTLY one sentence."
+            ? "- Each \"rolesGoals\": {$roles['count']} DISTINCT roles. {$roles['rule']} \"action\" is EXACTLY one sentence."
             : '- Each "rolesGoals": 5 to 7 DISTINCT roles using ONLY exact role titles from the documents. "action" is EXACTLY one sentence.';
 
         $prompt = <<<EOT
@@ -646,7 +606,8 @@ Rules:
 EOT;
 
         try {
-            $aiResponse = $this->ai->generate($systemMessage, $prompt, 3000, 0.7, true);
+            // Three simulations, each with a goal for every role: 3000 was sized for seven.
+            $aiResponse = $this->ai->generate($systemMessage, $prompt, 4500, 0.7, true);
 
             if (! $aiResponse->successful()) {
                 return response()->json(['error' => 'Failed to generate strategy variant.', 'details' => $aiResponse->body()], 500);
@@ -918,7 +879,7 @@ EOT;
         $systemMessage .= $this->ownedChat($chatId)?->additionalContextBlock() ?? '';
 
         $roles = $this->roleRule($user, 10);
-        $roleCount = $roles ? "Output up to {$roles['max']} roles only, numbered in order." : 'Output 5 to 10 roles only, numbered in order.';
+        $roleCount = $roles ? "Output {$roles['count']} roles only, numbered in order." : 'Output 5 to 10 roles only, numbered in order.';
         $roleSource = $roles ? $roles['rule'] : 'Only use role titles that actually appear in the company documents.';
 
         $prompt = <<<EOT
@@ -1018,7 +979,7 @@ EOT;
         $systemMessage = $this->docs->buildSystemMessage($user);
 
         $roles = $this->roleRule($user, 10);
-        $roleCount = $roles ? "Output up to {$roles['max']} roles only, numbered in order (1., 2., 3., ...)." : 'Output 5 to 10 roles only, numbered in order (1., 2., 3., ...).';
+        $roleCount = $roles ? "Output {$roles['count']} roles only, numbered in order (1., 2., 3., ...)." : 'Output 5 to 10 roles only, numbered in order (1., 2., 3., ...).';
         $roleSource = $roles ? $roles['rule'] : 'Only use role titles that exist in the documents.';
 
         $prompt = <<<EOT
@@ -1215,80 +1176,6 @@ EOT;
         return view('backend.pages.aiChat.user-view-chat-history', compact('user', 'userhistoryview'));
     }
 
-    public function chatsearch_question(Request $request)
-    {
-        $user = auth()->user();
-        $requestall = $request->all();
-
-        $query = SubcategoryMenu::forRole($request->chat_role_categories)->forCategory($request->categories);
-
-        $questionmenu = ! empty($request->subcategories)
-            ? $query->where('subcategories', $request->subcategories)->first()
-            : $query->first();
-
-        if (! $questionmenu) {
-            flash(localize('No Question Found'));
-
-            return back();
-        }
-
-        $questionmenulist = $questionmenu->activeQuestions()->get();
-        $useranswerdata = UserChatAnswer::where('user_id', $user->id)
-            ->where('chat_role_categories', $request->chat_role_categories)
-            ->where('categories', $request->categories)
-            ->where('subcategories', $request->subcategories)
-            ->first();
-
-        return view('backend.pages.aiChat.newchat-question', compact('useranswerdata', 'user', 'questionmenu', 'questionmenulist', 'requestall'));
-    }
-
-    public function chat_question_store(Request $request)
-    {
-        $userId = $request->input('id');
-        $questionIds = $request->input('question');
-        $answers = $request->input('answers');
-        $chatRole = $request->input('chat_role_categories');
-        $category = $request->input('categories');
-        $subcategory = $request->input('subcategories');
-        $questionMenuId = $request->input('questionmenuid');
-
-        $finalAnswers = [];
-
-        foreach ($questionIds as $questionId) {
-            if (isset($answers[$questionId])) {
-                $finalAnswers[] = ['question_id' => $questionId, 'answer' => $answers[$questionId]];
-            }
-        }
-
-        $encodedAnswers = json_encode($finalAnswers);
-        $chatData = [
-            'user_id' => $userId,
-            'answers' => $encodedAnswers,
-            'chat_role_categories' => $chatRole,
-            'categories' => $category,
-            'subcategories' => $subcategory,
-            'questionmenuid' => $questionMenuId,
-        ];
-
-        $existing = UserChatAnswer::where('user_id', $userId)
-            ->where('chat_role_categories', $chatRole)
-            ->where('categories', $category)
-            ->where('subcategories', $subcategory)
-            ->first();
-
-        if ($existing) {
-            $existing->update(['status1' => 0, 'answers' => $encodedAnswers, 'questionmenuid' => $questionMenuId]);
-        } else {
-            UserChatAnswer::create(array_merge($chatData, ['status1' => 0]));
-        }
-
-        $newChat = SearchUserChat::create($chatData);
-
-        flash(localize('Answers processed successfully.'));
-
-        return redirect('dashboard/users-new-chat/'.$newChat->id);
-    }
-
     // ---------------------------------------------------------------------------
     // Leadership Alignment Brief & Action Table
     // ---------------------------------------------------------------------------
@@ -1461,23 +1348,36 @@ Output a JSON object with EXACTLY this shape:
 
 Rules:
 - Create EXACTLY one row per role listed in the role goals above — same roles, same order. Do NOT add any other roles.
+- "role" = the role title copied exactly as written above, including any department in brackets: "Vice President (Sales)" and "Vice President (Product)" are two different rows.
 - "action" = that role's "Actions" sentence copied word-for-word — do not reword, shorten, or embellish it (no bullets, no line breaks, no numbering).
 - Return ONLY the JSON object, nothing else.
 EOT;
 
         try {
-            $aiResponse = $this->ai->generate($systemMessage, $prompt, 1500, 0.7, true);
+            // The table is the chosen scenario's role goals, word for word, and
+            // those are already stored. Asking the model to copy them back cost
+            // a call and lost rows: it wrote "Vice President" for both
+            // "Vice President (Sales)" and "(Product)", which then saved as one.
+            $rows = $this->contractRoleActions($chatId);
+            $chatTotalTokens = (int) SearchUserChat::where('id', $chatId)->value('total_tokens');
 
-            if (! $aiResponse->successful()) {
-                return response()->json(['error' => 'Failed to generate recommended action table.', 'details' => $aiResponse->body()], 500);
-            }
-
-            $text = $this->ai->extractText($aiResponse);
-            $chatTotalTokens = $this->ai->recordChatTokens($chatId, $aiResponse);
-            $rows = $this->parseRecommendedActionRows($text);
-
+            // Chats from before the JSON contract have nothing stored to read.
             if (empty($rows)) {
-                return response()->json(['error' => 'No rows could be parsed from the AI response.', 'raw' => $text], 500);
+                $aiResponse = $this->ai->generate($systemMessage, $prompt, 1500, 0.7, true);
+
+                if (! $aiResponse->successful()) {
+                    return response()->json(['error' => 'Failed to generate recommended action table.', 'details' => $aiResponse->body()], 500);
+                }
+
+                $text = $this->ai->extractText($aiResponse);
+                $chatTotalTokens = $this->ai->recordChatTokens($chatId, $aiResponse);
+                $rows = $this->restoreDepartmentTitles(
+                    $this->parseRecommendedActionRows($text), $this->docs->roleNamesFor($user), (string) $roleGoalsText
+                );
+
+                if (empty($rows)) {
+                    return response()->json(['error' => 'No rows could be parsed from the AI response.', 'raw' => $text], 500);
+                }
             }
 
             // Persist the newly generated rows to the expected_states database table so they are saved
@@ -1659,11 +1559,11 @@ EOT;
             $threshold = (float) config('oi.drift_threshold', 0.8);
             $alerts = [];
 
-            // Execution assumptions stored for the selected pathway — Studio
+            // Execution assumptions stored for the selected pathway — OI
             // checks these against observed reality (Assumption Drift).
             $assumptions = $this->assumptionsForChat($chatId);
 
-            // Roles that depend on each commitment, so Studio can derive the
+            // Roles that depend on each commitment, so OI can derive the
             // affected roles of a drifting KPI without GPT.
             $dependentsByStateId = [];
             foreach ($states as $s) {
@@ -1735,7 +1635,7 @@ EOT;
                 $state->drift_magnitude = $rate !== null ? round(max(0, 1 - $rate), 2) : null;
 
                 // Multi-dimensional drift checks per KPI (Schedule / Performance /
-                // Assumption / Dependency) — Studio-calculated, GPT never decides.
+                // Assumption / Dependency) — OI-calculated, GPT never decides.
                 $scheduleDrift = $isOverdue && $status !== 'Complete';
                 $performanceDrift = $belowTarget;
                 $dependencyDrift = (bool) ($state->depends_on_id && $state->dependsOn && $this->dependencyIsBlocked($state->dependsOn, $today));
@@ -1986,7 +1886,7 @@ EOT;
                 $blockerDetail = "Blocked on the preceding role '{$dep->role}' completing their task '{$dep->recommended_action}'";
             }
 
-            // Studio-calculated facts (GPT explains, it never calculates).
+            // OI-calculated facts (GPT explains, it never calculates).
             $target = $this->extractNumeric($expectedState->target_value);
             $actual = $obs ? $this->extractNumeric($obs->actual_value) : null;
             $gap = ($target !== null && $actual !== null) ? round($target - $actual, 2) : null;
@@ -2015,7 +1915,7 @@ EOT;
                     ."- Respect these constraints: do not recommend actions they rule out (e.g. no hiring under Headcount Locked, no new spend under Budget Frozen).\n";
             }
 
-            // Studio ranks the interventions from the drift type; GPT writes the narrative.
+            // OI ranks the interventions from the drift type; GPT writes the narrative.
             $ranked = self::INTERVENTION_RULES[$driftType] ?? self::INTERVENTION_RULES['Timeline Drift'];
             $rankedLines = implode("\n", array_map(
                 fn ($i, $r) => ($i + 1).". [{$r['priority']}] {$r['action']}",
@@ -2023,9 +1923,9 @@ EOT;
                 $ranked
             ));
 
-            $systemMessage = 'You are an executive strategy intervention consultant. Studio has already calculated the drift facts and ranked the candidate interventions — do NOT recalculate or contradict them. Write ONE concrete, contextually specific corrective recommendation (2-3 sentences max) that explains the drift and turns the top-ranked interventions into an executive-ready action.';
+            $systemMessage = 'You are an executive strategy intervention consultant. OI has already calculated the drift facts and ranked the candidate interventions — do NOT recalculate or contradict them. Write ONE concrete, contextually specific corrective recommendation (2-3 sentences max) that explains the drift and turns the top-ranked interventions into an executive-ready action.';
 
-            $prompt = "STUDIO-CALCULATED FACTS:\n"
+            $prompt = "OI-CALCULATED FACTS:\n"
                 ."- Initiative / Business Goal: \"{$goal}\"\n"
                 ."- Accountable Department/Role: {$role}\n"
                 ."- Strategic Commitment / Objective Action: \"{$action}\"\n"
@@ -2040,7 +1940,7 @@ EOT;
                 .'- Affected Roles: '.implode(', ', $affectedRoles)."\n"
                 ."- Notes from the field: \"{$statusNotes}\"\n"
                 .$calibrationBlock."\n"
-                ."STUDIO-RANKED INTERVENTIONS:\n{$rankedLines}\n\n"
+                ."OI-RANKED INTERVENTIONS:\n{$rankedLines}\n\n"
                 ."TASK:\n"
                 ."Write the executive narrative (2-3 sentences max) recommending how leadership should activate the top-ranked interventions to unblock {$role} and accelerate delivery. Speak directly, confidently, and professionally.";
 
@@ -2203,7 +2103,11 @@ EOT;
      * only those names, and never more goals than there are roles; null means
      * the organization has none and the prompt keeps its document wording.
      *
-     * @return array{max: int, rule: string}|null
+     * Every role gets a goal while the list fits under $max. "Up to N, one per
+     * role you choose" let the model answer for four roles out of eight, and the
+     * other four then had nothing to be linked to at publish.
+     *
+     * @return array{count: string, rule: string}|null
      */
     private function roleRule($user, int $max): ?array
     {
@@ -2212,10 +2116,24 @@ EOT;
             return null;
         }
 
-        return [
-            'max' => min($max, count($names)),
-            'rule' => 'Use ONLY these role titles, exactly as written, one goal per role you choose: '.implode(', ', $names).'.',
-        ];
+        $list = implode(', ', $names).'.';
+
+        // The system message's roster names each role once, and the model took
+        // that as licence to fold "Vice President (Sales)" and "(Product)" back
+        // into one row.
+        if (str_contains($list, '(')) {
+            $list .= ' A title that ends with a department in brackets is that role inside that department: each one is a separate role with its own goal, and the brackets stay in the title.';
+        }
+
+        return count($names) <= $max
+            ? [
+                'count' => 'exactly '.count($names),
+                'rule' => 'Use ONLY these role titles, exactly as written, one goal for EVERY one of them, none left out: '.$list,
+            ]
+            : [
+                'count' => 'up to '.$max,
+                'rule' => 'Use ONLY these role titles, exactly as written, one goal per role you choose: '.$list,
+            ];
     }
 
     private function ownedChat($chatId): ?SearchUserChat
@@ -2258,8 +2176,8 @@ EOT;
 
     /**
      * Pull the stored execution assumptions for the chat's selected pathway
-     * out of the GoalSync contract JSON. Studio checks these during drift
-     * detection ("Studio now checks assumptions" — OI spec).
+     * out of the GoalSync contract JSON. OI checks these during drift
+     * detection ("OI now checks assumptions" — OI spec).
      */
     private function assumptionsForChat($chatId): array
     {
@@ -2349,6 +2267,43 @@ EOT;
         return [null, null];
     }
 
+    /**
+     * The chosen strategy and scenario's role goals, as action-table rows.
+     * Empty when the chat has no JSON contract or nothing has been chosen yet.
+     *
+     * @return array<int, array{role: string, action: string}>
+     */
+    private function contractRoleActions($chatId): array
+    {
+        $candidates = SearchUserChatData::where('search_user_chat_id', $chatId)->orderBy('id')->pluck('response')->all();
+        $candidates[] = (string) SearchUserChat::where('id', $chatId)->value('response');
+
+        foreach ($candidates as $response) {
+            $data = $this->ai->parseJson((string) $response);
+
+            if (! is_array($data) || empty($data['strategyMap'])) {
+                continue;
+            }
+
+            $variant = $data['strategyVariants'][$data['selectedStrategyId'] ?? ($data['strategyMap'][0]['id'] ?? null)] ?? null;
+            $scenarioId = $variant['selectedScenarioId'] ?? ($variant['scenarios'][0]['id'] ?? null);
+            $rows = [];
+
+            foreach ((array) ($variant['scenarioVariants'][$scenarioId]['rolesGoals'] ?? []) as $goal) {
+                $role = trim((string) ($goal['role'] ?? ''));
+                $action = trim((string) preg_replace('/\s+/', ' ', (string) ($goal['action'] ?? '')));
+
+                if ($role !== '' && $action !== '') {
+                    $rows[] = ['role' => $role, 'action' => $action];
+                }
+            }
+
+            return $rows;
+        }
+
+        return [];
+    }
+
     private function parseRecommendedActionRows($text): array
     {
         $data = $this->ai->parseJson($text);
@@ -2362,6 +2317,45 @@ EOT;
                 if ($role !== '' && $action !== '') {
                     $rows[] = ['role' => $role, 'action' => $action];
                 }
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Put "Vice President (Sales)" back where the model wrote "Vice President".
+     *
+     * Rows are saved one per role title, so two rows that lose their department
+     * collapse into a single goal and one of them is silently overwritten. The
+     * titles are known -- they are the organization's, and the role goals above
+     * the table name the ones in play -- so each bare row takes the next
+     * department title still unclaimed for that role, in order.
+     *
+     * @param  array<int, array{role: string, action: string}>  $rows
+     * @param  array<int, string>  $titles
+     * @return array<int, array{role: string, action: string}>
+     */
+    private function restoreDepartmentTitles(array $rows, array $titles, string $roleGoalsText): array
+    {
+        $pending = [];
+        foreach ($titles as $title) {
+            if (preg_match('/^(.*\S)\s*\([^()]+\)$/', $title, $m) && str_contains($roleGoalsText, $title)) {
+                $pending[RoleGoalLinker::normalise($m[1])][] = $title;
+            }
+        }
+
+        // A row that kept its title has claimed it.
+        foreach ($rows as $row) {
+            foreach ($pending as $base => $left) {
+                $pending[$base] = array_values(array_filter($left, fn ($title) => RoleGoalLinker::normalise($title) !== RoleGoalLinker::normalise($row['role'])));
+            }
+        }
+
+        foreach ($rows as &$row) {
+            $base = RoleGoalLinker::normalise($row['role']);
+            if (! empty($pending[$base])) {
+                $row['role'] = array_shift($pending[$base]);
             }
         }
 

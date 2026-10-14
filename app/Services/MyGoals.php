@@ -27,6 +27,9 @@ class MyGoals
         return ExpectedState::query()
             ->whereNotNull('org_role_id')
             ->where('org_role_id', (int) $user->org_role_id)
+            // A goal written for one department's holder of a shared role is
+            // theirs alone; one that names no department is everyone's.
+            ->where(fn ($q) => $q->whereNull('department_id')->orWhere('department_id', (int) $user->department_id))
             ->whereHas('searchUserChat', fn ($q) => $q->where('status', 'published')
                 ->where('organization_id', (int) $user->organization_id));
     }

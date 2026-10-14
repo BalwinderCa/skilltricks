@@ -51,6 +51,7 @@ class ExpectedState extends Model
         'role',
         'recommended_action',
         'org_role_id',
+        'department_id',
         'starting_options',
         'impact_score',
         'impact_reason',
@@ -149,6 +150,32 @@ class ExpectedState extends Model
     public function orgRole(): BelongsTo
     {
         return $this->belongsTo(OrgRole::class);
+    }
+
+    /**
+     * The department this goal is for; null when it is for everyone holding the role.
+     *
+     * @return BelongsTo<Department, $this>
+     */
+    public function department(): BelongsTo
+    {
+        return $this->belongsTo(Department::class);
+    }
+
+    /** Is this goal this person's? Their role, and their department when the goal names one. */
+    public function isFor(User $user): bool
+    {
+        return $this->org_role_id !== null
+            && (int) $this->org_role_id === (int) $user->org_role_id
+            && ($this->department_id === null || (int) $this->department_id === (int) $user->department_id);
+    }
+
+    /** "Vice President · Sales": the role, with the department when the goal is for one. */
+    public function roleLabel(): string
+    {
+        $role = (string) ($this->orgRole->name ?? $this->role);
+
+        return $this->department ? $role.' · '.$this->department->name : $role;
     }
 
     /** @return HasMany<GoalResponse, $this> */

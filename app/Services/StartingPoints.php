@@ -31,7 +31,7 @@ class StartingPoints
         $line = fn ($value) => trim((string) preg_replace('/\s+/', ' ', (string) $value));
         // The options are shared by everyone holding the role, so they are built
         // from organization context only, never from this member's own uploads.
-        $system = "You are StrategiStudio's execution guide. Return ONLY valid JSON. No markdown, no code fences, no commentary."
+        $system = "You are OI's execution guide. Return ONLY valid JSON. No markdown, no code fences, no commentary."
             .$this->docs->orgContextBlock($member);
         $prompt = 'Company objective: "'.$line($this->goals->companyGoal($chat))."\"\n"
             .'Selected strategy path: "'.$line($chat->selected_strategy)."\"\n"

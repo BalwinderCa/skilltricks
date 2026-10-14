@@ -57,7 +57,7 @@ class OrgRoleBackfillTest extends TestCase
 
         $this->runBackfill();
 
-        $this->assertSame(6, $org->roles()->count());
+        $this->assertSame(7, $org->roles()->count());
 
         foreach (User::where('organization_id', $org->id)->get() as $member) {
             $this->assertSame(
@@ -87,7 +87,7 @@ class OrgRoleBackfillTest extends TestCase
 
         $this->runBackfill();
 
-        $this->assertSame(6, $org->roles()->count());
+        $this->assertSame(7, $org->roles()->count());
         $this->assertEquals($first, User::where('organization_id', $org->id)->pluck('org_role_id', 'id'));
     }
 

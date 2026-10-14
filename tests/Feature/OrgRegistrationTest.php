@@ -3,11 +3,13 @@
 namespace Tests\Feature;
 
 use App\Http\Controllers\Backend\CustomersController;
+use App\Mail\User\TeamInvitationMail;
 use App\Models\Organization;
 use App\Models\SubscriptionPackage;
 use App\Models\User;
 use App\Services\OrganizationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Mail;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\GithubProvider;
 use Laravel\Socialite\Two\User as SocialiteUser;
@@ -37,6 +39,47 @@ class OrgRegistrationTest extends TestCase
 
         $this->assertSame($org->id, $first->fresh()->organization_id);
         $this->assertSame($first->id, $org->fresh()->owner_user_id);
+    }
+
+    public function test_a_new_company_also_gets_an_invited_superadmin_account(): void
+    {
+        Mail::fake();
+
+        $this->post(route('register'), [
+            'name' => 'Anoop Kumar', 'email' => 'anoop@newco.com',
+            'password' => 'secret123', 'password_confirmation' => 'secret123',
+        ]);
+
+        $founder = User::where('email', 'anoop@newco.com')->first();
+        $admin = User::where('email', 'superadmin@newco.com')->first();
+        $org = Organization::find($founder->organization_id);
+
+        // Two accounts, both able to run the company; the founder still owns it.
+        $this->assertNotNull($admin);
+        $this->assertSame((int) $org->id, (int) $admin->organization_id);
+        $this->assertTrue($org->isAdmin($founder) && $org->isAdmin($admin));
+        $this->assertSame((int) $founder->id, (int) $org->owner_user_id);
+        $this->assertTrue((bool) $admin->must_change_password);
+        Mail::assertSent(TeamInvitationMail::class, fn ($mail) => $mail->hasTo('superadmin@newco.com'));
+
+        // A second signup on the domain is a member, and makes no second admin.
+        $this->post('/logout');
+        $this->post(route('register'), [
+            'name' => 'Later', 'email' => 'later@newco.com',
+            'password' => 'secret123', 'password_confirmation' => 'secret123',
+        ]);
+        $this->assertSame(1, User::where('email', 'like', 'superadmin@%')->count());
+    }
+
+    public function test_a_free_mail_signup_gets_no_superadmin_account(): void
+    {
+        $this->post(route('register'), [
+            'name' => 'Solo', 'email' => 'solo@gmail.com',
+            'password' => 'secret123', 'password_confirmation' => 'secret123',
+        ]);
+
+        $this->assertNotNull(User::where('email', 'solo@gmail.com')->first());
+        $this->assertNull(User::where('email', 'superadmin@gmail.com')->first());
     }
 
     public function test_a_later_registrant_joins_without_taking_ownership(): void
