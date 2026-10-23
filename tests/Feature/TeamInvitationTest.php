@@ -64,6 +64,21 @@ class TeamInvitationTest extends TestCase
         ]);
     }
 
+    public function test_a_new_member_can_sign_in_with_the_demo_password(): void
+    {
+        [, $owner] = $this->ownedOrg();
+
+        $this->actingAs($owner)->post(route('organization.members.store'), [
+            'name' => 'Grace Hopper', 'email' => 'grace@acme.com', 'org_role_id' => $this->roleId('Manager'),
+        ])->assertRedirect();
+
+        $grace = User::where('email', 'grace@acme.com')->first();
+
+        $this->assertTrue(Hash::check(OrganizationService::DEMO_PASSWORD, $grace->password));
+        // Verified, or the password only reaches the verification notice.
+        $this->assertNotNull($grace->email_verified_at);
+    }
+
     public function test_adding_without_the_invite_box_sends_nothing(): void
     {
         [, $owner] = $this->ownedOrg();

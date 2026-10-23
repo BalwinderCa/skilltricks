@@ -130,7 +130,7 @@
             </p>
 
             <p class="text-muted small mb-2">
-                {{ localize('Everyone in the file joins this organization and is emailed a link to set their password. Rows with no name or an invalid email, and addresses that already have an account, are skipped.') }}
+                {{ localize('Everyone in the file joins this organization and can sign in with the demo password, demo2026!. Rows with no name or an invalid email, and addresses that already have an account, are skipped.') }}
             </p>
 
             <p class="small mb-3">

@@ -37,6 +37,13 @@ class OrganizationService
         60 => 'Board',
     ];
 
+    /**
+     * The password every new team member starts with, so a demo roster can be
+     * signed into straight away. Shared and public: an invitation replaces it
+     * with a random one, and the owner can set another from the roster.
+     */
+    public const DEMO_PASSWORD = 'demo2026!';
+
     /** What a new organization's Super Admin role is called until someone renames it. */
     public const ADMIN_ROLE = 'Super Admin';
 

@@ -24,7 +24,6 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Str;
 
 class DashboardController extends Controller
 {
@@ -538,14 +537,14 @@ class DashboardController extends Controller
     /**
      * Create one member of an organization.
      *
-     * Shared by the CSV import and the Add dialog so the invite path — unusable
-     * password, unverified address, best-effort reset link — cannot drift apart
-     * between them.
+     * Shared by the CSV import and the Add dialog so the starting password and
+     * the invite path cannot drift apart between them.
      */
     private function createMember(Organization $org, string $name, string $email, ?OrgRole $role, int $rank, ?int $departmentId): User
     {
-        // No password anyone can use and no mail: an account only becomes
-        // reachable through sendInvitation(), which the caller decides on.
+        // Everyone starts on the shared demo password, verified for the same
+        // reason resetMemberPassword() does it: otherwise the password only gets
+        // them as far as the verification notice. sendInvitation() replaces it.
         //
         // A member may arrive without a role (the CSV's role column is optional),
         // so rank is passed rather than read off the role. Callers that do have a
@@ -553,7 +552,9 @@ class DashboardController extends Controller
         return User::create([
             'name' => $name,
             'email' => $email,
-            'password' => Hash::make(Str::random(32)),
+            'password' => Hash::make(OrganizationService::DEMO_PASSWORD),
+            'email_verified_at' => now(),
+            'email_or_otp_verified' => 1,
             'organization_id' => $org->id,
             'org_role_id' => $role?->id,
             'hierarchy_rank' => $rank,
@@ -1058,7 +1059,7 @@ class DashboardController extends Controller
         );
 
         if (! $request->boolean('send_invite')) {
-            flash(localize('Team member added. They cannot sign in until you send them an invitation.'))->success();
+            flash(localize('Team member added. They can sign in with the demo password:').' '.OrganizationService::DEMO_PASSWORD)->success();
 
             return back();
         }
