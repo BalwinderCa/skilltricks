@@ -84,7 +84,7 @@ class TeamImportTest extends TestCase
         $john = User::where('email', 'john@acme.com')->first();
 
         $this->assertNotNull($jane);
-        // No role column any more: they arrive unassigned, at the floor rung.
+        // A file without the role column still imports: unassigned, floor rung.
         $this->assertNull($jane->org_role_id);
         $this->assertSame(10, (int) $jane->hierarchy_rank);
         // The CSV named a department that did not exist; it was created.
@@ -102,6 +102,55 @@ class TeamImportTest extends TestCase
         // only in that mailbox — and are held on the password form.
         $this->assertNotNull($jane->email_verified_at);
         $this->assertTrue((bool) $jane->must_change_password);
+    }
+
+    public function test_the_role_column_assigns_one_of_the_organizations_roles(): void
+    {
+        Mail::fake();
+
+        [, $owner] = $this->ownedOrg();
+
+        $file = $this->csv(
+            "name,email,department,role\n".
+            "Jane Doe,jane@acme.com,Marketing,Manager\n".
+            "John Smith,john@acme.com,,  vice PRESIDENT \n".
+            "Typo Person,typo@acme.com,,Mangaer\n".
+            "No Role,norole@acme.com,Ops,\n"
+        );
+
+        $this->actingAs($owner)
+            ->post(route('organization.members.import'), ['members' => $file])
+            ->assertRedirect();
+
+        $this->assertSame('Manager', User::where('email', 'jane@acme.com')->first()->orgRole->name);
+        // Matched by name, ignoring case and surrounding space.
+        $this->assertSame('Vice President', User::where('email', 'john@acme.com')->first()->orgRole->name);
+        // Roles carry no seniority: everyone still starts at the floor rung.
+        $this->assertSame(10, (int) User::where('email', 'john@acme.com')->first()->hierarchy_rank);
+
+        // An unknown role imports the member unassigned and mints no new role.
+        $typo = User::where('email', 'typo@acme.com')->first();
+        $this->assertNotNull($typo);
+        $this->assertNull($typo->org_role_id);
+        $this->assertFalse(OrgRole::where('name', 'Mangaer')->exists());
+
+        $this->assertNull(User::where('email', 'norole@acme.com')->first()->org_role_id);
+    }
+
+    public function test_a_role_from_another_organization_is_not_assigned(): void
+    {
+        Mail::fake();
+
+        [, $owner] = $this->ownedOrg();
+
+        $globex = Organization::create(['domain' => 'globex.com']);
+        OrgRole::create(['organization_id' => $globex->id, 'name' => 'Globex Only']);
+
+        $this->actingAs($owner)->post(route('organization.members.import'), [
+            'members' => $this->csv("name,email,department,role\nJane,jane@acme.com,,Globex Only\n"),
+        ]);
+
+        $this->assertNull(User::where('email', 'jane@acme.com')->first()->org_role_id);
     }
 
     public function test_rows_that_are_invalid_or_already_registered_are_skipped(): void
@@ -533,7 +582,7 @@ class TeamImportTest extends TestCase
 
         $response->assertOk();
         $response->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
-        $response->assertSee('name,email,department', false);
+        $response->assertSee('name,email,department,role', false);
         $response->assertSee('jane@acme.com', false);
     }
 }

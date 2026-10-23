@@ -433,9 +433,9 @@ class DashboardController extends Controller
         // a domain anyone can be at — fall back to a placeholder there.
         $domain = $org && ! str_contains((string) $org->domain, '@') ? $org->domain : 'example.com';
 
-        $csv = "name,email,department\n"
-            ."Jane Doe,jane@{$domain},Marketing\n"
-            ."John Smith,john@{$domain},Engineering\n";
+        $csv = "name,email,department,role\n"
+            ."Jane Doe,jane@{$domain},Marketing,Manager\n"
+            ."John Smith,john@{$domain},Engineering,Individual Contributor\n";
 
         return response($csv, 200, [
             'Content-Type' => 'text/csv',
@@ -475,19 +475,26 @@ class DashboardController extends Controller
         // longer request timeout.
         $rows = array_slice($rows, 0, 200);
 
-        // No role column: an imported member arrives without one and the owner
-        // assigns it from the roster. Rank still has to be something, so they
-        // start at the bottom of the ladder.
+        // Roles carry no seniority, so everyone starts at the bottom of the
+        // ladder whatever the role column says -- same as the Add dialog.
         $floorRank = min(OrganizationService::VALID_RANKS);
+
+        // The role column names one of this organization's own roles, matched
+        // case-insensitively. Unlike departments, an unknown name is not
+        // created: a typo would otherwise mint a role nobody asked for. The
+        // member still imports, unassigned, and the count says so.
+        $roles = $org->roles()->get()->keyBy(fn (OrgRole $role) => mb_strtolower(trim($role->name)));
 
         $added = 0;
         $skipped = 0;
         $invited = 0;
+        $unmatchedRoles = 0;
 
         foreach ($rows as $row) {
             $name = trim((string) ($row[0] ?? ''));
             $email = strtolower(trim((string) ($row[1] ?? '')));
             $department = trim((string) ($row[2] ?? ''));
+            $roleName = trim((string) ($row[3] ?? ''));
 
             if ($name === '' || ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 $skipped++;
@@ -503,8 +510,14 @@ class DashboardController extends Controller
                 continue;
             }
 
+            $role = $roleName === '' ? null : $roles->get(mb_strtolower($roleName));
+
+            if ($roleName !== '' && ! $role) {
+                $unmatchedRoles++;
+            }
+
             $member = $this->createMember(
-                $org, $name, $email, null, $floorRank, $this->departmentIdFor($org, $department)
+                $org, $name, $email, $role, $floorRank, $this->departmentIdFor($org, $department)
             );
 
             if ($invite) {
@@ -516,7 +529,8 @@ class DashboardController extends Controller
 
         // localize() takes a language, not replacements — the counts are appended.
         flash(localize('Team import complete.')." Added: {$added}. Skipped: {$skipped}."
-            .($invite ? ' '.localize('Invitations sent:')." {$invited}." : ''))->success();
+            .($invite ? ' '.localize('Invitations sent:')." {$invited}." : '')
+            .($unmatchedRoles ? ' '.localize('Roles not recognised (left unassigned):')." {$unmatchedRoles}." : ''))->success();
 
         return back();
     }
@@ -533,7 +547,7 @@ class DashboardController extends Controller
         // No password anyone can use and no mail: an account only becomes
         // reachable through sendInvitation(), which the caller decides on.
         //
-        // A member may arrive without a role (the CSV import does not carry one),
+        // A member may arrive without a role (the CSV's role column is optional),
         // so rank is passed rather than read off the role. Callers that do have a
         // role pass its level, which is what keeps the two in step.
         return User::create([

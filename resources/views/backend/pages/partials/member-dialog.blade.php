@@ -120,9 +120,13 @@
             <h2 class="st-dialog-title" id="bulkDialogTitle">{{ localize('Bulk add team') }}</h2>
 
             <p class="text-muted small mb-2">
-                {{ localize('Upload a CSV with one person per row and these three columns') }}:
-                <code>name,email,department</code>.
-                {{ localize('Imported members arrive without a role — assign one from the roster. A department name that does not exist yet is created, and it may be left blank.') }}
+                {{ localize('Upload a CSV with one person per row and these columns') }}:
+                <code>name,email,department,role</code>.
+                {{ localize('A department name that does not exist yet is created, and it may be left blank.') }}
+                {{ localize('The role must match one of your roles by name; left blank or unmatched, the member arrives without one and you assign it from the roster.') }}
+                @if($orgRoles->isNotEmpty())
+                    {{ localize('Your roles') }}: {{ $orgRoles->pluck('name')->implode(', ') }}.
+                @endif
             </p>
 
             <p class="text-muted small mb-2">
