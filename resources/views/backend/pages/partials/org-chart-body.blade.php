@@ -10,16 +10,19 @@
     };
 @endphp
 
+    {{-- The owner and every Super Admin (any role with Super Admin ticked) share the top row. --}}
     <div class="tt-chart-root">
-        <div class="tt-chart-card">
-            <span class="tt-chart-avatar">{{ $initials($chart['root']->name) }}</span>
-            <span class="tt-chart-who">
-                <strong>{{ $chart['root']->name }}</strong>
-                <small class="text-muted">
-                    {{ $chart['root']->orgRole?->name ?? localize('Owner') }}
-                </small>
-            </span>
-        </div>
+        @foreach($chart['top'] ?? [$chart['root']] as $leader)
+            <div class="tt-chart-card">
+                <span class="tt-chart-avatar">{{ $initials($leader->name) }}</span>
+                <span class="tt-chart-who">
+                    <strong>{{ $leader->name }}</strong>
+                    <small class="text-muted">
+                        {{ $leader->orgRole?->name ?? localize('Owner') }}
+                    </small>
+                </span>
+            </div>
+        @endforeach
     </div>
 
     @if(! count($chart['branches']))

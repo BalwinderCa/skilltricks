@@ -282,7 +282,7 @@ class DashboardController extends Controller
      * department is settled by name, not by anyone's intent. An explicit
      * "head of department" belongs on the departments table if that matters.
      *
-     * @return array{root: ?User, branches: array<int, array{department: ?Department, head: ?User, chosen: bool, count: int, nodes: array<int, array{user: User, children: array<int, mixed>}>}>}
+     * @return array{root: ?User, top: array<int, User>, branches: array<int, array{department: ?Department, head: ?User, chosen: bool, count: int, nodes: array<int, array{user: User, children: array<int, mixed>}>}>}
      */
     private function orgChart(Organization $org): array
     {
@@ -306,7 +306,12 @@ class DashboardController extends Controller
         // they own the organization. Failing that, the most senior member does.
         $root = $members->firstWhere('id', $org->owner_user_id) ?: $members->first();
 
-        $rest = $members->reject(fn ($m) => $root && (int) $m->id === (int) $root->id);
+        // The top row: the owner, then everyone whose role has Super Admin
+        // ticked (Super Admin itself, or a CEO or CIO given the same access).
+        $top = collect([$root])->filter()->concat($members->filter(fn (User $m) => (! $root || (int) $m->id !== (int) $root->id)
+            && $m->orgRole && $m->orgRole->is_admin && (int) $m->orgRole->organization_id === (int) $org->id))->values();
+
+        $rest = $members->reject(fn ($m) => $top->contains('id', $m->id));
 
         $grouped = $rest->groupBy('department_id');
 
@@ -360,7 +365,7 @@ class DashboardController extends Controller
             ->values()
             ->all();
 
-        return ['root' => $root, 'branches' => $branches];
+        return ['root' => $root, 'top' => $top->all(), 'branches' => $branches];
     }
 
     /**

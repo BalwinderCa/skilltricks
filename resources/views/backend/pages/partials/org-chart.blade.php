@@ -74,7 +74,7 @@
         transform: scale(var(--tt-chart-zoom, 1));
     }
 
-    .tt-chart-root { display: flex; justify-content: center; }
+    .tt-chart-root { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; }
 
     .tt-chart-card {
         display: flex;

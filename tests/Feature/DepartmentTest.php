@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Department;
 use App\Models\Organization;
+use App\Models\OrgRole;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
@@ -247,6 +248,25 @@ class DepartmentTest extends TestCase
         $response->assertSee('No department');
         // The band wears the department's own colour.
         $response->assertSee(Department::PALETTE[1], false);
+    }
+
+    public function test_super_admins_share_the_top_row_with_the_owner(): void
+    {
+        [$org, $owner] = $this->orgWithChart();
+        // Vera's role gets the Super Admin box ticked.
+        $cio = OrgRole::create(['organization_id' => $org->id, 'name' => 'CIO', 'is_admin' => true]);
+        $vera = User::where('name', 'Vera Veep')->first();
+        $vera->forceFill(['org_role_id' => $cio->id])->save();
+
+        $content = $this->actingAs($owner)
+            ->get(route('organization.index', ['view' => 'chart']))->getContent();
+
+        $branches = strpos($content, 'tt-chart-branches');
+        $veraAt = strpos($content, '<strong>Vera Veep</strong>');
+        // Drawn once, in the top row (before the department columns start).
+        $this->assertSame(1, substr_count($content, '<strong>Vera Veep</strong>'));
+        $this->assertLessThan($branches, $veraAt);
+        $this->assertLessThan($veraAt, strpos($content, '<strong>'.$owner->name.'</strong>'));
     }
 
     /** Inside a department the highest role leads; the rest hang beneath. */
