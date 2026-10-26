@@ -210,6 +210,28 @@ class RoleGoalLinksTest extends TestCase
         $this->assertSame(['Wizard'], array_column($drop->invoke($controller, $rows(['Wizard']), []), 'role'));
     }
 
+    public function test_goals_from_the_wizard_contract_drop_invented_roles_too(): void
+    {
+        $org = $this->org();
+        $analyst = $this->role($org, 'Application Analyst');
+        $author = $this->member($org, 'ceo@acme.com');
+        $this->member($org, 'ana@acme.com', $analyst);
+        $contract = ['strategyMap' => [['id' => 's1']], 'selectedStrategyId' => 's1', 'strategyVariants' => ['s1' => [
+            'selectedScenarioId' => 'x', 'scenarios' => [['id' => 'x']],
+            'scenarioVariants' => ['x' => ['rolesGoals' => [
+                ['role' => 'Application Analyst', 'action' => 'Map the top ten ticket types.'],
+                ['role' => 'Applications Analyst (Business Solutions)', 'action' => 'A role nobody holds.'],
+            ]]],
+        ]]];
+        $chat = SearchUserChat::create(['user_id' => $author->id, 'status1' => 1, 'response' => json_encode($contract)]);
+
+        $this->actingAs($author)->postJson(route('users-new-chat-generate-action-table.index'), [
+            'chat_id' => $chat->id, 'original_question' => 'Improve first-call resolution',
+        ])->assertOk();
+
+        $this->assertSame(['Application Analyst'], ExpectedState::where('search_user_chat_id', $chat->id)->pluck('role')->all());
+    }
+
     public function test_action_table_rows_get_their_department_titles_back(): void
     {
         $controller = app(AiChatController::class);

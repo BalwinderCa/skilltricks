@@ -1382,9 +1382,11 @@ EOT;
                 if (empty($rows)) {
                     return response()->json(['error' => 'No rows could be parsed from the AI response.', 'raw' => $text], 500);
                 }
-
-                $rows = $this->dropInventedRoles($rows, $this->docs->roleNamesFor($user));
             }
+
+            // Both sources (the stored contract and a fresh call) can name a role
+            // the organization does not have; such a goal could reach nobody.
+            $rows = $this->dropInventedRoles($rows, $this->docs->roleNamesFor($user));
 
             // Persist the newly generated rows to the expected_states database table so they are saved
             foreach ($rows as &$row) {
