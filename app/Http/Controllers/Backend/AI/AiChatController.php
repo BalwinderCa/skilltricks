@@ -2136,8 +2136,29 @@ EOT;
             ]
             : [
                 'count' => 'up to '.$max,
-                'rule' => 'Use ONLY these role titles, exactly as written, one goal per role you choose: '.$list,
+                'rule' => 'Use ONLY these role titles, exactly as written, one goal per role you choose: '.$list.$this->spreadRule($names),
             ];
+    }
+
+    /**
+     * When the model picks a few roles out of many, it piled every goal onto the
+     * one department that sounded closest to the goal: a revenue target became
+     * five Business Solutions goals. Asks it to spread them across departments.
+     *
+     * @param  array<int, string>  $names  role titles, a department in brackets where known
+     */
+    private function spreadRule(array $names): string
+    {
+        $departments = collect($names)
+            ->map(fn ($name) => preg_match('/\(([^()]+)\)\s*$/', $name, $m) ? trim($m[1]) : null)
+            ->filter()->unique()->count();
+        if ($departments < 2) {
+            return '';
+        }
+
+        return ' Spread the goals across the organization: include its most senior role relevant to the goal,'
+            .' cover at least '.min(3, $departments).' different departments (the department is the part in brackets),'
+            .' and choose no more than 3 roles from any one department.';
     }
 
     /**

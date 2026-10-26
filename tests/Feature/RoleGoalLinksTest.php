@@ -227,6 +227,31 @@ class RoleGoalLinksTest extends TestCase
     }
 
     #[DataProvider('rolePrompts')]
+    public function test_a_large_roster_asks_for_goals_spread_across_departments(string $route, array $input): void
+    {
+        $org = $this->org();
+        $author = $this->member($org, 'ceo@acme.com');
+        // Twelve roles held across three departments: more than the ten a strategy picks.
+        foreach (['Sales' => 6, 'Product' => 4, 'Finance' => 2] as $dept => $n) {
+            $department = Department::create(['organization_id' => $org->id, 'name' => $dept, 'color' => '#22C55E']);
+            for ($i = 1; $i <= $n; $i++) {
+                $holder = $this->member($org, strtolower($dept).$i.'@acme.com', $this->role($org, $dept.' Role '.$i));
+                $holder->forceFill(['department_id' => $department->id])->save();
+            }
+        }
+        $chat = $this->chatWithGoals($author, []);
+        $captured = null;
+        $this->capturePrompt($captured);
+
+        $this->actingAs($author)->postJson(route($route), $input + ['chat_id' => $chat->id]);
+
+        $this->assertNotNull($captured, 'the prompt was never sent');
+        $this->assertStringContainsString('up to 10', $captured);
+        $this->assertStringContainsString('cover at least 3 different departments', $captured);
+        $this->assertStringContainsString('no more than 3 roles from any one department', $captured);
+    }
+
+    #[DataProvider('rolePrompts')]
     public function test_role_goal_prompts_keep_todays_wording_without_org_roles(string $route, array $input): void
     {
         $org = $this->org();
