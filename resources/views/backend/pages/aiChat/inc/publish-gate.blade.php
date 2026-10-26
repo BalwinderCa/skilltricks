@@ -45,6 +45,8 @@
     // The per-department resources table and its AI suggestions are switched
     // off for now: resources are set on each goal. Kept to bring back later.
     const SHOW_DEPARTMENT_TABLE = false;
+    // "Rank by impact" is hidden for now; flip to bring it back.
+    const SHOW_RANK_BUTTON = false;
 
     const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
     const money = v => (v === null || v === undefined || v === '') ? '—' : state.currency + Number(v).toLocaleString();
@@ -293,7 +295,7 @@
         const noRoles = !published && !(state.roles || []).length
             ? '<div class="pg-hint">Your organization has no roles yet. Add them on the Roles page, then reload.</div>' : '';
         const resourceHead = showResources ? `<th>Budget (${esc(state.currency)})</th><th>People (FTE)</th><th>Tools</th><th>Notes</th>` : '';
-        return `<div class="pg-goals"><strong>Goals and resources</strong>${published ? '' : ` <button type="button" class="btn btn-sm btn-outline-secondary ms-2" data-act="rank" ${busy ? 'disabled' : ''}>Rank by impact</button>`}${noRoles}
+        return `<div class="pg-goals"><strong>Goals and resources</strong>${published || !SHOW_RANK_BUTTON ? '' : ` <button type="button" class="btn btn-sm btn-outline-secondary ms-2" data-act="rank" ${busy ? 'disabled' : ''}>Rank by impact</button>`}${noRoles}
             <div class="table-responsive"><table class="table table-sm align-middle mb-0">
             <thead><tr><th>Goal</th><th>Role</th><th>Department</th>${resourceHead}<th>Impact</th><th>Target date</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
     }
