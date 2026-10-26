@@ -184,7 +184,11 @@
                     <div class="mg-label">{{ localize('Company goal') }}</div>
                     <div class="mb-2">{{ $card['company_goal'] }}</div>
                     <div class="mg-label">{{ localize('Department goal') }} ({{ $card['role_name'] }})</div>
-                    <div class="mg-action mb-2">{{ $card['goal']->recommended_action }}</div>
+                    <div class="{{ $card['my_version'] ? 'small text-muted' : 'mg-action' }} mb-2">{{ $card['goal']->recommended_action }}</div>
+                    @if ($card['my_version'])
+                        <div class="mg-label">{{ localize('Your part') }} ({{ $user->orgRole?->name }})</div>
+                        <div class="mg-action mb-2">{{ $card['my_version'] }}</div>
+                    @endif
                     <div class="small mb-2">
                         @if ($card['leads']->isNotEmpty()){{ localize('Led by') }} {{ $card['leads']->implode(', ') }}@endif
                         @if ($card['goal']->target_date) · {{ localize('By') }} {{ \Illuminate\Support\Carbon::parse($card['goal']->target_date)->toFormattedDateString() }}@endif

@@ -15,6 +15,7 @@ use App\Services\AI\AiProviderService;
 use App\Services\AI\DocumentContextService;
 use App\Services\Alignment;
 use App\Services\Correlation;
+use App\Services\GoalVariants;
 use App\Services\ImpactRanking;
 use App\Services\MyGoals;
 use App\Services\OrganizationService;
@@ -249,6 +250,11 @@ class StrategyPublishController extends Controller
 
         if ($result instanceof JsonResponse) {
             return $result;
+        }
+
+        // Live now: word each goal for every role in its department.
+        if ($result->status === 'published') {
+            app(GoalVariants::class)->generate($result);
         }
 
         if ($result->status === 'pending_approval' && ($approver = User::find($result->parentChat?->user_id))) {

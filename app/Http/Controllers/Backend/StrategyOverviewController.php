@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\SearchUserChat;
 use App\Models\User;
 use App\Services\DriftIndex;
+use App\Services\GoalVariants;
 use App\Services\MyGoals;
 use App\Services\OrganizationService;
 use App\Services\Recourse;
@@ -88,6 +89,8 @@ class StrategyOverviewController extends Controller
             'approval_decided_at' => now(), 'approval_note' => null,
         ]);
         abort_unless($decided, 404);
+        // Live now: word each goal for every role in its department.
+        app(GoalVariants::class)->generate($record->fresh());
         $this->tellRequester($record, $alerts, localize('Initiative approved').': '.$goals->companyGoal($record),
             $request->user()->name.' approved your initiative. It is now live for your organization.');
         flash(localize('Initiative approved and published'))->success();

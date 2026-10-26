@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\ExpectedState;
 use App\Models\GoalObstacle;
 use App\Models\GoalResponse;
+use App\Models\GoalVariant;
 use App\Models\SearchUserChat;
 use App\Models\SearchUserChatData;
 use App\Models\StrategyResource;
@@ -109,6 +110,10 @@ class MyGoals
                 'strategy' => $g->searchUserChat,
                 'company_goal' => $this->companyGoal($g->searchUserChat),
                 'role_name' => $g->orgRole->name ?? $g->role,
+                // The goal worded for this member's role, when one was written at publish.
+                'my_version' => $user->org_role_id
+                    ? GoalVariant::where('expected_state_id', $g->id)->where('org_role_id', (int) $user->org_role_id)->value('text')
+                    : null,
                 'leads' => User::where('organization_id', (int) $user->organization_id)
                     ->where('org_role_id', (int) $g->org_role_id)
                     ->when($g->department_id, fn ($q) => $q->where('department_id', (int) $g->department_id))
