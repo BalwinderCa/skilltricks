@@ -125,6 +125,21 @@
         return !error;
     }
 
+    // A draft has no Save button: amounts save on their own a moment after a
+    // field changes. Saved quietly, without re-rendering, so focus stays put.
+    let autosaveTimer = null;
+    function autosave() {
+        clearTimeout(autosaveTimer);
+        autosaveTimer = setTimeout(async () => {
+            if (busy || !state || state.status !== 'draft' || !card()) return;
+            try {
+                const fresh = await call(urls.save, { chat_id: chatId, rows: readRows() });
+                state.rows = fresh.rows;
+                if (error) { error = ''; render(); }
+            } catch (e) { error = e.message; render(); }
+        }, 400);
+    }
+
     async function publish() {
         if (!confirmPublish) {
             // Arming re-renders the card; carry the typed figures through it.
@@ -370,12 +385,14 @@
                 `<li>${esc(new Date(c.at).toLocaleString())} — ${esc(c.user)} changed ${esc(c.department_name)} ${esc(c.field)} from ${esc(c.old_value ?? '—')} to ${esc(c.new_value ?? '—')}</li>`).join('')}</ul></div>`
             : '';
 
+        // One label for everyone, whether it publishes or sends for approval.
+        const label = '🔒 Commit Resources &amp; Allocate Goals to Departments';
         const publishBtn = published ? '' : !(state.goals || []).length
-            ? `<button type="button" class="btn btn-sm pg-btn-primary" disabled>🔒 Commit Resources &amp; Publish</button>
+            ? `<button type="button" class="btn btn-sm pg-btn-primary" disabled>${label}</button>
                <div class="pg-hint mt-1">Click "Complete Intelligence Cycle" first: it creates the role goals this strategy publishes.</div>`
             : (state.can_publish
-            ? `<button type="button" class="btn btn-sm ${confirmPublish ? 'pg-btn-confirm' : 'pg-btn-primary'}" data-act="publish" ${busy ? 'disabled' : ''}>${confirmPublish ? (state.requires_approval ? 'Click again to send for approval' : 'Click again to publish to your organization') : (state.requires_approval ? '🔒 Commit Resources &amp; Send for Approval' : '🔒 Commit Resources &amp; Publish')}</button>`
-            : `<button type="button" class="btn btn-sm pg-btn-primary" disabled>🔒 Commit Resources &amp; Publish</button>
+            ? `<button type="button" class="btn btn-sm ${confirmPublish ? 'pg-btn-confirm' : 'pg-btn-primary'}" data-act="publish" ${busy ? 'disabled' : ''}>${confirmPublish ? 'Click again to confirm' : label}</button>`
+            : `<button type="button" class="btn btn-sm pg-btn-primary" disabled>${label}</button>
                <div class="pg-hint mt-1">Only department heads, managers and the organization owner can publish. This strategy stays private to you.</div>`);
 
         el.innerHTML = `
@@ -399,7 +416,7 @@
                 <button type="button" class="btn btn-sm btn-outline-secondary" data-act="suggest" ${busy || !state.ready ? 'disabled' : ''}>Regenerate suggestions</button>
             </div>` : ''}` : ''}
             <div class="d-flex flex-wrap gap-2 align-items-start">
-                ${editable && card() && (state.goals || []).length && (!published || state.rows.length) ? `<button type="button" class="btn btn-sm btn-outline-secondary" data-act="save" ${busy ? 'disabled' : ''}>${published ? 'Save changes' : 'Save draft'}</button>` : ''}
+                ${published && editable && state.rows.length ? `<button type="button" class="btn btn-sm btn-outline-secondary" data-act="save" ${busy ? 'disabled' : ''}>Save changes</button>` : ''}
                 <div>${publishBtn}</div>
             </div>
             ${history}`;
@@ -418,6 +435,8 @@
 
     document.addEventListener('change', e => {
         const el = card();
+        const field = e.target.closest && e.target.closest('tr[data-row] [name]');
+        if (el && field && el.contains(field) && state && state.status === 'draft') return autosave();
         const w = e.target.closest && e.target.closest('select[data-weight-goal]');
         if (el && w && el.contains(w) && !busy) return setWeight(Number(w.dataset.weightGoal), Number(w.value));
         const d = e.target.closest && e.target.closest('input[data-date-goal]');
