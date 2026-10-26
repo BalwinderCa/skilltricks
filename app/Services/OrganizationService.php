@@ -98,10 +98,11 @@ class OrganizationService
         try {
             $org = Organization::firstOrCreate(['domain' => $domain]);
 
-            // Only on the create half: seeding is idempotent anyway, but running
-            // it on every lookup would be six queries on every registration.
+            // A new company starts with its Super Admin role only: the owner
+            // names their own roles rather than deleting a ladder they never
+            // asked for. seedDefaultRoles() remains for the demo seeder.
             if ($org->wasRecentlyCreated) {
-                $this->seedDefaultRoles($org);
+                $this->adminRole($org);
             }
 
             return $org;

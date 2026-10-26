@@ -43,6 +43,8 @@
             <div class="mb-3">
                 <label class="form-label" for="memberRole">{{ localize('Role') }}<span class="text-danger">*</span></label>
                 <select class="form-control" id="memberRole" name="org_role_id" required>
+                    {{-- No role is preselected: the first one may be Super Admin. --}}
+                    <option value="" disabled>{{ localize('Select a role') }}</option>
                     @foreach($orgRoles as $role)
                         <option value="{{ $role->id }}">{{ $role->name }}</option>
                     @endforeach
@@ -203,7 +205,7 @@
             document.getElementById('memberName').value = editing ? member.name : '';
             document.getElementById('memberDepartment').value = (editing && member.department) ? member.department : '';
             var roleSelect = document.getElementById('memberRole');
-            roleSelect.value = (editing && member.role) ? member.role : (roleSelect.options[0] ? roleSelect.options[0].value : '');
+            roleSelect.value = (editing && member.role) ? member.role : '';
 
             // The domain sits beside the box, so the box holds the name alone.
             // An off-domain member (the CSV import admits them) keeps their

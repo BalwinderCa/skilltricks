@@ -43,14 +43,29 @@ class OrgRoleTest extends TestCase
         return [$org, $owner, $member];
     }
 
-    public function test_an_organization_starts_with_the_six_default_roles(): void
+    public function test_a_new_organization_starts_with_only_the_super_admin_role(): void
     {
-        [$org] = $this->orgWithOwnerAndMember();
+        $org = app(OrganizationService::class)->resolveForEmail('founder@initech.com');
+
+        $this->assertSame([OrganizationService::ADMIN_ROLE], $org->roles()->pluck('name')->all());
+        $this->assertTrue($org->roles()->first()->is_admin);
+    }
+
+    public function test_the_cleanup_removes_unused_default_roles_but_keeps_ones_in_use(): void
+    {
+        [$org, , $member] = $this->orgWithOwnerAndMember();
+
+        $manager = $org->roles()->where('name', 'Manager')->first();
+        $member->forceFill(['org_role_id' => $manager->id])->save();
+        OrgRole::create(['organization_id' => $org->id, 'name' => 'Senior Developer', 'can_read' => true]);
+
+        (require database_path('migrations/2026_10_26_000100_remove_unused_default_org_roles.php'))->up();
 
         $this->assertEqualsCanonicalizing(
-            [...array_values(OrganizationService::RANK_LABELS), OrganizationService::ADMIN_ROLE],
+            ['Manager', 'Senior Developer', OrganizationService::ADMIN_ROLE],
             $org->roles()->pluck('name')->all()
         );
+        $this->assertSame($manager->id, (int) $member->fresh()->org_role_id);
     }
 
     public function test_whoever_signs_a_company_up_is_its_super_admin(): void
@@ -87,7 +102,8 @@ class OrgRoleTest extends TestCase
 
         $this->actingAs($member->fresh())->get(route('organization.roles.index'))->assertOk();
         $this->actingAs($member->fresh())->post(route('organization.members.store'), [
-            'name' => 'New Hire', 'email' => 'hire', 'org_role_id' => $org->roles()->where('name', 'Manager')->value('id'),
+            'name' => 'New Hire', 'email' => 'hire',
+            'org_role_id' => OrgRole::create(['organization_id' => $org->id, 'name' => 'Manager'])->id,
         ])->assertRedirect();
         $this->assertNotNull(User::where('email', 'hire@initech.com')->first());
 
