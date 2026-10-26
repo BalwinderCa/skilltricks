@@ -109,7 +109,17 @@ class DocumentContextService
             ->map(fn ($holders) => $holders->map(fn ($u) => $u->department?->name)->unique()->sort()->values());
 
         // Super Admin is who may manage the company, not a job to set a goal for.
-        return $org->roles()->where('is_admin', false)->orderBy('name')->get(['id', 'name'])
+        $roles = $org->roles()->where('is_admin', false)->orderBy('name')->get(['id', 'name']);
+
+        // Only roles somebody holds: a goal for an empty role reaches nobody (the
+        // model kept picking "C-Suite", which no one at that company held). An
+        // organization where nobody holds a role yet still gets every one.
+        $held = $roles->filter(fn ($role) => $departments->has($role->id));
+        if ($held->isNotEmpty()) {
+            $roles = $held->values();
+        }
+
+        return $roles
             ->flatMap(fn ($role) => ($departments[$role->id] ?? collect([null]))->map(
                 // "Sales (Sales)" says nothing the role name did not.
                 fn ($department) => $department === null || strcasecmp($department, $role->name) === 0

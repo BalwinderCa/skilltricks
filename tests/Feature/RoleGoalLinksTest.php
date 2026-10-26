@@ -164,8 +164,9 @@ class RoleGoalLinksTest extends TestCase
                 ->forceFill(['department_id' => Department::create(['organization_id' => $org->id, 'name' => $name, 'color' => '#000000'])->id])->save();
         }
 
+        // Analyst is left out: nobody holds it, so a goal for it would reach nobody.
         $this->assertSame(
-            ['Analyst', 'Vice President (Marketing)', 'Vice President (Sales)'],
+            ['Vice President (Marketing)', 'Vice President (Sales)'],
             app(DocumentContextService::class)->roleNamesFor($author)
         );
 
@@ -180,6 +181,33 @@ class RoleGoalLinksTest extends TestCase
             $mine = app(MyGoals::class)->for(User::where('email', $who.'@acme.com')->first());
             $this->assertSame([$title], $mine->map(fn ($card) => $card['goal']->role)->all());
         }
+    }
+
+    public function test_an_organization_where_nobody_holds_a_role_is_still_offered_every_role(): void
+    {
+        $org = $this->org();
+        $this->role($org, 'Analyst');
+        $this->role($org, 'Director');
+        $author = $this->member($org, 'ceo@acme.com');
+
+        $this->assertSame(['Analyst', 'Director'], app(DocumentContextService::class)->roleNamesFor($author));
+    }
+
+    public function test_action_table_rows_with_invented_roles_are_dropped(): void
+    {
+        $controller = app(AiChatController::class);
+        $drop = new \ReflectionMethod($controller, 'dropInventedRoles');
+        $rows = fn (array $roles) => array_map(fn ($role) => ['role' => $role, 'action' => 'Act.'], $roles);
+        $roster = ['CIO (IT Leadership)', 'Solutions Director (Business Solutions)'];
+
+        $this->assertSame(
+            ['CIO (IT Leadership)', 'Solutions Director (Business Solutions)'],
+            array_column($drop->invoke($controller, $rows(['CIO (IT Leadership)', 'Sales Director (Sales & Marketing)', 'Solutions Director (Business Solutions)', 'C-Suite']), $roster), 'role')
+        );
+        // Nothing recognisable: keep every row so the author can pick roles by hand.
+        $this->assertSame(['Wizard'], array_column($drop->invoke($controller, $rows(['Wizard']), $roster), 'role'));
+        // No roster at all: nothing to check against.
+        $this->assertSame(['Wizard'], array_column($drop->invoke($controller, $rows(['Wizard']), []), 'role'));
     }
 
     public function test_action_table_rows_get_their_department_titles_back(): void

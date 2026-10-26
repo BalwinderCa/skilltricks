@@ -1382,6 +1382,8 @@ EOT;
                 if (empty($rows)) {
                     return response()->json(['error' => 'No rows could be parsed from the AI response.', 'raw' => $text], 500);
                 }
+
+                $rows = $this->dropInventedRoles($rows, $this->docs->roleNamesFor($user));
             }
 
             // Persist the newly generated rows to the expected_states database table so they are saved
@@ -2141,6 +2143,37 @@ EOT;
     }
 
     /**
+     * Drop rows whose role is not one the organization offered: the model
+     * sometimes makes one up ("Sales Director (Sales & Marketing)" at a company
+     * with neither), and such a goal can be linked to nobody. When nothing would
+     * be left, every row is kept so the author can still pick roles by hand.
+     *
+     * @param  array<int, array<string, mixed>>  $rows
+     * @param  array<int, string>  $roster
+     * @return array<int, array<string, mixed>>
+     */
+    private function dropInventedRoles(array $rows, array $roster): array
+    {
+        if ($roster === []) {
+            return $rows;
+        }
+
+        $known = array_flip(array_map(fn ($name) => RoleGoalLinker::normalise($name), $roster));
+        $kept = array_values(array_filter($rows, fn ($row) => isset($known[RoleGoalLinker::normalise((string) ($row['role'] ?? ''))])));
+
+        if ($kept === []) {
+            return $rows;
+        }
+        if (count($kept) < count($rows)) {
+            Log::info('Dropped invented roles from the action table', [
+                'dropped' => array_values(array_diff(array_column($rows, 'role'), array_column($kept, 'role'))),
+            ]);
+        }
+
+        return $kept;
+    }
+
+    /**
      * When the model picks a few roles out of many, it piled every goal onto the
      * one department that sounded closest to the goal: a revenue target became
      * five Business Solutions goals. Asks it to spread them across departments.
@@ -2158,7 +2191,8 @@ EOT;
 
         return ' Spread the goals across the organization: include its most senior role relevant to the goal,'
             .' cover at least '.min(3, $departments).' different departments (the department is the part in brackets),'
-            .' and choose no more than 3 roles from any one department.';
+            .' and choose no more than 3 roles from any one department.'
+            .' Never invent a role title or a department: every title must be copied from the list above.';
     }
 
     /**
