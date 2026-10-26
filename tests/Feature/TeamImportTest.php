@@ -585,4 +585,116 @@ class TeamImportTest extends TestCase
         $response->assertSee('name,email,department,role', false);
         $response->assertSee('jane@acme.com', false);
     }
+
+    /** A member removed from this organization and imported again comes back as the same account. */
+    public function test_reimporting_a_removed_member_re_adds_the_same_account(): void
+    {
+        Mail::fake();
+
+        [$org, $owner] = $this->ownedOrg();
+
+        $member = User::factory()->create([
+            'name' => 'Grace H', 'email' => 'grace@acme.com', 'user_type' => 'customer',
+            'organization_id' => $org->id, 'hierarchy_rank' => 40,
+            'department_id' => $this->department($org, 'Sales')->id,
+        ]);
+        $password = $member->password;
+
+        $this->actingAs($owner)->post(route('organization.members.remove'), ['user_id' => $member->id]);
+        $this->assertSame($org->id, (int) $member->fresh()->left_organization_id);
+
+        $before = User::withTrashed()->count();
+
+        $this->actingAs($owner)->post(route('organization.members.import'), [
+            'members' => $this->csv("name,email,department,role\nGrace Hopper,grace@acme.com,Engineering,Vice President\n"),
+        ])->assertRedirect();
+
+        $fresh = $member->fresh();
+
+        $this->assertSame($before, User::withTrashed()->count());
+        $this->assertSame($org->id, (int) $fresh->organization_id);
+        $this->assertSame('Grace Hopper', $fresh->name);
+        $this->assertSame('Engineering', $fresh->department->name);
+        $this->assertSame('Vice President', $fresh->orgRole->name);
+        $this->assertSame(min(OrganizationService::VALID_RANKS), (int) $fresh->hierarchy_rank);
+        $this->assertNull($fresh->left_organization_id);
+        // Their own password survives; only an invitation replaces it.
+        $this->assertSame($password, $fresh->password);
+    }
+
+    public function test_the_add_dialog_re_adds_a_removed_member(): void
+    {
+        Mail::fake();
+
+        [$org, $owner] = $this->ownedOrg();
+
+        $member = User::factory()->create([
+            'email' => 'grace@acme.com', 'user_type' => 'customer',
+            'organization_id' => $org->id, 'hierarchy_rank' => 40,
+        ]);
+
+        $this->actingAs($owner)->post(route('organization.members.remove'), ['user_id' => $member->id]);
+
+        $this->actingAs($owner)->post(route('organization.members.store'), [
+            'name' => 'Grace Hopper', 'email' => 'grace@acme.com', 'org_role_id' => $this->roleId('Vice President'),
+        ])->assertRedirect();
+
+        $fresh = $member->fresh();
+
+        $this->assertSame($org->id, (int) $fresh->organization_id);
+        $this->assertSame('Vice President', $fresh->orgRole->name);
+        $this->assertSame(1, User::where('email', 'grace@acme.com')->count());
+    }
+
+    /** Knowing a former member's address must not let another company claim them. */
+    public function test_a_member_removed_from_another_organization_is_not_re_added(): void
+    {
+        Mail::fake();
+
+        [, $owner] = $this->ownedOrg();
+
+        $globex = Organization::create(['domain' => 'globex.com', 'name' => 'Globex']);
+
+        $leftGlobex = User::factory()->create([
+            'email' => 'grace@acme.com', 'user_type' => 'customer',
+            'organization_id' => null, 'left_organization_id' => $globex->id,
+        ]);
+        // An account from before removals were recorded: nobody can claim it.
+        $legacy = User::factory()->create([
+            'email' => 'alan@acme.com', 'user_type' => 'customer', 'organization_id' => null,
+        ]);
+
+        $this->actingAs($owner)->post(route('organization.members.import'), [
+            'members' => $this->csv("name,email,department\nGrace,grace@acme.com,Ops\nAlan,alan@acme.com,Ops\n"),
+        ]);
+
+        $this->actingAs($owner)->post(route('organization.members.store'), [
+            'name' => 'Grace', 'email' => 'grace@acme.com', 'org_role_id' => $this->roleId('Board'),
+        ]);
+
+        $this->assertNull($leftGlobex->fresh()->organization_id);
+        $this->assertNull($legacy->fresh()->organization_id);
+    }
+
+    /** Fixing an import into the wrong organization: both organizations are the owner's. */
+    public function test_a_member_removed_from_another_organization_the_owner_owns_is_re_added(): void
+    {
+        Mail::fake();
+
+        [$org, $owner] = $this->ownedOrg();
+
+        $other = Organization::create(['domain' => 'acme-labs.com', 'name' => 'Acme Labs']);
+        $other->forceFill(['owner_user_id' => $owner->id])->save();
+
+        $member = User::factory()->create([
+            'email' => 'grace@acme.com', 'user_type' => 'customer',
+            'organization_id' => null, 'left_organization_id' => $other->id,
+        ]);
+
+        $this->actingAs($owner)->post(route('organization.members.import'), [
+            'members' => $this->csv("name,email,department\nGrace,grace@acme.com,Ops\n"),
+        ]);
+
+        $this->assertSame($org->id, (int) $member->fresh()->organization_id);
+    }
 }

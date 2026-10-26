@@ -448,6 +448,55 @@ class OrganizationService
                 'organization_id' => null,
                 'hierarchy_rank' => null,
                 'department_id' => null,
+                'left_organization_id' => $org->id,
+            ])->save();
+
+            $this->recomputeActiveContext($org);
+        });
+    }
+
+    /**
+     * Whether $org may take back an account that left an organization.
+     *
+     * Only an account with no organization qualifies, and only when it left
+     * $org itself or an organization owned by $owner -- otherwise anyone who
+     * knew a former member's address could pull them, history and all, into
+     * their own company.
+     */
+    public function canReattach(Organization $org, User $owner, User $member): bool
+    {
+        if ($member->trashed() || $member->organization_id !== null || ! $member->left_organization_id) {
+            return false;
+        }
+
+        if ((int) $member->left_organization_id === (int) $org->id) {
+            return true;
+        }
+
+        return Organization::whereKey($member->left_organization_id)
+            ->where('owner_user_id', $owner->id)
+            ->exists();
+    }
+
+    /**
+     * Put a removed member back on an organization's roster. The account keeps
+     * its password and history; membership details come from the caller.
+     *
+     * Same lock and re-election as detachMember(): the member's earlier context
+     * declarations count again, but only those their new rank still covers.
+     */
+    public function reattachMember(Organization $org, User $member, string $name, ?int $roleId, int $rank, ?int $departmentId): void
+    {
+        DB::transaction(function () use ($org, $member, $name, $roleId, $rank, $departmentId) {
+            Organization::whereKey($org->id)->lockForUpdate()->first();
+
+            $member->forceFill([
+                'name' => $name,
+                'organization_id' => $org->id,
+                'org_role_id' => $roleId,
+                'hierarchy_rank' => $rank,
+                'department_id' => $departmentId,
+                'left_organization_id' => null,
             ])->save();
 
             $this->recomputeActiveContext($org);

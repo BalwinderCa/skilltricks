@@ -484,8 +484,12 @@ class DashboardController extends Controller
         // member still imports, unassigned, and the count says so.
         $roles = $org->roles()->get()->keyBy(fn (OrgRole $role) => mb_strtolower(trim($role->name)));
 
+        $organizations = app(OrganizationService::class);
+
         $added = 0;
-        $skipped = 0;
+        $readded = 0;
+        $invalid = 0;
+        $taken = 0;
         $invited = 0;
         $unmatchedRoles = 0;
 
@@ -496,15 +500,18 @@ class DashboardController extends Controller
             $roleName = trim((string) ($row[3] ?? ''));
 
             if ($name === '' || ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                $skipped++;
+                $invalid++;
 
                 continue;
             }
 
             // withTrashed: a soft-deleted account still holds the address, and
             // creating a second row for it would break every lookup by email.
-            if (User::withTrashed()->where('email', $email)->exists()) {
-                $skipped++;
+            // The one account taken back is a member this organization removed.
+            $existing = User::withTrashed()->where('email', $email)->first();
+
+            if ($existing && ! $organizations->canReattach($org, auth()->user(), $existing)) {
+                $taken++;
 
                 continue;
             }
@@ -515,9 +522,17 @@ class DashboardController extends Controller
                 $unmatchedRoles++;
             }
 
-            $member = $this->createMember(
-                $org, $name, $email, $role, $floorRank, $this->departmentIdFor($org, $department)
-            );
+            if ($existing) {
+                $organizations->reattachMember(
+                    $org, $existing, $name, $role?->id, $floorRank, $this->departmentIdFor($org, $department)
+                );
+                $member = $existing;
+                $readded++;
+            } else {
+                $member = $this->createMember(
+                    $org, $name, $email, $role, $floorRank, $this->departmentIdFor($org, $department)
+                );
+            }
 
             if ($invite) {
                 $invited += $this->sendInvitation($member) ? 1 : 0;
@@ -526,8 +541,14 @@ class DashboardController extends Controller
             $added++;
         }
 
+        $skipped = $invalid + $taken;
+
         // localize() takes a language, not replacements — the counts are appended.
-        flash(localize('Team import complete.')." Added: {$added}. Skipped: {$skipped}."
+        flash(localize('Team import complete.')." Added: {$added}."
+            .($readded ? ' '.localize('Re-added after removal:')." {$readded}." : '')
+            ." Skipped: {$skipped}."
+            .($invalid ? ' '.localize('Missing name or invalid email:')." {$invalid}." : '')
+            .($taken ? ' '.localize('Email already used by another account:')." {$taken}." : '')
             .($invite ? ' '.localize('Invitations sent:')." {$invited}." : '')
             .($unmatchedRoles ? ' '.localize('Roles not recognised (left unassigned):')." {$unmatchedRoles}." : ''))->success();
 
@@ -1037,7 +1058,11 @@ class DashboardController extends Controller
 
         // withTrashed, like the import: a soft-deleted account still holds the
         // address, so a second row for it would break every lookup by email.
-        if (User::withTrashed()->where('email', $email)->exists()) {
+        // A member this organization removed is the exception: they come back.
+        $organizations = app(OrganizationService::class);
+        $existing = User::withTrashed()->where('email', $email)->first();
+
+        if ($existing && ! $organizations->canReattach($org, auth()->user(), $existing)) {
             flash(localize('That email address already has an account.'))->error();
 
             return back();
@@ -1047,6 +1072,22 @@ class DashboardController extends Controller
 
         if (! $role) {
             flash(localize('Pick a role from your organization.'))->error();
+
+            return back();
+        }
+
+        if ($existing) {
+            $organizations->reattachMember(
+                $org, $existing, $validated['name'], $role->id, min(OrganizationService::VALID_RANKS),
+                $this->ownDepartmentId($org, $validated['department_id'] ?? null)
+            );
+
+            // Their own password still works, so the demo one is not announced.
+            flash(! $request->boolean('send_invite')
+                ? localize('Team member re-added. They keep their existing password and history.')
+                : ($this->sendInvitation($existing)
+                    ? localize('Team member re-added and invited. They have been emailed a temporary password.')
+                    : localize('Team member re-added, but the invitation email could not be sent. Try inviting them again from the roster.')))->success();
 
             return back();
         }
