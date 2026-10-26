@@ -49,6 +49,11 @@
     const SHOW_RANK_BUTTON = false;
     // The Impact column (the weight picker) is hidden for now; flip to bring it back.
     const SHOW_WEIGHT = false;
+    // The People column: head count of the goal's department.
+    const SHOW_PEOPLE = true;
+    // The Role column is hidden for now. A goal with no matching role still
+    // shows its role picker, under the goal, since publishing needs one.
+    const SHOW_ROLE = false;
 
     const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
     const money = v => (v === null || v === undefined || v === '') ? '—' : state.currency + Number(v).toLocaleString();
@@ -285,11 +290,12 @@
             // People is how many work in the goal's department, not an input.
             // Tools and notes are hidden for now; their saved values are kept.
             const resources = showResources
-                ? `<td>${cell('budget', r.budget)}</td><td>${Number(g.department_people ?? 0).toLocaleString()}</td>`
+                ? `<td>${cell('budget', r.budget)}</td>${SHOW_PEOPLE ? `<td>${Number(g.department_people ?? 0).toLocaleString()}</td>` : ''}`
                 : '';
+            const rolePicker = !SHOW_ROLE && g.org_role_id === null && !published ? `<div class="mt-1">${role}</div>` : '';
             return `<tr ${showResources ? `data-row data-id="${r.id ?? ''}" data-goal-id="${g.id}"` : ''}>
-                <td style="min-width:200px">${esc(g.action)}<div class="pg-role-text">AI role: ${esc(g.role_text)}</div></td>
-                <td style="min-width:140px">${role}${flag}</td>
+                <td style="min-width:200px">${esc(g.action)}<div class="pg-role-text">AI role: ${esc(g.role_text)}</div>${rolePicker}</td>
+                ${SHOW_ROLE ? `<td style="min-width:140px">${role}${flag}</td>` : ''}
                 <td style="min-width:130px">${esc(g.department_name)}</td>
                 ${resources}
                 ${SHOW_WEIGHT ? `<td style="min-width:110px">${weight}</td>` : ''}
@@ -297,10 +303,10 @@
         }).join('');
         const noRoles = !published && !(state.roles || []).length
             ? '<div class="pg-hint">Your organization has no roles yet. Add them on the Roles page, then reload.</div>' : '';
-        const resourceHead = showResources ? `<th>Budget (${esc(state.currency)})</th><th>People</th>` : '';
+        const resourceHead = showResources ? `<th>Budget (${esc(state.currency)})</th>${SHOW_PEOPLE ? '<th>People</th>' : ''}` : '';
         return `<div class="pg-goals"><strong>Goals and resources</strong>${published || !SHOW_RANK_BUTTON ? '' : ` <button type="button" class="btn btn-sm btn-outline-secondary ms-2" data-act="rank" ${busy ? 'disabled' : ''}>Rank by impact</button>`}${noRoles}
             <div class="table-responsive"><table class="table table-sm align-middle mb-0">
-            <thead><tr><th>Goal</th><th>Role</th><th>Department</th>${resourceHead}${SHOW_WEIGHT ? '<th>Impact</th>' : ''}<th>Target date</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+            <thead><tr><th>Goal</th>${SHOW_ROLE ? '<th>Role</th>' : ''}<th>Department</th>${resourceHead}${SHOW_WEIGHT ? '<th>Impact</th>' : ''}<th>Target date</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
     }
 
     // Role, rank and weight calls re-render the whole card from the server; carry

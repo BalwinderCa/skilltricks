@@ -1055,7 +1055,7 @@
                         });
                     @endphp
 
-                    <div class="section-title px-2">{{ localize('All Chats') }}</div>
+                    <div class="section-title px-2" id="all-chats-title">{{ localize('All Chats') }}</div>
 
                     @foreach ($sortedGroups as $group => $chats)
                         <div class="sidebar-section">
@@ -1075,6 +1075,7 @@
                                     $rowInitial = strtoupper(mb_substr(trim(strip_tags($chat->search)) ?: 'S', 0, 1));
                                 @endphp
                                 <div class="sidebar-item{{ (int) $chat->search_user_chat_id === (int) $id ? ' is-active' : '' }}"
+                                     data-chat-id="{{ (int) $chat->search_user_chat_id }}"
                                      data-search="{{ \Illuminate\Support\Str::lower(strip_tags($chat->search)) }}">
                                     <span class="chat-avatar">{{ $rowInitial }}</span>
                                     <a href="{{ url('dashboard/users-new-chat/' . $chat->search_user_chat_id) }}">
@@ -2623,6 +2624,10 @@ document.getElementById('ask-form').addEventListener('submit', async function (e
             }
 
             const data = await res.json();
+
+            // A first message makes a new chat: list it under Today right away
+            // rather than only after a reload.
+            if (data.chat_id) window.addChatToSidebar(data.chat_id, currentQuestion, data.answer);
 
             // Surface the chat's lifetime token total (all sections) in the header.
             if (data.chat_total_tokens !== undefined) window.setChatTokenTotal(data.chat_total_tokens, data.usage);
@@ -4374,6 +4379,46 @@ document.addEventListener('click', function (e) {
             row.classList.add('table-danger');
             row.style.backgroundColor = 'rgba(220, 53, 69, 0.1)';
         }
+    };
+
+    // Add a chat to the top of the sidebar's "Today" group, unless it is listed
+    // already. Mirrors the server-rendered row, delete button included.
+    window.addChatToSidebar = function (chatId, question, answer) {
+        if (document.querySelector('.sidebar-item[data-chat-id="' + Number(chatId) + '"]')) return;
+        const title = document.getElementById('all-chats-title');
+        if (!title) return;
+        const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+        const words = (text, n) => { const w = String(text || '').trim().split(/\s+/).filter(Boolean); return w.slice(0, n).join(' ') + (w.length > n ? '...' : ''); };
+        let preview = '';
+        try { const j = JSON.parse(answer); preview = (j && j.acknowledgement) || ''; } catch (e) { preview = String(answer || '').replace(/<[^>]*>/g, ''); }
+
+        let today = Array.from(document.querySelectorAll('.sidebar-section > .section-title'))
+            .find(t => t.textContent.trim() === 'Today');
+        if (!today) {
+            const section = document.createElement('div');
+            section.className = 'sidebar-section';
+            section.innerHTML = '<div class="section-title">Today</div>';
+            title.insertAdjacentElement('afterend', section);
+            today = section.firstElementChild;
+        }
+        document.querySelectorAll('.sidebar-item.is-active').forEach(el => el.classList.remove('is-active'));
+        const now = new Date();
+        const item = document.createElement('div');
+        item.className = 'sidebar-item is-active';
+        item.dataset.chatId = String(Number(chatId));
+        item.dataset.search = String(question || '').toLowerCase();
+        item.innerHTML = '<span class="chat-avatar">' + esc((String(question || '').trim()[0] || 'S').toUpperCase()) + '</span>'
+            + '<a href="{{ url('dashboard/users-new-chat') }}/' + Number(chatId) + '">' + esc(words(question, 8)) + '</a>'
+            + '<span class="chat-preview">' + esc(words(preview, 6) || @json(localize('No reply yet'))) + '</span>'
+            + '<span class="chat-time">' + esc(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) + '</span>'
+            + '<form class="mb-0" action="{{ url('dashboard/users-chat-search-delete') }}/' + Number(chatId) + '" method="get"'
+            + ' data-confirm="' + esc(@json(localize('This conversation and its replies will be removed for good.'))) + '"'
+            + ' data-confirm-title="' + esc(@json(localize('Delete this chat?'))) + '"'
+            + ' data-confirm-ok="' + esc(@json(localize('Delete'))) + '" data-confirm-variant="danger">'
+            + '<input type="hidden" name="_token" value="{{ csrf_token() }}">'
+            + '<button type="submit" class="btn btn-sm p-0" title="Delete"><i class="feather feather-trash bi bi-trash text-danger m-0"></i></button>'
+            + '</form>';
+        today.insertAdjacentElement('afterend', item);
     };
 
     // Build the Recommended Action Table HTML with a 3-option decision column.
