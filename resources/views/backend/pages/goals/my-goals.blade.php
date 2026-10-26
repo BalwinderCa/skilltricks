@@ -56,7 +56,7 @@
                     @endif
 
                     @if ($card['resources'])
-                        <div class="mg-label">{{ localize('Your team\'s resources') }} ({{ $card['resources']->department_name }})</div>
+                        <div class="mg-label">{{ $card['resources']->expected_state_id ? localize('Resources for this goal') : localize('Your team\'s resources') }} ({{ $card['resources']->department_name }})</div>
                         <div class="small mb-2">
                             {{ $card['resources']->budget !== null ? $currency.number_format((float) $card['resources']->budget) : '—' }}
                             · {{ $card['resources']->fte !== null ? (float) $card['resources']->fte.' FTE' : '—' }}

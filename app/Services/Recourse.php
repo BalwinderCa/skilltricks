@@ -29,7 +29,7 @@ class Recourse
 
         $goalLines = $state['goals']->map(fn (array $row) => '- '.$line($row['goal']->orgRole->name ?? $row['goal']->role).': "'.$line($row['goal']->recommended_action).'"'
             .' — expected '.($row['expected'] ?? 'n/a').'%, observed '.round($row['observed']).'%, drift '.($row['drift'] ?? 'not measured').'%')->implode("\n");
-        $resourceLines = $chat->resources()->get()->map(fn ($r) => '- '.$line($r->department_name).': budget '.($r->budget ?? 'n/a').', '.($r->fte ?? 'n/a').' FTE')->implode("\n") ?: '(none)';
+        $resourceLines = $chat->committedResources()->map(fn ($r) => '- '.$line($r->label()).': budget '.($r->budget ?? 'n/a').', '.($r->fte ?? 'n/a').' FTE')->implode("\n") ?: '(none)';
         $obstacleLines = GoalObstacle::whereIn('expected_state_id', $state['goals']->pluck('goal.id'))->orderByDesc('id')->limit(10)->pluck('body')
             ->map(fn ($b) => '- '.$line($b))->implode("\n") ?: '(none)';
 

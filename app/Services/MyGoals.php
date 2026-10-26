@@ -67,7 +67,7 @@ class MyGoals
             'strategy' => $g->searchUserChat,
             'company_goal' => $this->companyGoal($g->searchUserChat),
             'role_name' => $g->orgRole?->name,
-            'resources' => $this->teamResources($g->searchUserChat, $user),
+            'resources' => $this->teamResources($g->searchUserChat, $user, $g),
             'waiting_on' => $g->dependsOn,
             'waiting_on_you' => $g->dependents,
             'response' => $responses->get($g->id),
@@ -89,10 +89,16 @@ class MyGoals
         return trim(ltrim((string) strtok((string) $chat->leadership_brief, "\n"), '# '));
     }
 
-    /** The user's department's committed resources, else the whole-organization row. */
-    private function teamResources(SearchUserChat $chat, User $user): ?StrategyResource
+    /**
+     * This goal's committed resources. An older strategy committed them per
+     * department: the user's department's row, else the whole-organization row.
+     */
+    private function teamResources(SearchUserChat $chat, User $user, ExpectedState $goal): ?StrategyResource
     {
-        $rows = $chat->resources()->get();
+        $rows = $chat->committedResources();
+        if ($rows->whereNotNull('expected_state_id')->isNotEmpty()) {
+            return $rows->firstWhere('expected_state_id', $goal->id);
+        }
 
         return ($user->department_id ? $rows->firstWhere('department_id', $user->department_id) : null)
             ?? $rows->firstWhere('department_id', null);

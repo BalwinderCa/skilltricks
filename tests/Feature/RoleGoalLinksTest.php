@@ -351,7 +351,7 @@ class RoleGoalLinksTest extends TestCase
         $author = $this->member($org, 'ceo@acme.com');
         Department::create(['organization_id' => $org->id, 'name' => 'Sales', 'color' => '#22C55E', 'head_user_id' => $author->id]);
         $chat = $this->chatWithGoals($author, $roleTexts);
-        $chat->resources()->create(['department_id' => null, 'department_name' => 'Whole organization', 'budget' => 1]);
+        $chat->resources()->create(['expected_state_id' => ExpectedState::where('search_user_chat_id', $chat->id)->value('id'), 'department_id' => null, 'department_name' => 'Whole organization', 'budget' => 1]);
 
         return [$org, $author, $chat];
     }
@@ -412,7 +412,7 @@ class RoleGoalLinksTest extends TestCase
         $this->actingAs($author)->get('/dashboard/users-new-chat/'.$chat->id)
             ->assertOk()
             ->assertSee(route('users-new-chat-goal-role.index'), false)
-            ->assertSee('Who gets which goal', false);
+            ->assertSee('Goals and resources', false);
     }
 
     public function test_a_goal_linked_to_a_deleted_role_counts_as_unlinked(): void

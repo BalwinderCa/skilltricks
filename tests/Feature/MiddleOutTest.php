@@ -40,8 +40,8 @@ class MiddleOutTest extends TestCase
     {
         $chat = SearchUserChat::create(['user_id' => $author->id, 'status1' => 0, 'selected_strategy' => 'Path for '.$question, 'leadership_brief' => 'Brief']);
         SearchUserChatData::create(['search_user_chat_id' => $chat->id, 'user_id' => $author->id, 'search' => $question, 'response' => 'ok']);
-        ExpectedState::create(['search_user_chat_id' => $chat->id, 'role' => $role->name, 'recommended_action' => 'Act on '.$question, 'org_role_id' => $role->id, 'target_date' => now()->addMonths(3)]);
-        $chat->resources()->create(['department_id' => null, 'department_name' => 'Whole organization', 'budget' => 1000]);
+        $goal = ExpectedState::create(['search_user_chat_id' => $chat->id, 'role' => $role->name, 'recommended_action' => 'Act on '.$question, 'org_role_id' => $role->id, 'target_date' => now()->addMonths(3)]);
+        $chat->resources()->create(['expected_state_id' => $goal->id, 'department_id' => null, 'department_name' => 'Whole organization', 'budget' => 1000]);
         $chat->forceFill(['organization_id' => $org->id] + ($published ? ['status' => 'published', 'published_by' => $author->id, 'published_at' => now()] : []))->save();
 
         return $chat;
@@ -282,7 +282,7 @@ class MiddleOutTest extends TestCase
     public function test_the_approval_card_shows_resources_and_goals(): void
     {
         $w = $this->world();
-        $w['initiative']->resources()->create(['department_id' => null, 'department_name' => 'Legal ops', 'budget' => 25000, 'fte' => 1.5, 'tools' => 'Contract AI']);
+        $w['initiative']->resources()->update(['department_name' => 'Legal ops', 'budget' => 25000, 'fte' => 1.5, 'tools' => 'Contract AI']);
         $this->link($w);
         $this->sendForApproval($w);
 

@@ -42,6 +42,9 @@
     let error = '';
     let confirmPublish = false;
     let armedAt = 0;
+    // The per-department resources table and its AI suggestions are switched
+    // off for now: resources are set on each goal. Kept to bring back later.
+    const SHOW_DEPARTMENT_TABLE = false;
 
     const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
     const money = v => (v === null || v === undefined || v === '') ? '—' : state.currency + Number(v).toLocaleString();
@@ -78,7 +81,7 @@
         try {
             state = await call(urls.show);
             error = '';
-            if (state.status === 'draft' && state.rows.length === 0 && state.ready) {
+            if (SHOW_DEPARTMENT_TABLE && state.status === 'draft' && state.rows.length === 0 && state.ready) {
                 return suggest();
             }
         } catch (e) { error = e.message; }
@@ -104,11 +107,9 @@
         return Array.from(card().querySelectorAll('tr[data-row]')).map(tr => {
             const v = name => { const f = tr.querySelector(`[name="${name}"]`); return f ? f.value : null; };
             const num = name => { const x = v(name); return x === '' || x === null ? null : Number(x); };
-            const dept = v('department_id');
             return {
                 id: tr.dataset.id ? Number(tr.dataset.id) : null,
-                department_id: dept === '' || dept === null ? null : Number(dept),
-                department_name: tr.dataset.name,
+                expected_state_id: Number(tr.dataset.goalId),
                 budget: num('budget'), fte: num('fte'), tools: v('tools'), notes: v('notes'),
             };
         });
@@ -226,9 +227,12 @@
         busy = false; render();
     }
 
-    function goalsHtml(published) {
+    function goalsHtml(published, editable) {
         if (!state.goals || !state.goals.length) return '';
         const holders = Object.fromEntries((state.roles || []).map(r => [r.id, r.member_count]));
+        // An older published strategy committed resources per department and has
+        // no per-goal rows to show or amend.
+        const showResources = !published || (state.rows || []).length > 0;
         // Notion Epic 1: once scored, highest impact first; unscored keep their order.
         const tomorrow = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
         const ordered = [...state.goals].sort((a, b) => (b.impact_score ?? -1) - (a.impact_score ?? -1));
@@ -243,23 +247,40 @@
             const due = published ? esc(g.target_date ?? '—')
                 : `<input type="date" class="form-control form-control-sm" data-date-goal="${g.id}" value="${esc(g.target_date ?? '')}" min="${tomorrow}" ${busy ? 'disabled' : ''}>`
                   + (g.target_date ? '' : '<div class="pg-flag-red">Needs a target date</div>');
-            // Flags ask for action, so only a draft shows them.
-            const flag = published ? '' : g.org_role_id === null
-                ? '<div class="pg-flag-red">No matching role — pick one</div>'
+            // The role is matched to the goal automatically; a picker only appears
+            // when no organization role matched what the AI wrote.
+            const flag = published || g.org_role_id === null ? ''
                 : (holders[g.org_role_id] === 0 ? '<div class="pg-flag-orange">Nobody holds this role yet</div>' : '');
-            const picker = published
-                ? esc(g.org_role_name ?? 'Not linked')
+            const role = g.org_role_id !== null || published
+                ? `<strong>${esc(g.org_role_name ?? 'Not linked')}</strong>`
                 : `<select class="form-select form-select-sm" data-goal="${g.id}" ${busy ? 'disabled' : ''}>
-                    ${g.org_role_id === null ? '<option value="" selected disabled>Pick a role…</option>' : ''}
-                    ${(state.roles || []).map(r => `<option value="${r.id}" ${r.id === g.org_role_id ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}
-                   </select>`;
-return `<tr><td>${esc(g.action)}<div class="pg-role-text">AI role: ${esc(g.role_text)}</div></td><td style="min-width:180px">${picker}${flag}</td><td style="min-width:150px">${impact}<div>${weight}</div></td><td style="min-width:150px">${due}</td></tr>`;
+                    <option value="" selected disabled>Pick a role…</option>
+                    ${(state.roles || []).map(r => `<option value="${r.id}">${esc(r.name)}</option>`).join('')}
+                   </select><div class="pg-flag-red">No matching role found</div>`;
+            const r = (state.rows || []).find(x => x.expected_state_id === g.id)
+                || { id: null, expected_state_id: g.id, budget: null, fte: null, tools: '', notes: '' };
+            const cell = (name, value, type) => editable
+                ? (type === 'textarea'
+                    ? `<textarea class="form-control form-control-sm" name="${name}" rows="1">${esc(value)}</textarea>`
+                    : `<input class="form-control form-control-sm" type="number" min="0" step="any" name="${name}" value="${esc(value)}">`)
+                : esc(name === 'budget' ? money(value) : (value ?? '—'));
+            const resources = showResources
+                ? `<td>${cell('budget', r.budget)}</td><td>${cell('fte', r.fte)}</td><td>${cell('tools', r.tools, 'textarea')}</td><td>${cell('notes', r.notes, 'textarea')}</td>`
+                : '';
+            return `<tr ${showResources ? `data-row data-id="${r.id ?? ''}" data-goal-id="${g.id}"` : ''}>
+                <td style="min-width:200px">${esc(g.action)}<div class="pg-role-text">AI role: ${esc(g.role_text)}</div></td>
+                <td style="min-width:140px">${role}${flag}</td>
+                <td style="min-width:130px">${esc(g.department_name)}</td>
+                ${resources}
+                <td style="min-width:110px">${impact}<div>${weight}</div></td>
+                <td style="min-width:150px">${due}</td></tr>`;
         }).join('');
         const noRoles = !published && !(state.roles || []).length
             ? '<div class="pg-hint">Your organization has no roles yet. Add them on the Roles page, then reload.</div>' : '';
-        return `<div class="pg-goals"><strong>Who gets which goal</strong>${published ? '' : ` <button type="button" class="btn btn-sm btn-outline-secondary ms-2" data-act="rank" ${busy ? 'disabled' : ''}>Rank by impact</button>`}${noRoles}
+        const resourceHead = showResources ? `<th>Budget (${esc(state.currency)})</th><th>People (FTE)</th><th>Tools</th><th>Notes</th>` : '';
+        return `<div class="pg-goals"><strong>Goals and resources</strong>${published ? '' : ` <button type="button" class="btn btn-sm btn-outline-secondary ms-2" data-act="rank" ${busy ? 'disabled' : ''}>Rank by impact</button>`}${noRoles}
             <div class="table-responsive"><table class="table table-sm align-middle mb-0">
-            <thead><tr><th>Goal</th><th>Role</th><th>Impact</th><th>Target date</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+            <thead><tr><th>Goal</th><th>Role</th><th>Department</th>${resourceHead}<th>Impact</th><th>Target date</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
     }
 
     // Role, rank and weight calls re-render the whole card from the server; carry
@@ -267,7 +288,7 @@ return `<tr><td>${esc(g.action)}<div class="pg-role-text">AI role: ${esc(g.role_
     function unsavedRows() {
         if (!state || state.status !== 'draft' || !card() || !card().querySelector('tr[data-row]')) return null;
         const before = state.rows || [];
-        return readRows().map(r => ({ ...(before.find(p => r.id !== null && p.id === r.id) || {}), ...r }));
+        return readRows().map(r => ({ ...(before.find(p => p.expected_state_id === r.expected_state_id) || {}), ...r }));
     }
 
     async function rankGoals() {
@@ -333,10 +354,10 @@ return `<tr><td>${esc(g.action)}<div class="pg-role-text">AI role: ${esc(g.role_
         const header = pending
             ? `<div class="pg-published">Sent for approval to <strong>${esc(state.approval && state.approval.approver)}</strong> on ${esc(new Date(state.approval && state.approval.requested_at).toLocaleString())}. It goes live when they approve.</div>`
             : state.rejection && !published
-            ? `<div class="pg-error">Sent back: ${esc(state.rejection.note)}</div><div class="pg-sub">Review the resources each department needs. This strategy stays private until it is published.</div>`
+            ? `<div class="pg-error">Sent back: ${esc(state.rejection.note)}</div><div class="pg-sub">Set the resources each goal needs. This strategy stays private until it is published.</div>`
             : published
             ? `<div class="pg-published">Published by <strong>${esc(state.published_by)}</strong> on ${esc(new Date(state.published_at).toLocaleString())}. ${state.is_publisher ? 'You can still change amounts; every change is logged.' : ''} <a href="{{ url('dashboard/strategies') }}/${chatId}" style="color:#2c6d82">Open the executive view &rarr;</a></div>`
-            : `<div class="pg-sub">Review the resources each department needs. This strategy stays private until it is published.</div>`;
+            : `<div class="pg-sub">Set the resources each goal needs. This strategy stays private until it is published.</div>`;
 
         const used = new Set(state.rows.map(r => r.department_id));
         const options = [{ id: '', name: 'Whole organization', key: null }]
@@ -363,10 +384,10 @@ return `<tr><td>${esc(g.action)}<div class="pg-role-text">AI role: ${esc(g.role_
             ${error ? `<div class="pg-error">${esc(error)}</div>` : ''}
             ${busy ? '<div class="pg-sub">Working…</div>' : ''}
             ${priorityHtml()}
-            ${goalsHtml(published)}
+            ${goalsHtml(published, editable)}
             ${alignmentHtml()}
             ${obstaclesHtml()}
-            <div class="table-responsive">
+            ${SHOW_DEPARTMENT_TABLE ? `<div class="table-responsive">
                 <table class="table table-sm align-middle mb-2">
                     <thead><tr><th>Department</th><th>Budget (${esc(state.currency)})</th><th>People (FTE)</th><th>Tools</th><th>Notes</th><th></th></tr></thead>
                     <tbody>${state.rows.map((r, i) => rowHtml(r, i, editable, published)).join('') || '<tr><td colspan="6" class="pg-hint">No resources yet.</td></tr>'}</tbody>
@@ -376,9 +397,9 @@ return `<tr><td>${esc(g.action)}<div class="pg-role-text">AI role: ${esc(g.role_
                 ${options ? `<select id="pg-add-dept" class="form-select form-select-sm" style="width:auto">${options}</select>
                 <button type="button" class="btn btn-sm btn-outline-secondary" data-act="add">Add row</button>` : ''}
                 <button type="button" class="btn btn-sm btn-outline-secondary" data-act="suggest" ${busy || !state.ready ? 'disabled' : ''}>Regenerate suggestions</button>
-            </div>` : ''}
+            </div>` : ''}` : ''}
             <div class="d-flex flex-wrap gap-2 align-items-start">
-                ${editable ? `<button type="button" class="btn btn-sm btn-outline-secondary" data-act="save" ${busy ? 'disabled' : ''}>${published ? 'Save changes' : 'Save draft'}</button>` : ''}
+                ${editable && card() && (state.goals || []).length && (!published || state.rows.length) ? `<button type="button" class="btn btn-sm btn-outline-secondary" data-act="save" ${busy ? 'disabled' : ''}>${published ? 'Save changes' : 'Save draft'}</button>` : ''}
                 <div>${publishBtn}</div>
             </div>
             ${history}`;

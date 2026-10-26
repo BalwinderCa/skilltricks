@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Collection;
 
 class SearchUserChat extends Model
 {
@@ -98,6 +99,20 @@ class SearchUserChat extends Model
     public function resources()
     {
         return $this->hasMany(StrategyResource::class, 'search_user_chat_id');
+    }
+
+    /**
+     * The resources this strategy commits: its per-goal rows, or, for an older
+     * strategy that has none, its per-department rows.
+     *
+     * @return Collection<int, StrategyResource>
+     */
+    public function committedResources(): Collection
+    {
+        $rows = $this->resources()->with('goal:id,role')->orderBy('id')->get();
+        $perGoal = $rows->whereNotNull('expected_state_id')->values();
+
+        return $perGoal->isNotEmpty() ? $perGoal : $rows;
     }
 
     /** @return BelongsTo<User, $this> */

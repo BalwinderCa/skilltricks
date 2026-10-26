@@ -135,6 +135,19 @@ class MyGoalCardTest extends TestCase
         $this->assertSame('Whole organization', app(MyGoals::class)->for($w['pm'])->first()['resources']->department_name);
     }
 
+    public function test_a_goals_own_resources_win_over_the_department_rows(): void
+    {
+        $w = $this->world();
+        $chat = $this->publishedGoal($w);
+        $product = ExpectedState::where('search_user_chat_id', $chat->id)->where('role', 'Product')->first();
+        $chat->resources()->create(['expected_state_id' => $product->id, 'department_name' => 'Whole organization', 'budget' => 1234]);
+
+        $card = app(MyGoals::class)->for($w['pm'])->first();
+
+        $this->assertSame($product->id, $card['goal']->id);
+        $this->assertSame('1234.00', $card['resources']->budget);
+    }
+
     private function salesGoalId(): int
     {
         return (int) ExpectedState::where('role', 'Sales')->value('id');

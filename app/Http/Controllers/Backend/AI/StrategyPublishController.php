@@ -68,8 +68,7 @@ class StrategyPublishController extends Controller
             'chat_id' => 'required|integer',
             'rows' => 'present|array',
             'rows.*.id' => 'nullable|integer',
-            'rows.*.department_id' => 'nullable|integer',
-            'rows.*.department_name' => 'required|string|max:255',
+            'rows.*.expected_state_id' => 'required|integer',
             'rows.*.budget' => 'nullable|numeric|min:0|max:'.self::BUDGET_MAX,
             'rows.*.fte' => 'nullable|numeric|min:0|max:'.self::FTE_MAX,
             'rows.*.tools' => 'nullable|string|max:5000',
@@ -82,27 +81,21 @@ class StrategyPublishController extends Controller
             return $this->denied();
         }
 
-        $departments = $this->departmentsFor($user)->keyBy('id');
-        $stored = $chat->resources()->get()->keyBy('id');
+        // Resources go to a goal; the goal's department is worked out, not picked.
+        $goals = ExpectedState::where('search_user_chat_id', $chat->id)->get()->keyBy('id');
+        $orgId = $chat->organization_id ?: User::whereKey($chat->user_id)->value('organization_id');
         $rows = [];
         foreach ($data['rows'] as $row) {
-            // A row that already exists keeps its department (and its name
-            // snapshot), even if that department has since been deleted.
-            $existing = isset($row['id']) ? $stored->get($row['id']) : null;
-            if ($existing) {
-                $deptId = $existing->department_id;
-                $deptName = $existing->department_name;
-            } else {
-                $deptId = $row['department_id'] ?? null;
-                if ($deptId !== null && ! $departments->has($deptId)) {
-                    return response()->json(['error' => 'That department is not in your organization.'], 422);
-                }
-                $deptName = $deptId !== null ? $departments[$deptId]->name : self::WHOLE_ORG;
+            $goal = $goals->get((int) $row['expected_state_id']);
+            if (! $goal) {
+                return response()->json(['error' => 'That goal is not part of this strategy.'], 422);
             }
+            $department = $this->linker->departmentFor($goal, $orgId ? (int) $orgId : null);
             $rows[] = [
                 'id' => $row['id'] ?? null,
-                'department_id' => $deptId,
-                'department_name' => $deptName,
+                'expected_state_id' => $goal->id,
+                'department_id' => $department?->id,
+                'department_name' => $department->name ?? self::WHOLE_ORG,
                 'budget' => $row['budget'] ?? null,
                 'fte' => $row['fte'] ?? null,
                 'tools' => $this->text($row['tools'] ?? null),
@@ -120,16 +113,13 @@ class StrategyPublishController extends Controller
             }
             $keep = [];
             foreach ($rows as $row) {
-                $attrs = collect($row)->except('id')->all();
-                $existing = $row['id'] ? $chat->resources()->whereKey($row['id'])->first() : null;
-                if ($existing) {
-                    $existing->update($attrs);
-                    $keep[] = $existing->id;
-                } else {
-                    $keep[] = $chat->resources()->create($attrs)->id;
-                }
+                $keep[] = $chat->resources()->updateOrCreate(
+                    ['expected_state_id' => $row['expected_state_id']],
+                    collect($row)->except(['id', 'expected_state_id'])->all(),
+                )->id;
             }
-            $chat->resources()->whereNotIn('id', $keep)->delete();
+            // Per-department rows from before are left alone: hidden, not deleted.
+            $chat->resources()->whereNotNull('expected_state_id')->whereNotIn('id', $keep)->delete();
 
             return true;
         });
@@ -213,9 +203,6 @@ class StrategyPublishController extends Controller
             if ($chat->isLocked()) {
                 return response()->json(['error' => 'This strategy is already published or awaiting approval.'], 409);
             }
-            if (! $chat->resources()->exists()) {
-                return response()->json(['error' => 'Add at least one department\'s resources before publishing.'], 422);
-            }
             $unlinked = ExpectedState::where('search_user_chat_id', $chat->id)
                 ->where(fn ($q) => $q->whereNull('org_role_id')
                     ->orWhereDoesntHave('orgRole', fn ($r) => $r->where('organization_id', $user->organization_id)))
@@ -227,6 +214,10 @@ class StrategyPublishController extends Controller
             // before that would send nobody anything.
             if (! ExpectedState::where('search_user_chat_id', $chat->id)->exists()) {
                 return response()->json(['error' => 'Finish the strategy (Complete Intelligence Cycle) so its role goals exist before publishing.'], 422);
+            }
+            if (! $chat->resources()->whereNotNull('expected_state_id')
+                ->where(fn ($q) => $q->whereNotNull('budget')->orWhereNotNull('fte'))->exists()) {
+                return response()->json(['error' => 'Add a budget or people to at least one goal before publishing.'], 422);
             }
             // Drift, projections and nudges only measure goals with a target date.
             if (ExpectedState::where('search_user_chat_id', $chat->id)->whereNull('target_date')->exists()) {
@@ -455,7 +446,7 @@ class StrategyPublishController extends Controller
             return response()->json(['error' => 'Only the person who published this strategy can change its resources.'], 403);
         }
 
-        $existing = $chat->resources()->get()->keyBy('id');
+        $existing = $chat->resources()->whereNotNull('expected_state_id')->get()->keyBy('id');
         $submitted = collect($rows)->pluck('id')->filter()->map(fn ($id) => (int) $id)->sort()->values()->all();
         if (count($rows) !== count($submitted) || $submitted !== $existing->keys()->map(fn ($id) => (int) $id)->sort()->values()->all()) {
             return response()->json(['error' => 'Rows cannot be added or removed after publishing.'], 422);
@@ -651,10 +642,12 @@ EOT;
     /** @return array<string, mixed> */
     private function payload(SearchUserChat $chat, User $user): array
     {
-        $rows = $chat->resources()->orderBy('id')->get();
+        // Per-goal rows only: the older per-department table is hidden for now.
+        $rows = $chat->resources()->whereNotNull('expected_state_id')->with('goal:id,role')->orderBy('id')->get();
         $changes = StrategyResourceChange::whereIn('strategy_resource_id', $rows->pluck('id'))
             ->with('user:id,name')->orderByDesc('id')->get();
-        $names = $rows->pluck('department_name', 'id');
+        $names = $rows->mapWithKeys(fn (StrategyResource $r) => [$r->id => $r->label()]);
+        $orgId = $chat->organization_id ?: User::whereKey($chat->user_id)->value('organization_id');
 
         $goals = ExpectedState::where('search_user_chat_id', $chat->id)->with('orgRole:id,name,organization_id')->orderBy('id')->get();
         $roles = $user->organization_id
@@ -693,6 +686,7 @@ EOT;
                 'impact_reason' => $g->impact_reason,
                 'weight' => $g->weight,
                 'target_date' => $g->target_date?->toDateString(),
+                'department_name' => $this->linker->departmentFor($g, $orgId ? (int) $orgId : null)->name ?? self::WHOLE_ORG,
             ])->values(),
             'roles' => $roles->map(fn (OrgRole $r) => [
                 'id' => $r->id,
@@ -719,6 +713,7 @@ EOT;
                 : null,
             'rows' => $rows->map(fn (StrategyResource $r) => [
                 'id' => $r->id,
+                'expected_state_id' => $r->expected_state_id,
                 'department_id' => $r->department_id,
                 'department_name' => $r->department_name,
                 'budget' => $r->budget !== null ? (float) $r->budget : null,

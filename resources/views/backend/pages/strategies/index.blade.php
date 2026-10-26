@@ -26,7 +26,7 @@
                                 <div class="col-md-6">
                                     <strong>{{ localize('Resources requested') }}</strong>
                                     @foreach ($item['resources'] as $res)
-                                        <div>{{ $res->department_name }}: {{ config('custom.default_currency_symbol') ?: '$' }}{{ number_format((float) $res->budget) }} · {{ $res->fte !== null ? (float) $res->fte.' FTE' : '—' }}@if ($res->tools) · {{ $res->tools }}@endif</div>
+                                        <div>{{ $res->label() }}: {{ config('custom.default_currency_symbol') ?: '$' }}{{ number_format((float) $res->budget) }} · {{ $res->fte !== null ? (float) $res->fte.' FTE' : '—' }}@if ($res->tools) · {{ $res->tools }}@endif</div>
                                     @endforeach
                                 </div>
                                 <div class="col-md-6">

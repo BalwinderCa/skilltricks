@@ -60,6 +60,35 @@ class RoleGoalLinker
         }
     }
 
+    /**
+     * The department a goal's resources go to, worked out without asking: the
+     * goal's own department (from a title like "CIO (IT Leadership)"), else the
+     * one department every holder of its role sits in. Null means the whole
+     * organization: the role spans departments, or nobody holds it yet.
+     */
+    public function departmentFor(ExpectedState $goal, ?int $orgId): ?Department
+    {
+        if (! $orgId) {
+            return null;
+        }
+
+        if ($goal->department_id) {
+            $own = Department::where('organization_id', $orgId)->find($goal->department_id);
+            if ($own) {
+                return $own;
+            }
+        }
+
+        if (! $goal->org_role_id) {
+            return null;
+        }
+
+        $ids = User::where('organization_id', $orgId)->where('org_role_id', $goal->org_role_id)
+            ->whereNotNull('department_id')->distinct()->pluck('department_id');
+
+        return $ids->count() === 1 ? Department::where('organization_id', $orgId)->find($ids->first()) : null;
+    }
+
     /** Link a goal to a role, only when that role belongs to the author's organization. */
     public function assign(ExpectedState $goal, int $orgRoleId, User $author): bool
     {

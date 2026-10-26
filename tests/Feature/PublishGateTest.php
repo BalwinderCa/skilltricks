@@ -198,48 +198,73 @@ class PublishGateTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_draft_save_replaces_the_rows_and_logs_nothing(): void
+    public function test_draft_save_commits_resources_per_goal_and_logs_nothing(): void
     {
         $w = $this->world();
         $chat = $this->finishedChat($w['member']);
-        $old = $chat->resources()->create(['department_id' => $w['eng']->id, 'department_name' => 'Engineering', 'budget' => 10]);
+        [$sales, $product] = ExpectedState::where('search_user_chat_id', $chat->id)->orderBy('id')->pluck('id')->all();
 
         $this->actingAs($w['member'])->postJson(route('users-new-chat-resources-save.index'), [
             'chat_id' => $chat->id,
             'rows' => [
-                ['department_id' => $w['sales']->id, 'department_name' => 'ignored', 'budget' => 50000, 'fte' => 1.5, 'tools' => 'CRM seats', 'notes' => 'From Q3 brand budget'],
+                ['expected_state_id' => $sales, 'budget' => 50000, 'fte' => 1.5, 'tools' => 'CRM seats', 'notes' => 'From Q3 brand budget'],
+                ['expected_state_id' => $product, 'budget' => null, 'fte' => null, 'tools' => '', 'notes' => ''],
             ],
-        ])->assertOk()->assertJsonCount(1, 'rows')->assertJsonPath('rows.0.department_name', 'Sales');
+        ])->assertOk()->assertJsonCount(2, 'rows')->assertJsonPath('rows.0.expected_state_id', $sales);
 
-        $this->assertNull(StrategyResource::find($old->id));
+        $this->assertSame('50000.00', StrategyResource::where('expected_state_id', $sales)->value('budget'));
         $this->assertSame(0, StrategyResourceChange::count());
     }
 
-    public function test_draft_save_keeps_the_ai_suggestion_on_an_edited_row(): void
+    public function test_a_goals_department_comes_from_the_people_holding_its_role(): void
     {
         $w = $this->world();
         $chat = $this->finishedChat($w['member']);
-        $row = $chat->resources()->create(['department_id' => $w['sales']->id, 'department_name' => 'Sales', 'budget' => 40000, 'ai_suggestion' => ['budget' => 40000]]);
+        $goal = ExpectedState::where('search_user_chat_id', $chat->id)->where('role', 'VP of Sales')->first();
+        // Everyone holding the role sits in Sales, so its resources go to Sales.
+        $w['head']->forceFill(['org_role_id' => $goal->org_role_id, 'department_id' => $w['sales']->id])->save();
 
         $this->actingAs($w['member'])->postJson(route('users-new-chat-resources-save.index'), [
             'chat_id' => $chat->id,
-            'rows' => [['id' => $row->id, 'department_id' => $w['sales']->id, 'department_name' => 'Sales', 'budget' => 45000]],
+            'rows' => [['expected_state_id' => $goal->id, 'budget' => 10]],
         ])->assertOk();
 
-        $this->assertSame('45000.00', $row->fresh()->budget);
-        $this->assertSame(['budget' => 40000], $row->fresh()->ai_suggestion);
+        $row = StrategyResource::where('expected_state_id', $goal->id)->first();
+        $this->assertSame($w['sales']->id, (int) $row->department_id);
+        $this->assertSame('Sales', $row->department_name);
+        $this->assertSame('Whole organization', collect($this->actingAs($w['member'])
+            ->getJson(route('users-new-chat-resources.show', ['chat' => $chat->id]))->json('goals'))
+            ->firstWhere('role_text', 'VP of Product')['department_name']);
     }
 
-    public function test_save_refuses_a_department_from_another_organization(): void
+    public function test_draft_save_updates_a_goals_row_in_place_and_keeps_older_department_rows(): void
     {
         $w = $this->world();
         $chat = $this->finishedChat($w['member']);
-        $other = Organization::create(['domain' => 'globex.com', 'name' => 'Globex']);
-        $foreign = Department::create(['organization_id' => $other->id, 'name' => 'Ops', 'color' => '#EF4444']);
+        $goalId = ExpectedState::where('search_user_chat_id', $chat->id)->orderBy('id')->value('id');
+        $row = $chat->resources()->create(['expected_state_id' => $goalId, 'department_name' => 'Whole organization', 'budget' => 40000]);
+        $legacy = $chat->resources()->create(['department_id' => $w['eng']->id, 'department_name' => 'Engineering', 'budget' => 10]);
 
         $this->actingAs($w['member'])->postJson(route('users-new-chat-resources-save.index'), [
             'chat_id' => $chat->id,
-            'rows' => [['department_id' => $foreign->id, 'department_name' => 'Ops', 'budget' => 1]],
+            'rows' => [['id' => $row->id, 'expected_state_id' => $goalId, 'budget' => 45000]],
+        ])->assertOk()->assertJsonCount(1, 'rows');
+
+        $this->assertSame('45000.00', $row->fresh()->budget);
+        // The hidden per-department table keeps its rows for later.
+        $this->assertNotNull(StrategyResource::find($legacy->id));
+    }
+
+    public function test_save_refuses_a_goal_from_another_strategy(): void
+    {
+        $w = $this->world();
+        $chat = $this->finishedChat($w['member']);
+        $other = $this->finishedChat($w['member']);
+        $foreignGoal = ExpectedState::where('search_user_chat_id', $other->id)->value('id');
+
+        $this->actingAs($w['member'])->postJson(route('users-new-chat-resources-save.index'), [
+            'chat_id' => $chat->id,
+            'rows' => [['expected_state_id' => $foreignGoal, 'budget' => 1]],
         ])->assertStatus(422);
 
         $this->assertSame(0, StrategyResource::count());
@@ -252,7 +277,7 @@ class PublishGateTest extends TestCase
 
         $this->actingAs($w['member'])->postJson(route('users-new-chat-resources-save.index'), [
             'chat_id' => $chat->id,
-            'rows' => [['department_id' => null, 'department_name' => 'Whole organization', 'budget' => -5]],
+            'rows' => [['expected_state_id' => ExpectedState::where('search_user_chat_id', $chat->id)->value('id'), 'budget' => -5]],
         ])->assertStatus(422);
     }
 
@@ -277,7 +302,8 @@ class PublishGateTest extends TestCase
         ]]));
 
         $this->actingAs($w['head'])->postJson(route('users-new-chat-resources-suggest.index'), ['chat_id' => $chat->id])
-            ->assertOk()->assertJsonCount(2, 'rows');
+            ->assertOk();
+        $this->assertSame(2, StrategyResource::count());
 
         $sales = StrategyResource::where('department_id', $w['sales']->id)->first();
         $this->assertSame('50000.00', $sales->budget);
@@ -306,10 +332,12 @@ class PublishGateTest extends TestCase
         $this->fakeAi(json_encode(['rows' => [['department' => 'Whole organization', 'budget' => 9000, 'fte' => 1, 'tools' => 'x', 'rationale' => 'y']]]));
 
         $this->actingAs($loner)->postJson(route('users-new-chat-resources-suggest.index'), ['chat_id' => $chat->id])
-            ->assertOk()
-            ->assertJsonPath('rows.0.department_name', 'Whole organization')
-            ->assertJsonPath('rows.0.department_id', null)
-            ->assertJsonPath('rows.0.budget', 9000);
+            ->assertOk();
+
+        $row = StrategyResource::first();
+        $this->assertSame('Whole organization', $row->department_name);
+        $this->assertNull($row->department_id);
+        $this->assertSame('9000.00', $row->budget);
     }
 
     public function test_suggest_needs_a_finished_wizard(): void
@@ -354,9 +382,11 @@ class PublishGateTest extends TestCase
             ->assertStatus(409);
     }
 
+    /** Commit resources to the strategy's first goal, booked to $dept. */
     private function withRow(SearchUserChat $chat, Department $dept): SearchUserChat
     {
-        $chat->resources()->create(['department_id' => $dept->id, 'department_name' => $dept->name, 'budget' => 50000, 'fte' => 2]);
+        $goalId = ExpectedState::where('search_user_chat_id', $chat->id)->orderBy('id')->value('id');
+        $chat->resources()->create(['expected_state_id' => $goalId, 'department_id' => $dept->id, 'department_name' => $dept->name, 'budget' => 50000, 'fte' => 2]);
 
         return $chat;
     }
@@ -455,7 +485,7 @@ class PublishGateTest extends TestCase
 
         $this->actingAs($w['owner'])->postJson(route('users-new-chat-resources-save.index'), [
             'chat_id' => $chat->id,
-            'rows' => [['id' => $row->id, 'department_id' => $w['sales']->id, 'department_name' => 'Sales', 'budget' => 60000, 'fte' => 2, 'tools' => 'CPQ', 'notes' => null]],
+            'rows' => [['id' => $row->id, 'expected_state_id' => $row->expected_state_id, 'budget' => 60000, 'fte' => 2, 'tools' => 'CPQ', 'notes' => null]],
         ])->assertOk()->assertJsonCount(2, 'changes');
 
         $this->assertSame('60000.00', $row->fresh()->budget);
@@ -474,7 +504,7 @@ class PublishGateTest extends TestCase
 
         $this->actingAs($w['owner'])->postJson(route('users-new-chat-resources-save.index'), [
             'chat_id' => $chat->id,
-            'rows' => [['id' => $row->id, 'department_id' => $w['sales']->id, 'department_name' => 'Sales', 'budget' => '50000.00', 'fte' => '2.00', 'tools' => '', 'notes' => '  ']],
+            'rows' => [['id' => $row->id, 'expected_state_id' => $row->expected_state_id, 'budget' => '50000.00', 'fte' => '2.00', 'tools' => '', 'notes' => '  ']],
         ])->assertOk();
 
         $this->assertSame(0, StrategyResourceChange::count());
@@ -489,8 +519,8 @@ class PublishGateTest extends TestCase
         $this->actingAs($w['owner'])->postJson(route('users-new-chat-resources-save.index'), [
             'chat_id' => $chat->id,
             'rows' => [
-                ['id' => $row->id, 'department_id' => $w['sales']->id, 'department_name' => 'Sales', 'budget' => 50000],
-                ['department_id' => $w['eng']->id, 'department_name' => 'Engineering', 'budget' => 1],
+                ['id' => $row->id, 'expected_state_id' => $row->expected_state_id, 'budget' => 50000],
+                ['expected_state_id' => ExpectedState::where('search_user_chat_id', $chat->id)->orderByDesc('id')->value('id'), 'budget' => 1],
             ],
         ])->assertStatus(422);
 
@@ -511,7 +541,7 @@ class PublishGateTest extends TestCase
 
         $this->actingAs($w['head'])->postJson(route('users-new-chat-resources-save.index'), [
             'chat_id' => $chat->id,
-            'rows' => [['id' => $row->id, 'department_id' => $w['sales']->id, 'department_name' => 'Sales', 'budget' => 1]],
+            'rows' => [['id' => $row->id, 'expected_state_id' => $row->expected_state_id, 'budget' => 1]],
         ])->assertForbidden();
     }
 
@@ -523,7 +553,7 @@ class PublishGateTest extends TestCase
 
         $this->actingAs($w['owner'])->postJson(route('users-new-chat-resources-save.index'), [
             'chat_id' => $chat->id,
-            'rows' => [['id' => $row->id, 'department_id' => $w['sales']->id, 'department_name' => 'Sales', 'budget' => 1]],
+            'rows' => [['id' => $row->id, 'expected_state_id' => $row->expected_state_id, 'budget' => 1]],
         ])->assertOk();
 
         $this->assertEquals(1, (float) $row->fresh()->budget);
@@ -601,25 +631,20 @@ class PublishGateTest extends TestCase
 
         $this->actingAs($w['owner'])->postJson(route('users-new-chat-resources-save.index'), [
             'chat_id' => $chat->id,
-            'rows' => [['id' => $row->id, 'department_id' => $w['sales']->id, 'department_name' => 'Sales', 'budget' => 60000, 'fte' => 2]],
+            'rows' => [['id' => $row->id, 'expected_state_id' => $row->expected_state_id, 'budget' => 60000, 'fte' => 2]],
         ])->assertOk();
 
         $this->assertSame('60000.00', $row->fresh()->budget);
     }
 
-    public function test_a_draft_row_survives_its_department_being_deleted(): void
+    public function test_publishing_needs_an_amount_on_a_goal(): void
     {
         $w = $this->world();
-        $chat = $this->withRow($this->finishedChat($w['member']), $w['eng']);
-        $row = $chat->resources()->first();
-        $w['eng']->delete();
+        $chat = $this->finishedChat($w['owner']);
+        // Only an older per-department row: hidden, so it does not count.
+        $chat->resources()->create(['department_id' => $w['sales']->id, 'department_name' => 'Sales', 'budget' => 5]);
 
-        $this->actingAs($w['member'])->postJson(route('users-new-chat-resources-save.index'), [
-            'chat_id' => $chat->id,
-            'rows' => [['id' => $row->id, 'department_id' => $w['eng']->id, 'department_name' => 'Engineering', 'budget' => 7]],
-        ])->assertOk();
-
-        $this->assertSame('Engineering', $row->fresh()->department_name);
-        $this->assertSame('7.00', $row->fresh()->budget);
+        $this->actingAs($w['owner'])->postJson(route('users-new-chat-publish.index'), ['chat_id' => $chat->id])
+            ->assertStatus(422)->assertJsonPath('error', 'Add a budget or people to at least one goal before publishing.');
     }
 }

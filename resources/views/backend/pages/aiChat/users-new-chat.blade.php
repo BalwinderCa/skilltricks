@@ -4383,11 +4383,15 @@ document.addEventListener('click', function (e) {
 
     // Build the Recommended Action Table HTML with a 3-option decision column.
     // Restores pre-selected choices from the database and highlights active commitments.
+    // The Role / OI Action / Choice table is hidden for now; it is still built
+    // (generating it is what saves the role goals), just not shown.
+    const SHOW_ACTION_TABLE = false;
+
     window.renderRecommendedActionTable = function(rows, container) {
         const choices = ['Act on it', 'Review in detail', 'Not viable for us'];
         // Kept so the "Review in Detail" modal can pre-fill from stored values.
         window.actionTableRows = rows;
-        let html = '<div class="response-text"><div class="table-responsive">'
+        let html = '<div class="response-text"' + (SHOW_ACTION_TABLE ? '' : ' style="display:none"') + '><div class="table-responsive">'
             + '<table class="table table-bordered recommended-action-table">'
             + '<thead><tr>'
             + '<th>Role</th><th>OI Action</th><th>Choice / Decision</th>'
