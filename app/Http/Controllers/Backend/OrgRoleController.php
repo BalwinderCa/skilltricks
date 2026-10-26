@@ -38,8 +38,7 @@ class OrgRoleController extends Controller
         OrgRole::create([
             'organization_id' => $org->id,
             'name' => $validated['name'],
-            'can_read' => $request->boolean('can_read'),
-            'can_write' => $request->boolean('can_write'),
+            'is_admin' => $request->boolean('is_admin'),
         ]);
 
         flash(localize('Role added.'))->success();
@@ -87,13 +86,21 @@ class OrgRoleController extends Controller
      */
     public function togglePermission(Request $request)
     {
-        $this->ownedOrganization();
+        $org = $this->ownedOrganization();
         $role = $this->ownRole($request->input('role_id'));
 
         $validated = $request->validate([
             'permission' => ['required', Rule::in(array_keys(OrgRole::PERMISSIONS))],
             'value' => 'required|boolean',
         ]);
+
+        // Unticking Super Admin on your own role would lock you out of this
+        // page mid-click. The owner keeps full access regardless, so may.
+        $user = $request->user();
+        if ($validated['permission'] === 'super_admin' && ! $request->boolean('value')
+            && (int) $user->org_role_id === (int) $role->id && (int) $org->owner_user_id !== (int) $user->id) {
+            return response()->json(['error' => localize('You cannot remove Super Admin from your own role.')], 422);
+        }
 
         $role->update([
             OrgRole::PERMISSIONS[$validated['permission']] => $request->boolean('value'),

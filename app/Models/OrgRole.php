@@ -27,8 +27,12 @@ class OrgRole extends Model
         'is_admin' => 'boolean',
     ];
 
-    /** The two permissions the roles page offers today. */
-    public const PERMISSIONS = ['read' => 'can_read', 'write' => 'can_write'];
+    /**
+     * What the roles page offers today: one box, Super Admin. Ticked, the
+     * role's holders have the owner's full access. can_read / can_write are
+     * kept in the table but no longer shown.
+     */
+    public const PERMISSIONS = ['super_admin' => 'is_admin'];
 
     public function organization(): BelongsTo
     {

@@ -25,7 +25,7 @@
                         <div>
                             <h5 class="mb-1">{{ localize('Roles') }}</h5>
                             <p class="text-muted small mb-0">
-                                {{ localize('Permissions are recorded here but are not enforced yet.') }}
+                                {{ localize('Tick Super Admin to give a role (for example CEO or CIO) the same full access as the Super Admin: managing the organization, opening and editing every member\'s chat, and publishing without approval.') }}
                             </p>
                         </div>
                         <button type="button" class="btn btn-sm btn-primary" data-role-add>
@@ -58,7 +58,7 @@
                                                            data-permission="{{ $permission }}"
                                                            {{ $role->$column ? 'checked' : '' }}>
                                                     <label class="form-check-label" for="perm-{{ $role->id }}-{{ $permission }}">
-                                                        {{ localize(ucfirst($permission)) }}
+                                                        {{ localize(ucwords(str_replace('_', ' ', $permission))) }}
                                                     </label>
                                                 </div>
                                             @endforeach
@@ -124,9 +124,14 @@
                 },
                 body: body
             }).then(function (response) {
-                if (!response.ok) throw new Error('HTTP ' + response.status);
-            }).catch(function () {
+                if (!response.ok) {
+                    return response.json().catch(function () { return {}; }).then(function (json) {
+                        throw new Error(json.error || ('HTTP ' + response.status));
+                    });
+                }
+            }).catch(function (e) {
                 box.checked = !box.checked;
+                if (e.message && e.message.indexOf('HTTP') !== 0 && typeof notifyMe === 'function') { notifyMe('error', e.message); }
             });
         });
     });

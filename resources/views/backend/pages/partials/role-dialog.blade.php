@@ -25,12 +25,8 @@
         <div class="mb-3" id="rolePermissionRow">
             <label class="form-label d-block">{{ localize('Permission') }}</label>
             <div class="form-check form-check-inline">
-                <input class="form-check-input" type="checkbox" value="1" name="can_read" id="roleCanRead" checked>
-                <label class="form-check-label" for="roleCanRead">{{ localize('Read') }}</label>
-            </div>
-            <div class="form-check form-check-inline">
-                <input class="form-check-input" type="checkbox" value="1" name="can_write" id="roleCanWrite">
-                <label class="form-check-label" for="roleCanWrite">{{ localize('Write') }}</label>
+                <input class="form-check-input" type="checkbox" value="1" name="is_admin" id="roleIsAdmin">
+                <label class="form-check-label" for="roleIsAdmin">{{ localize('Super Admin') }}</label>
             </div>
         </div>
 
@@ -65,8 +61,7 @@
         document.getElementById('roleName').value = editing ? role.name : '';
 
         permissionRow.hidden = editing;
-        document.getElementById('roleCanRead').checked = !editing;
-        document.getElementById('roleCanWrite').checked = false;
+        document.getElementById('roleIsAdmin').checked = false;
 
         dialog.showModal();
         document.getElementById('roleName').focus();

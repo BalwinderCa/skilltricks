@@ -129,14 +129,13 @@ class OrgRoleTest extends TestCase
         [$org, $owner] = $this->orgWithOwnerAndMember();
 
         $this->actingAs($owner)->post(route('organization.roles.store'), [
-            'name' => 'Editor', 'can_read' => 1, 'can_write' => 1,
+            'name' => 'CEO', 'is_admin' => 1,
         ])->assertRedirect();
 
-        $role = OrgRole::where('organization_id', $org->id)->where('name', 'Editor')->first();
+        $role = OrgRole::where('organization_id', $org->id)->where('name', 'CEO')->first();
 
         $this->assertNotNull($role);
-        $this->assertTrue($role->can_read);
-        $this->assertTrue($role->can_write);
+        $this->assertTrue($role->is_admin);
     }
 
     public function test_the_roles_page_renders_for_the_owner(): void
@@ -226,18 +225,44 @@ class OrgRoleTest extends TestCase
         $this->assertNotSame('Hijacked', $foreign->fresh()->name);
     }
 
-    public function test_toggling_a_permission_persists(): void
+    public function test_ticking_super_admin_gives_the_roles_holders_full_access(): void
+    {
+        [$org, $owner, $member] = $this->orgWithOwnerAndMember();
+        $role = $org->roles()->where('name', 'Manager')->first();
+        $member->forceFill(['org_role_id' => $role->id])->save();
+
+        $this->assertFalse($org->fresh()->isAdmin($member->fresh()));
+
+        $this->actingAs($owner)->post(route('organization.roles.permission'), [
+            'role_id' => $role->id, 'permission' => 'super_admin', 'value' => 1,
+        ])->assertOk();
+
+        $this->assertTrue($role->fresh()->is_admin);
+        $this->assertTrue($org->fresh()->isAdmin($member->fresh()));
+    }
+
+    public function test_the_old_read_and_write_boxes_are_gone(): void
     {
         [$org, $owner] = $this->orgWithOwnerAndMember();
-        $role = $org->roles()->where('name', 'Manager')->first();
-
-        $this->assertFalse($role->can_write);
+        $role = $org->roles()->first();
 
         $this->actingAs($owner)->post(route('organization.roles.permission'), [
             'role_id' => $role->id, 'permission' => 'write', 'value' => 1,
-        ])->assertOk();
+        ])->assertSessionHasErrors('permission');
+    }
 
-        $this->assertTrue($role->fresh()->can_write);
+    public function test_a_super_admin_cannot_untick_their_own_role(): void
+    {
+        [$org, , $member] = $this->orgWithOwnerAndMember();
+        $role = $org->roles()->where('name', 'Manager')->first();
+        $role->update(['is_admin' => true]);
+        $member->forceFill(['org_role_id' => $role->id])->save();
+
+        $this->actingAs($member->fresh())->postJson(route('organization.roles.permission'), [
+            'role_id' => $role->id, 'permission' => 'super_admin', 'value' => 0,
+        ])->assertStatus(422);
+
+        $this->assertTrue($role->fresh()->is_admin);
     }
 
     public function test_an_unknown_permission_is_rejected(): void
