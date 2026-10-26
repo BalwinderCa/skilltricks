@@ -47,6 +47,8 @@
     const SHOW_DEPARTMENT_TABLE = false;
     // "Rank by impact" is hidden for now; flip to bring it back.
     const SHOW_RANK_BUTTON = false;
+    // The Impact column (the weight picker) is hidden for now; flip to bring it back.
+    const SHOW_WEIGHT = false;
 
     const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
     const money = v => (v === null || v === undefined || v === '') ? '—' : state.currency + Number(v).toLocaleString();
@@ -290,7 +292,7 @@
                 <td style="min-width:140px">${role}${flag}</td>
                 <td style="min-width:130px">${esc(g.department_name)}</td>
                 ${resources}
-                <td style="min-width:110px">${weight}</td>
+                ${SHOW_WEIGHT ? `<td style="min-width:110px">${weight}</td>` : ''}
                 <td style="min-width:150px">${due}</td></tr>`;
         }).join('');
         const noRoles = !published && !(state.roles || []).length
@@ -298,7 +300,7 @@
         const resourceHead = showResources ? `<th>Budget (${esc(state.currency)})</th><th>People</th>` : '';
         return `<div class="pg-goals"><strong>Goals and resources</strong>${published || !SHOW_RANK_BUTTON ? '' : ` <button type="button" class="btn btn-sm btn-outline-secondary ms-2" data-act="rank" ${busy ? 'disabled' : ''}>Rank by impact</button>`}${noRoles}
             <div class="table-responsive"><table class="table table-sm align-middle mb-0">
-            <thead><tr><th>Goal</th><th>Role</th><th>Department</th>${resourceHead}<th>Impact</th><th>Target date</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+            <thead><tr><th>Goal</th><th>Role</th><th>Department</th>${resourceHead}${SHOW_WEIGHT ? '<th>Impact</th>' : ''}<th>Target date</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
     }
 
     // Role, rank and weight calls re-render the whole card from the server; carry
