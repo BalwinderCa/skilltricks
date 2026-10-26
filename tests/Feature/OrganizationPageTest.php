@@ -78,10 +78,9 @@ class OrganizationPageTest extends TestCase
         $response->assertDontSee('organization/member-rank', false);
     }
 
-    public function test_the_dashboard_shows_who_governs_the_active_context(): void
+    public function test_the_dashboard_hides_the_active_context_card(): void
     {
-        // The active context lives on the dashboard, not the Teams page: it
-        // describes what the platform is working from, not who is in the org.
+        // The Active strategic context card is hidden for now, even when a context is recorded.
         [$org, $owner] = $this->orgWithOwnerAndMember();
 
         app(OrganizationService::class)->recordContext($org, $owner, 50, [
@@ -96,10 +95,9 @@ class OrganizationPageTest extends TestCase
         $response = $this->actingAs($owner->fresh())->get(route('writebot.dashboard'));
 
         $response->assertOk();
-        $response->assertSee('Chief Executive Officer');
-        $response->assertSee('12 people across product and engineering');
-        $response->assertSee('Quarterly OKRs');
-        $response->assertSee('Execution drift between teams');
+        $response->assertDontSee('Active strategic context');
+        $response->assertDontSee('12 people across product and engineering');
+        $response->assertDontSee('No active context yet');
     }
 
     public function test_the_teams_page_does_not_repeat_the_active_context(): void

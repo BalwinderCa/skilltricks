@@ -255,6 +255,40 @@ class PublishGateTest extends TestCase
         $this->assertNotNull(StrategyResource::find($legacy->id));
     }
 
+    public function test_fields_the_card_hides_keep_their_values_on_save(): void
+    {
+        $w = $this->world();
+        $chat = $this->finishedChat($w['member']);
+        $goalId = ExpectedState::where('search_user_chat_id', $chat->id)->orderBy('id')->value('id');
+        $row = $chat->resources()->create(['expected_state_id' => $goalId, 'department_name' => 'Whole organization', 'budget' => 1, 'fte' => 2, 'tools' => 'SAP', 'notes' => 'Q3']);
+
+        $this->actingAs($w['member'])->postJson(route('users-new-chat-resources-save.index'), [
+            'chat_id' => $chat->id,
+            'rows' => [['expected_state_id' => $goalId, 'budget' => 900]],
+        ])->assertOk();
+
+        $row->refresh();
+        $this->assertSame('900.00', $row->budget);
+        $this->assertSame('2.00', $row->fte);
+        $this->assertSame('SAP', $row->tools);
+        $this->assertSame('Q3', $row->notes);
+    }
+
+    public function test_each_goal_shows_how_many_people_its_department_has(): void
+    {
+        $w = $this->world();
+        $chat = $this->finishedChat($w['member']);
+        $goal = ExpectedState::where('search_user_chat_id', $chat->id)->where('role', 'VP of Sales')->first();
+        $w['head']->forceFill(['org_role_id' => $goal->org_role_id, 'department_id' => $w['sales']->id])->save();
+        $w['report']->forceFill(['department_id' => $w['sales']->id])->save();
+
+        $goals = collect($this->actingAs($w['member'])->getJson(route('users-new-chat-resources.show', ['chat' => $chat->id]))->json('goals'));
+
+        $this->assertSame(2, $goals->firstWhere('role_text', 'VP of Sales')['department_people']);
+        // The whole organization counts everyone: owner, head, manager, report, member.
+        $this->assertSame(5, $goals->firstWhere('role_text', 'VP of Product')['department_people']);
+    }
+
     public function test_save_refuses_a_goal_from_another_strategy(): void
     {
         $w = $this->world();
@@ -645,6 +679,6 @@ class PublishGateTest extends TestCase
         $chat->resources()->create(['department_id' => $w['sales']->id, 'department_name' => 'Sales', 'budget' => 5]);
 
         $this->actingAs($w['owner'])->postJson(route('users-new-chat-publish.index'), ['chat_id' => $chat->id])
-            ->assertStatus(422)->assertJsonPath('error', 'Add a budget or people to at least one goal before publishing.');
+            ->assertStatus(422)->assertJsonPath('error', 'Add a budget to at least one goal before publishing.');
     }
 }

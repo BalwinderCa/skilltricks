@@ -96,11 +96,7 @@ class StrategyPublishController extends Controller
                 'expected_state_id' => $goal->id,
                 'department_id' => $department?->id,
                 'department_name' => $department->name ?? self::WHOLE_ORG,
-                'budget' => $row['budget'] ?? null,
-                'fte' => $row['fte'] ?? null,
-                'tools' => $this->text($row['tools'] ?? null),
-                'notes' => $this->text($row['notes'] ?? null),
-            ];
+            ] + $this->submittedFields($row);
         }
 
         if ($chat->isPublished()) {
@@ -217,7 +213,7 @@ class StrategyPublishController extends Controller
             }
             if (! $chat->resources()->whereNotNull('expected_state_id')
                 ->where(fn ($q) => $q->whereNotNull('budget')->orWhereNotNull('fte'))->exists()) {
-                return response()->json(['error' => 'Add a budget or people to at least one goal before publishing.'], 422);
+                return response()->json(['error' => 'Add a budget to at least one goal before publishing.'], 422);
             }
             // Drift, projections and nudges only measure goals with a target date.
             if (ExpectedState::where('search_user_chat_id', $chat->id)->whereNull('target_date')->exists()) {
@@ -455,7 +451,8 @@ class StrategyPublishController extends Controller
         DB::transaction(function () use ($rows, $existing, $user) {
             foreach ($rows as $row) {
                 $record = $existing[(int) $row['id']];
-                foreach (['budget', 'fte', 'tools', 'notes'] as $field) {
+                // Only fields the card still shows are sent; hidden ones keep their values.
+                foreach (array_intersect(['budget', 'fte', 'tools', 'notes'], array_keys($row)) as $field) {
                     $old = $this->normalise($field, $record->getRawOriginal($field));
                     $new = $this->normalise($field, $row[$field]);
                     if ($old === $new) {
@@ -469,6 +466,30 @@ class StrategyPublishController extends Controller
         });
 
         return response()->json($this->payload($chat->fresh(), $user));
+    }
+
+    /**
+     * The resource fields a row actually sent. The card hides some of them for
+     * now (people, tools, notes); a field that was not sent is left as it is.
+     *
+     * @param  array<string, mixed>  $row
+     * @return array<string, mixed>
+     */
+    private function submittedFields(array $row): array
+    {
+        $fields = [];
+        foreach (['budget', 'fte'] as $field) {
+            if (array_key_exists($field, $row)) {
+                $fields[$field] = $row[$field];
+            }
+        }
+        foreach (['tools', 'notes'] as $field) {
+            if (array_key_exists($field, $row)) {
+                $fields[$field] = $this->text($row[$field]);
+            }
+        }
+
+        return $fields;
     }
 
     /** Compare amounts as fixed 2-dp strings and text as trimmed-or-null, so "50000" equals "50000.00". */
@@ -686,7 +707,11 @@ EOT;
                 'impact_reason' => $g->impact_reason,
                 'weight' => $g->weight,
                 'target_date' => $g->target_date?->toDateString(),
-                'department_name' => $this->linker->departmentFor($g, $orgId ? (int) $orgId : null)->name ?? self::WHOLE_ORG,
+                'department_name' => ($department = $this->linker->departmentFor($g, $orgId ? (int) $orgId : null))->name ?? self::WHOLE_ORG,
+                // How many people are in that department (everyone, for the whole organization).
+                'department_people' => $orgId
+                    ? User::where('organization_id', $orgId)->when($department, fn ($q) => $q->where('department_id', $department->id))->count()
+                    : 0,
             ])->values(),
             'roles' => $roles->map(fn (OrgRole $r) => [
                 'id' => $r->id,

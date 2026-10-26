@@ -107,13 +107,14 @@
 
     function readRows() {
         return Array.from(card().querySelectorAll('tr[data-row]')).map(tr => {
-            const v = name => { const f = tr.querySelector(`[name="${name}"]`); return f ? f.value : null; };
-            const num = name => { const x = v(name); return x === '' || x === null ? null : Number(x); };
-            return {
-                id: tr.dataset.id ? Number(tr.dataset.id) : null,
-                expected_state_id: Number(tr.dataset.goalId),
-                budget: num('budget'), fte: num('fte'), tools: v('tools'), notes: v('notes'),
-            };
+            const row = { id: tr.dataset.id ? Number(tr.dataset.id) : null, expected_state_id: Number(tr.dataset.goalId) };
+            // Only fields on screen are sent, so hidden ones keep their saved values.
+            for (const name of ['budget', 'fte', 'tools', 'notes']) {
+                const f = tr.querySelector(`[name="${name}"]`);
+                if (!f) continue;
+                row[name] = ['budget', 'fte'].includes(name) ? (f.value === '' ? null : Number(f.value)) : f.value;
+            }
+            return row;
         });
     }
 
@@ -254,8 +255,6 @@
         const tomorrow = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
         const ordered = [...state.goals].sort((a, b) => (b.impact_score ?? -1) - (a.impact_score ?? -1));
         const rows = ordered.map(g => {
-            const impact = g.impact_score === null || g.impact_score === undefined ? '<span class="pg-hint">—</span>'
-                : `<strong title="${esc(g.impact_reason ?? '')}">${g.impact_score}/10</strong>`;
             const weight = published ? `weight ${g.weight ?? 1}`
                 : `<select class="form-select form-select-sm" data-weight-goal="${g.id}" ${busy ? 'disabled' : ''} style="width:auto;display:inline-block">
                     ${[1, 2, 3, 4, 5].map(n => `<option value="${n}" ${(g.weight ?? 1) === n ? 'selected' : ''}>weight ${n}</option>`).join('')}
@@ -281,20 +280,22 @@
                     ? `<textarea class="form-control form-control-sm" name="${name}" rows="1">${esc(value)}</textarea>`
                     : `<input class="form-control form-control-sm" type="number" min="0" step="any" name="${name}" value="${esc(value)}">`)
                 : esc(name === 'budget' ? money(value) : (value ?? '—'));
+            // People is how many work in the goal's department, not an input.
+            // Tools and notes are hidden for now; their saved values are kept.
             const resources = showResources
-                ? `<td>${cell('budget', r.budget)}</td><td>${cell('fte', r.fte)}</td><td>${cell('tools', r.tools, 'textarea')}</td><td>${cell('notes', r.notes, 'textarea')}</td>`
+                ? `<td>${cell('budget', r.budget)}</td><td>${Number(g.department_people ?? 0).toLocaleString()}</td>`
                 : '';
             return `<tr ${showResources ? `data-row data-id="${r.id ?? ''}" data-goal-id="${g.id}"` : ''}>
                 <td style="min-width:200px">${esc(g.action)}<div class="pg-role-text">AI role: ${esc(g.role_text)}</div></td>
                 <td style="min-width:140px">${role}${flag}</td>
                 <td style="min-width:130px">${esc(g.department_name)}</td>
                 ${resources}
-                <td style="min-width:110px">${impact}<div>${weight}</div></td>
+                <td style="min-width:110px">${weight}</td>
                 <td style="min-width:150px">${due}</td></tr>`;
         }).join('');
         const noRoles = !published && !(state.roles || []).length
             ? '<div class="pg-hint">Your organization has no roles yet. Add them on the Roles page, then reload.</div>' : '';
-        const resourceHead = showResources ? `<th>Budget (${esc(state.currency)})</th><th>People (FTE)</th><th>Tools</th><th>Notes</th>` : '';
+        const resourceHead = showResources ? `<th>Budget (${esc(state.currency)})</th><th>People</th>` : '';
         return `<div class="pg-goals"><strong>Goals and resources</strong>${published || !SHOW_RANK_BUTTON ? '' : ` <button type="button" class="btn btn-sm btn-outline-secondary ms-2" data-act="rank" ${busy ? 'disabled' : ''}>Rank by impact</button>`}${noRoles}
             <div class="table-responsive"><table class="table table-sm align-middle mb-0">
             <thead><tr><th>Goal</th><th>Role</th><th>Department</th>${resourceHead}<th>Impact</th><th>Target date</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;

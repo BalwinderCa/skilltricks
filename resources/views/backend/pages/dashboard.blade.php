@@ -98,6 +98,8 @@
 
                 @include('backend.pages.goals.my-goals')
 
+                {{-- Active strategic context: hidden for now. Change false to true to show it again. --}}
+                @if (false)
                 <div class="card mb-4">
                     <div class="card-body">
                         <h5 class="mb-2">{{ localize('Active strategic context') }}</h5>
@@ -140,6 +142,7 @@
                         @endif
                     </div>
                 </div>
+                @endif
             @endif
 
         </div>
