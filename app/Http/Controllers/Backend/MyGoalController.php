@@ -121,7 +121,9 @@ class MyGoalController extends Controller
         $data = $request->validate([
             'goal_id' => 'required|integer',
             'status' => ['required', Rule::in(ProgressUpdates::STATUSES)],
-            'pct' => 'required|integer|min:0|max:100',
+            // Whole numbers, leading zeros allowed: the field starts at 0, so typing
+            // 25 after it sends "025", which the integer rule refused without a word.
+            'pct' => ['required', 'regex:/^\d+$/', 'numeric', 'min:0', 'max:100'],
             'note' => 'nullable|string|max:500',
         ]);
         $goal = $this->goals->visibleGoal($request->user(), (int) $data['goal_id']);

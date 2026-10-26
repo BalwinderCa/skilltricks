@@ -85,7 +85,7 @@ class CommandDashboardTest extends TestCase
         return ExpectedState::where('role', $role)->firstOrFail();
     }
 
-    private function progress(User $user, string $role, string $status, int $pct, ?string $note = null)
+    private function progress(User $user, string $role, string $status, int|string $pct, ?string $note = null)
     {
         return $this->actingAs($user)->post(route('my-goals.progress'), ['goal_id' => $this->goal($role)->id, 'status' => $status, 'pct' => $pct, 'note' => $note]);
     }
@@ -102,6 +102,17 @@ class CommandDashboardTest extends TestCase
         $this->assertSame('act_on_it', $response->decision);
         $this->assertSame(2, GoalProgressUpdate::count());
         $this->assertSame('Drafting the contract', GoalProgressUpdate::orderBy('id')->first()->note);
+    }
+
+    public function test_a_percentage_typed_after_the_starting_zero_is_kept(): void
+    {
+        $w = $this->world();
+
+        // The field starts at 0; typing 25 after it sends "025".
+        $this->progress($w['rep'], 'Sales', 'in_progress', '025')->assertSessionHasNoErrors();
+
+        $this->assertSame(25, GoalResponse::first()->progress_pct);
+        $this->progress($w['rep'], 'Sales', 'in_progress', '2.5')->assertSessionHasErrors('pct');
     }
 
     public function test_completed_counts_as_one_hundred_percent(): void

@@ -138,6 +138,9 @@
                                 <button type="submit" class="btn btn-sm mg-btn w-100">{{ localize('Update status') }}</button>
                             </div>
                         </form>
+                        @if ((int) old('goal_id') === (int) $card['goal']->id && ($errors->has('pct') || $errors->has('status')))
+                            <div class="small text-danger mt-1">{{ $errors->first('pct') ?: $errors->first('status') }}</div>
+                        @endif
                         @if ($card['response']->progress_at)
                             <div class="small text-muted mt-1">
                                 {{ $statusLabels[$card['response']->progress_status] ?? '' }} · {{ $card['response']->progress_pct }}%

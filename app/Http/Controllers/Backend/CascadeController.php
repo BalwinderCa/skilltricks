@@ -54,7 +54,7 @@ class CascadeController extends Controller
         $data = $request->validate([
             'cascade_id' => 'required|integer',
             'status' => ['required', Rule::in(ProgressUpdates::STATUSES)],
-            'pct' => 'required|integer|min:0|max:100',
+            'pct' => ['required', 'regex:/^\d+$/', 'numeric', 'min:0', 'max:100'],
             'note' => 'nullable|string|max:500',
         ]);
         $source = $this->cascades->source($request->user(), null, (int) $data['cascade_id']);
