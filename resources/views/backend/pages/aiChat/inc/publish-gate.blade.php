@@ -360,8 +360,13 @@
     function render() {
         const el = card();
         if (!el) return;
+        // Nothing to commit before "Complete Intelligence Cycle" creates the goals:
+        // the card stays out of sight until they exist ('strategy-goals-saved' reloads it).
+        const waiting = !state ? !error : state.status === 'draft' && !(state.goals || []).length;
+        el.style.display = waiting ? 'none' : '';
+        if (waiting) return;
         if (!state) {
-            el.innerHTML = `<h5>Commit Resources &amp; Publish</h5>${error ? `<div class="pg-error">${esc(error)}</div>` : '<div class="pg-sub">Loading…</div>'}`;
+            el.innerHTML = `<h5>Commit Resources &amp; Publish</h5><div class="pg-error">${esc(error)}</div>`;
             return;
         }
 
