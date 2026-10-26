@@ -202,11 +202,6 @@
       grid-column: 3;
       grid-row: 2;
       justify-self: end;
-      opacity: 0;
-      transition: opacity .15s;
-    }
-    .chat-container .sidebar-content .sidebar-section .sidebar-item:hover form {
-      opacity: 1;
     }
     .chat-container .sidebar-content .sidebar-section .sidebar-item i {
       margin-right: 0;
