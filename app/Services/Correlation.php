@@ -41,12 +41,15 @@ class Correlation
         return $this->candidates($user, $chat)->contains(fn (SearchUserChat $c) => (int) $c->id === $parentId);
     }
 
-    /** Leaders other than the owner go through approval once there is a priority to roll up into. */
+    /**
+     * Leaders go through approval once there is a priority to roll up into.
+     * Organization admins (the owner and Super Admin role holders) publish directly.
+     */
     public function requiresApproval(User $user): bool
     {
-        $ownerId = $user->organization_id ? Organization::whereKey($user->organization_id)->value('owner_user_id') : null;
+        $org = $user->organization_id ? Organization::find($user->organization_id) : null;
 
-        return $ownerId !== null && (int) $ownerId !== (int) $user->id && $this->candidates($user)->isNotEmpty();
+        return $org !== null && $org->owner_user_id !== null && ! $org->isAdmin($user) && $this->candidates($user)->isNotEmpty();
     }
 
     /** @return array{id: int, score: int, reason: string|null}|null the best-scoring candidate */

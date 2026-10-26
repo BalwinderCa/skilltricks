@@ -127,6 +127,19 @@ class MiddleOutTest extends TestCase
         $this->actingAs($w['ceo'])->postJson(route('users-new-chat-publish.index'), ['chat_id' => $ownerDraft->id])->assertOk()->assertJsonPath('status', 'published');
     }
 
+    public function test_a_super_admin_publishes_a_directors_initiative_directly(): void
+    {
+        $w = $this->world();
+        $adminRole = OrgRole::create(['organization_id' => $w['org']->id, 'name' => 'Super Admin', 'is_admin' => true]);
+        $admin = User::factory()->create(['email' => 'superadmin@acme.com', 'user_type' => 'customer', 'organization_id' => $w['org']->id, 'org_role_id' => $adminRole->id]);
+
+        $this->actingAs($admin)->getJson(route('users-new-chat-resources.show', ['chat' => $w['initiative']->id]))
+            ->assertOk()->assertJsonPath('requires_approval', false);
+        // No priority linked, no approval: it goes live.
+        $this->actingAs($admin)->postJson(route('users-new-chat-publish.index'), ['chat_id' => $w['initiative']->id])
+            ->assertOk()->assertJsonPath('status', 'published');
+    }
+
     public function test_the_ai_links_the_best_matching_priority(): void
     {
         $w = $this->world();
