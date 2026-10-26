@@ -148,6 +148,59 @@ class MyGoalCardTest extends TestCase
         $this->assertSame('1234.00', $card['resources']->budget);
     }
 
+    /** The Product goal's budget booked to Sales, and two more people in Sales. */
+    private function productGoalAllocatedToSales(array $w, bool $draft = false): array
+    {
+        $chat = $this->publishedGoal($w, $draft);
+        $goal = ExpectedState::where('search_user_chat_id', $chat->id)->where('role', 'Product')->first();
+        $chat->resources()->create(['expected_state_id' => $goal->id, 'department_id' => $w['salesDept']->id, 'department_name' => 'Sales', 'budget' => 4200]);
+        $analyst = User::factory()->create(['email' => 'analyst@acme.com', 'user_type' => 'customer', 'organization_id' => $w['org']->id, 'department_id' => $w['salesDept']->id]);
+        $w['pm']->forceFill(['name' => 'Pat Product'])->save();
+
+        return [$goal, $analyst];
+    }
+
+    public function test_everyone_in_the_allocated_department_sees_the_goal_led_by_its_role_holder(): void
+    {
+        $w = $this->world();
+        [$goal, $analyst] = $this->productGoalAllocatedToSales($w);
+
+        // The Sales rep (other role) and an analyst with no role both see it.
+        foreach ([$w['rep'], $analyst] as $member) {
+            $cards = app(MyGoals::class)->forDepartment($member);
+            $this->assertSame([$goal->id], $cards->map(fn ($c) => $c['goal']->id)->all(), $member->email);
+            $this->assertSame(['Pat Product'], $cards->first()['leads']->all());
+        }
+
+        $this->actingAs($analyst)->get(route('writebot.dashboard'))->assertOk()
+            ->assertSee('Your department')
+            ->assertSee('Ship SOC2 controls')
+            ->assertSee('Led by Pat Product')
+            ->assertSee('4,200')
+            // Read-only: no decision buttons for someone else's goal.
+            ->assertDontSee('name="decision"', false);
+    }
+
+    public function test_the_role_holder_and_other_departments_do_not_get_the_department_copy(): void
+    {
+        $w = $this->world();
+        $this->productGoalAllocatedToSales($w);
+
+        // The PM leads it already (their own goal), and has no department here.
+        $this->assertCount(0, app(MyGoals::class)->forDepartment($w['pm']));
+        $other = Department::create(['organization_id' => $w['org']->id, 'name' => 'Ops', 'color' => '#000000']);
+        $outsider = User::factory()->create(['email' => 'ops@acme.com', 'user_type' => 'customer', 'organization_id' => $w['org']->id, 'department_id' => $other->id]);
+        $this->assertCount(0, app(MyGoals::class)->forDepartment($outsider));
+    }
+
+    public function test_a_draft_strategy_is_not_shown_to_the_department(): void
+    {
+        $w = $this->world();
+        [, $analyst] = $this->productGoalAllocatedToSales($w, draft: true);
+
+        $this->assertCount(0, app(MyGoals::class)->forDepartment($analyst));
+    }
+
     private function salesGoalId(): int
     {
         return (int) ExpectedState::where('role', 'Sales')->value('id');

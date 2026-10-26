@@ -78,6 +78,47 @@ class MyGoals
         return $cards;
     }
 
+    /**
+     * Goals whose resources are allocated to the user's department but are not
+     * theirs by role: everyone in the department sees them, led by the people
+     * holding the goal's role. Read-only here; the role holders act on them.
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    public function forDepartment(User $user): Collection
+    {
+        if (! $user->organization_id || ! $user->department_id) {
+            return collect();
+        }
+
+        $own = $user->org_role_id ? $this->query($user)->pluck('id') : collect();
+
+        /** @var Collection<int, array<string, mixed>> $cards */
+        $cards = ExpectedState::query()
+            ->whereIn('id', StrategyResource::whereNotNull('expected_state_id')
+                ->where('department_id', (int) $user->department_id)->select('expected_state_id'))
+            ->whereNotIn('id', $own)
+            ->whereHas('searchUserChat', fn ($q) => $q->where('status', 'published')
+                ->where('organization_id', (int) $user->organization_id))
+            ->with(['searchUserChat', 'orgRole:id,name'])
+            ->get()
+            ->sortByDesc(fn (ExpectedState $g) => $g->searchUserChat->published_at)
+            ->values()
+            ->map(fn (ExpectedState $g) => [
+                'goal' => $g,
+                'strategy' => $g->searchUserChat,
+                'company_goal' => $this->companyGoal($g->searchUserChat),
+                'role_name' => $g->orgRole->name ?? $g->role,
+                'leads' => User::where('organization_id', (int) $user->organization_id)
+                    ->where('org_role_id', (int) $g->org_role_id)
+                    ->when($g->department_id, fn ($q) => $q->where('department_id', (int) $g->department_id))
+                    ->orderBy('name')->pluck('name'),
+                'resources' => StrategyResource::where('expected_state_id', $g->id)->first(),
+            ]);
+
+        return $cards;
+    }
+
     /** The strategy's first question; the chat row has no goal column. */
     public function companyGoal(SearchUserChat $chat): string
     {

@@ -89,6 +89,8 @@ class DashboardController extends Controller
 
             // Features spec, phase 3: this user's goals from published strategies.
             'myGoals' => app(MyGoals::class)->for($user),
+            // Goals allocated to the user's department, led by someone else's role.
+            'departmentGoals' => app(MyGoals::class)->forDepartment($user),
 
             'isLeader' => app(OrganizationService::class)->isLeader($user),
 

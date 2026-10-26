@@ -32,8 +32,10 @@
                 <a href="{{ route('strategies.index') }}" class="small" style="color:#2c6d82">{{ localize('Executive view') }} &rarr;</a>
             @endif
         </div>
-        @if (! $user->org_role_id)
+        @if (! $user->org_role_id && ($departmentGoals ?? collect())->isEmpty())
             <p class="text-muted small mb-0">{{ localize('You will see goals here once your organization gives you a role.') }}</p>
+        @elseif (! $user->org_role_id)
+            {{-- No role: only the department's goals below. --}}
         @elseif ($myGoals->isEmpty())
             <p class="text-muted small mb-0">{{ localize('No published strategy has a goal for your role yet.') }}</p>
         @else
@@ -172,6 +174,25 @@
                     @foreach ($card['obstacles'] as $obstacle)
                         <div class="mg-obstacle">{{ $obstacle->body }} <span class="text-muted">· {{ optional($obstacle->created_at)->diffForHumans() }}</span></div>
                     @endforeach
+                </div>
+            @endforeach
+        @endif
+        @if (($departmentGoals ?? collect())->isNotEmpty())
+            <h6 class="mt-4 mb-1">{{ localize('Your department\'s goals') }}</h6>
+            @foreach ($departmentGoals as $card)
+                <div class="mg-goal">
+                    <div class="mg-label">{{ localize('Company goal') }}</div>
+                    <div class="mb-2">{{ $card['company_goal'] }}</div>
+                    <div class="mg-label">{{ localize('Department goal') }} ({{ $card['role_name'] }})</div>
+                    <div class="mg-action mb-2">{{ $card['goal']->recommended_action }}</div>
+                    <div class="small mb-2">
+                        @if ($card['leads']->isNotEmpty()){{ localize('Led by') }} {{ $card['leads']->implode(', ') }}@endif
+                        @if ($card['goal']->target_date) · {{ localize('By') }} {{ \Illuminate\Support\Carbon::parse($card['goal']->target_date)->toFormattedDateString() }}@endif
+                    </div>
+                    @if ($card['resources'])
+                        <div class="mg-label">{{ localize('Resources for this goal') }} ({{ $card['resources']->department_name }})</div>
+                        <div class="small">{{ $card['resources']->budget !== null ? $currency.number_format((float) $card['resources']->budget) : '—' }}</div>
+                    @endif
                 </div>
             @endforeach
         @endif
