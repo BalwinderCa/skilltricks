@@ -17,6 +17,7 @@ use App\Models\ObservedState;
 use App\Models\SearchUserChat;
 use App\Models\SearchUserChatData;
 use App\Models\SubscriptionPackage;
+use App\Models\User;
 use App\Models\UserChatAnswer;
 use App\Services\AI\AiProviderService;
 use App\Services\AI\DocumentContextService;
@@ -459,7 +460,8 @@ EOT;
 
     public function users_new_chat(Request $request, $id)
     {
-        $user = auth()->user();
+        $viewer = auth()->user();
+        $user = $this->chatUser($id);
 
         // A chat that is gone (deleted in another tab) or was never this user's
         // used to render anyway. The first question then created a new row
@@ -489,7 +491,9 @@ EOT;
         $sevenDaysAgo = Carbon::now()->subDays(7)->startOfDay();
         $thirtyDaysAgo = Carbon::now()->subDays(30)->startOfDay();
 
-        $searchuserchatdatanew = SearchUserChatData::where('user_id', $user->id)
+        // The viewer's own chats; an organization admin also sees every member's.
+        $searchuserchatdatanew = SearchUserChatData::whereIn('search_user_chat_id', SearchUserChat::accessibleBy($viewer)->select('id'))
+            ->with('user:id,name')
             ->get()
             ->groupBy(function ($item) use ($today, $yesterday, $sevenDaysAgo, $thirtyDaysAgo) {
                 $created = Carbon::parse($item->created_at);
@@ -528,13 +532,13 @@ EOT;
         return view('backend.pages.aiChat.users-new-chat', compact(
             'user', 'promptGroups', 'prompts', 'searchKey', 'searchuserchatdata', 'id',
             'searchuserchatdatanew', 'documentCount', 'selectedStrategyFromDB',
-            'leadershipBriefFromDB', 'chatTotalTokens', 'roleDepartments'
+            'leadershipBriefFromDB', 'chatTotalTokens', 'roleDepartments', 'viewer'
         ));
     }
 
     public function generate_strategy_variant(Request $request)
     {
-        $user = auth()->user();
+        $user = $this->chatUser($request->input('chat_id'));
         $chatId = $request->input('chat_id');
         $question = $request->input('original_question');
         $strategyId = trim((string) $request->input('strategy_id'));
@@ -648,7 +652,7 @@ EOT;
 
     public function generate_pathway_assumptions(Request $request)
     {
-        $user = auth()->user();
+        $user = $this->chatUser($request->input('chat_id'));
         $chatId = $request->input('chat_id');
         $question = $request->input('original_question');
         $strategyId = trim((string) $request->input('strategy_id'));
@@ -721,7 +725,7 @@ EOT;
 
     public function users_new_chat_ask(Request $request)
     {
-        $user = auth()->user();
+        $user = $this->chatUser($request->input('chat_id'));
         $question = $request->input('question');
         $chatId = $request->input('chat_id');
         $additionalContext = $request->input('additional_context');
@@ -863,7 +867,7 @@ EOT;
 
     public function users_new_chat_update_strategy(Request $request)
     {
-        $user = auth()->user();
+        $user = $this->chatUser($request->input('chat_id'));
         $selectedStrategy = $request->input('selected_strategy');
         $chatId = $request->input('chat_id');
         $originalQuestion = $request->input('original_question');
@@ -958,7 +962,7 @@ EOT;
 
     public function users_new_chat_update_scenario(Request $request)
     {
-        $user = auth()->user();
+        $user = $this->chatUser($request->input('chat_id'));
         $selectedScenario = $request->input('selected_scenario');
         $selectedStrategy = $request->input('selected_strategy');
         $chatId = $request->input('chat_id');
@@ -1064,7 +1068,7 @@ EOT;
      */
     public function users_new_chat_select_scenario(Request $request)
     {
-        $user = auth()->user();
+        $user = $this->chatUser($request->input('chat_id'));
 
         $validated = $request->validate([
             'chat_id' => 'required|integer',
@@ -1125,7 +1129,7 @@ EOT;
 
     public function users_new_chat_add_context(Request $request)
     {
-        $user = auth()->user();
+        $user = $this->chatUser($request->input('chat_id'));
         $chatId = $request->input('chat_id');
         $userId = $request->input('user_id');
         $additionalDetails = $request->input('additional_details', '');
@@ -1157,7 +1161,7 @@ EOT;
 
     public function userschat_search_delete(Request $request, $id)
     {
-        $deleted = SearchUserChat::where('id', $id)->where('user_id', auth()->id())->delete();
+        $deleted = SearchUserChat::where('id', $id)->accessibleBy(auth()->user())->delete();
 
         if ($deleted) {
             SearchUserChatData::where('search_user_chat_id', $id)->delete();
@@ -1182,7 +1186,7 @@ EOT;
 
     public function generate_leadership_alignment_brief(Request $request)
     {
-        $user = auth()->user();
+        $user = $this->chatUser($request->input('chat_id'));
         $chatId = $request->input('chat_id');
         $selectedStrategy = trim((string) $request->input('selected_strategy'));
         $selectedScenario = trim((string) $request->input('selected_scenario'));
@@ -1274,7 +1278,7 @@ EOT;
 
     public function generate_recommended_action_table(Request $request)
     {
-        $user = auth()->user();
+        $user = $this->chatUser($request->input('chat_id'));
         $chatId = $request->input('chat_id');
         $selectedStrategy = $request->input('selected_strategy');
         $selectedScenario = $request->input('selected_scenario');
@@ -1418,7 +1422,7 @@ EOT;
 
     public function save_expected_state(Request $request)
     {
-        $user = auth()->user();
+        $user = $this->chatUser($request->input('chat_id'));
         $chatId = $request->input('chat_id');
         $role = $request->input('role');
         $recommendedAction = $request->input('recommended_action');
@@ -1533,7 +1537,7 @@ EOT;
 
     public function get_progress_data(Request $request)
     {
-        $user = auth()->user();
+        $user = $this->chatUser($request->input('chat_id'));
         $chatId = $request->input('chat_id');
 
         if (! $chatId) {
@@ -1808,7 +1812,7 @@ EOT;
 
             $ownsChat = $expectedState instanceof ExpectedState
                 && SearchUserChat::where('id', $expectedState->search_user_chat_id)
-                    ->where('user_id', $user->id)
+                    ->accessibleBy($user)
                     ->exists();
 
             if (! $ownsChat) {
@@ -1849,7 +1853,7 @@ EOT;
 
             $chat = $expectedState instanceof ExpectedState
                 ? SearchUserChat::where('id', $expectedState->search_user_chat_id)
-                    ->where('user_id', $user->id)
+                    ->accessibleBy($user)
                     ->first()
                 : null;
 
@@ -1991,7 +1995,7 @@ EOT;
             $ownsChat = $intervention instanceof Intervention
                 && $intervention->expectedState instanceof ExpectedState
                 && SearchUserChat::where('id', $intervention->expectedState->search_user_chat_id)
-                    ->where('user_id', $user->id)
+                    ->accessibleBy($user)
                     ->exists();
 
             if (! $ownsChat) {
@@ -2136,10 +2140,24 @@ EOT;
             ];
     }
 
+    /**
+     * Who a request on this chat acts as: the signed-in user, or, when an
+     * organization admin works in a member's chat, that member. Acting as the
+     * owner keeps the chat theirs (writes stamp user_id) and answers from the
+     * owner's documents and role.
+     */
+    private function chatUser($chatId): User
+    {
+        $me = auth()->user();
+        $ownerId = $chatId ? SearchUserChat::whereKey($chatId)->accessibleBy($me)->value('user_id') : null;
+
+        return $ownerId && (int) $ownerId !== (int) $me->id ? (User::find($ownerId) ?? $me) : $me;
+    }
+
     private function ownedChat($chatId): ?SearchUserChat
     {
         return SearchUserChat::where('id', $chatId)
-            ->where('user_id', auth()->id())
+            ->accessibleBy(auth()->user())
             ->first();
     }
 

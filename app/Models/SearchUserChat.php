@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -63,6 +64,24 @@ class SearchUserChat extends Model
     protected $attributes = [
         'status' => 'draft',
     ];
+
+    /**
+     * Chats this user may open and write in: their own and, for an
+     * organization admin (the owner or a Super Admin role holder), every
+     * member's chat in that organization.
+     *
+     * @param  Builder<SearchUserChat>  $query
+     * @return Builder<SearchUserChat>
+     */
+    public function scopeAccessibleBy(Builder $query, User $user): Builder
+    {
+        return $query->where(function (Builder $q) use ($user) {
+            $q->where('user_id', $user->id);
+            if ($user->organization_id && $user->organization?->isAdmin($user)) {
+                $q->orWhereIn('user_id', User::where('organization_id', $user->organization_id)->select('id'));
+            }
+        });
+    }
 
     /** @return BelongsTo<User, $this> */
     public function user(): BelongsTo

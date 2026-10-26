@@ -451,7 +451,7 @@ class StrategyPublishController extends Controller
      */
     private function amend(SearchUserChat $chat, User $user, array $rows): JsonResponse
     {
-        if ((int) $chat->published_by !== (int) $user->id) {
+        if ((int) $chat->published_by !== (int) $user->id && ! $user->organization?->isAdmin($user)) {
             return response()->json(['error' => 'Only the person who published this strategy can change its resources.'], 403);
         }
 
@@ -620,14 +620,10 @@ EOT;
         return ($n < 0 || $n > $max) ? null : $n;
     }
 
-    /** The chat, only if the signed-in user wrote it. */
+    /** The chat, if the signed-in user wrote it or is an admin of its author's organization. */
     private function ownChat(Request $request, $chatId): ?SearchUserChat
     {
-        if (! $chatId || ! SearchUserChat::where('id', $chatId)->where('user_id', $request->user()->id)->exists()) {
-            return null;
-        }
-
-        return SearchUserChat::find($chatId);
+        return $chatId ? SearchUserChat::whereKey($chatId)->accessibleBy($request->user())->first() : null;
     }
 
     private function denied(): JsonResponse
@@ -676,7 +672,8 @@ EOT;
 
         return [
             'status' => $chat->status ?? 'draft',
-            'is_publisher' => $chat->isPublished() && (int) $chat->published_by === (int) $user->id,
+            // An organization admin may amend any published strategy, like its publisher.
+            'is_publisher' => $chat->isPublished() && ((int) $chat->published_by === (int) $user->id || (bool) $user->organization?->isAdmin($user)),
             'can_publish' => $this->orgs->canPublish($user),
             'ready' => ! empty($chat->leadership_brief)
                 || ExpectedState::where('search_user_chat_id', $chat->id)->exists(),

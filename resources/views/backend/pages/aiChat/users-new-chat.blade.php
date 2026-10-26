@@ -1085,7 +1085,7 @@
                                     <a href="{{ url('dashboard/users-new-chat/' . $chat->search_user_chat_id) }}">
                                         {{ $rowTitle }}
                                     </a>
-                                    <span class="chat-preview">{{ $rowPreview !== '' ? $rowPreview : localize('No reply yet') }}</span>
+                                    <span class="chat-preview">@if((int) $chat->user_id !== (int) $viewer->id)<strong>{{ $chat->user?->name }}</strong> · @endif{{ $rowPreview !== '' ? $rowPreview : localize('No reply yet') }}</span>
                                     <span class="chat-time">{{ optional($chat->created_at)->format('h:i A') }}</span>
 
                                    <form class="mb-0" action="{{ url('dashboard/users-chat-search-delete', $chat->search_user_chat_id) }}" method="get"
@@ -1122,6 +1122,12 @@
                             <span class="st-name d-block">OI</span>
                             <span class="st-status">{{ localize('Online') }}</span>
                         </span>
+                        @if((int) $user->id !== (int) $viewer->id)
+                            <span class="badge bg-warning text-dark ms-2" data-bs-toggle="tooltip"
+                                title="{{ localize('You are working in this member\'s chat as an organization admin. Changes are saved to their chat.') }}">
+                                {{ localize('Chat of') }} {{ $user->name }}
+                            </span>
+                        @endif
                     </div>
                     <div class="header-actions">
                     @if(isset($documentCount) && $documentCount > 0)

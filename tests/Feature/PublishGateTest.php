@@ -395,9 +395,24 @@ class PublishGateTest extends TestCase
         $w = $this->world();
         $chat = $this->withRow($this->finishedChat($w['member']), $w['sales']);
 
-        $this->actingAs($w['owner'])->postJson(route('users-new-chat-publish.index'), ['chat_id' => $chat->id])
+        // A department head leads, but is not an organization admin.
+        $this->actingAs($w['head'])->postJson(route('users-new-chat-publish.index'), ['chat_id' => $chat->id])
             ->assertForbidden();
         $this->assertFalse($chat->fresh()->isPublished());
+    }
+
+    public function test_an_organization_admin_publishes_a_members_strategy(): void
+    {
+        $w = $this->world();
+        $chat = $this->withRow($this->finishedChat($w['member']), $w['sales']);
+
+        $this->actingAs($w['owner'])->postJson(route('users-new-chat-publish.index'), ['chat_id' => $chat->id])
+            ->assertOk();
+
+        $chat->refresh();
+        $this->assertTrue($chat->isPublished());
+        $this->assertSame($w['member']->id, (int) $chat->user_id);
+        $this->assertSame($w['owner']->id, (int) $chat->published_by);
     }
 
     public function test_publishing_twice_is_refused_and_keeps_the_first_timestamp(): void
@@ -489,15 +504,29 @@ class PublishGateTest extends TestCase
     public function test_only_the_publisher_may_amend(): void
     {
         $w = $this->world();
-        $chat = $this->published($w['owner'], $w['sales']);
+        $chat = $this->published($w['head'], $w['sales']);
         // Same author, but the record says someone else published it.
-        $chat->forceFill(['published_by' => $w['head']->id])->save();
+        $chat->forceFill(['published_by' => $w['manager']->id])->save();
+        $row = $chat->resources()->first();
+
+        $this->actingAs($w['head'])->postJson(route('users-new-chat-resources-save.index'), [
+            'chat_id' => $chat->id,
+            'rows' => [['id' => $row->id, 'department_id' => $w['sales']->id, 'department_name' => 'Sales', 'budget' => 1]],
+        ])->assertForbidden();
+    }
+
+    public function test_an_organization_admin_may_amend_any_published_strategy(): void
+    {
+        $w = $this->world();
+        $chat = $this->published($w['head'], $w['sales']);
         $row = $chat->resources()->first();
 
         $this->actingAs($w['owner'])->postJson(route('users-new-chat-resources-save.index'), [
             'chat_id' => $chat->id,
             'rows' => [['id' => $row->id, 'department_id' => $w['sales']->id, 'department_name' => 'Sales', 'budget' => 1]],
-        ])->assertForbidden();
+        ])->assertOk();
+
+        $this->assertEquals(1, (float) $row->fresh()->budget);
     }
 
     public function test_the_chat_page_carries_the_publish_card_script(): void
