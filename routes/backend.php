@@ -349,6 +349,7 @@ Route::group(
                 Route::get('/users-new-chat-resources/{chat}', [StrategyPublishController::class, 'show'])->name('users-new-chat-resources.show');
                 Route::post('/users-new-chat-resources-suggest', [StrategyPublishController::class, 'suggest'])->name('users-new-chat-resources-suggest.index');
                 Route::post('/users-new-chat-resources-save', [StrategyPublishController::class, 'save'])->name('users-new-chat-resources-save.index');
+                Route::get('/users-new-chat-goals-export/{chat}', [StrategyPublishController::class, 'export'])->name('users-new-chat-goals-export.show');
                 Route::post('/users-new-chat-publish', [StrategyPublishController::class, 'publish'])->name('users-new-chat-publish.index');
                 Route::post('/users-new-chat-goal-role', [StrategyPublishController::class, 'assignRole'])->name('users-new-chat-goal-role.index');
                 Route::post('/users-new-chat-rank-goals', [StrategyPublishController::class, 'rankGoals'])->middleware('throttle:10,1')->name('users-new-chat-rank-goals.index');

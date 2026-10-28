@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Backend\AI;
 
+use App\Exports\GoalsSheetExport;
 use App\Http\Controllers\Controller;
 use App\Models\Department;
 use App\Models\ExpectedState;
@@ -15,6 +16,7 @@ use App\Services\AI\AiProviderService;
 use App\Services\AI\DocumentContextService;
 use App\Services\Alignment;
 use App\Services\Correlation;
+use App\Services\GoalsSheet;
 use App\Services\GoalVariants;
 use App\Services\ImpactRanking;
 use App\Services\MyGoals;
@@ -25,6 +27,9 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
  * Publish gate (Features spec, phase 1): a strategy stays Draft until a leader
@@ -61,6 +66,21 @@ class StrategyPublishController extends Controller
         }
 
         return response()->json($this->payload($record, $request->user()));
+    }
+
+    /** Excel of who sees which goal of this strategy, once it is published. */
+    public function export(Request $request, $chat, GoalsSheet $sheet): BinaryFileResponse|JsonResponse
+    {
+        $record = $this->ownChat($request, $chat);
+        if (! $record) {
+            return $this->denied();
+        }
+        if (! $record->isPublished()) {
+            return response()->json(['error' => 'Publish the strategy first: until then nobody has its goals.'], 409);
+        }
+        $name = Str::slug(Str::limit(app(MyGoals::class)->companyGoal($record), 50, '')) ?: 'strategy';
+
+        return Excel::download(new GoalsSheetExport($sheet->rows($record)), 'goals-'.$name.'-'.date('Y-m-d').'.xlsx');
     }
 
     public function save(Request $request): JsonResponse

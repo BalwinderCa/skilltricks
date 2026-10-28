@@ -34,6 +34,7 @@
         goalDate: '{{ route('users-new-chat-goal-date.index') }}',
         match: '{{ route('users-new-chat-match.index') }}',
         parent: '{{ route('users-new-chat-parent.index') }}',
+        exportGoals: '{{ route('users-new-chat-goals-export.show', ['chat' => $id]) }}',
     };
     const chatId = {{ (int) $id }};
     const csrf = '{{ csrf_token() }}';
@@ -411,8 +412,15 @@
             : `<button type="button" class="btn btn-sm pg-btn-primary" disabled>${label}</button>
                <div class="pg-hint mt-1">Only department heads, managers and the organization owner can publish. This strategy stays private to you.</div>`);
 
+        // Once published, every person's department and role goals exist to download.
+        const exportBtn = state.status === 'published'
+            ? `<a class="btn btn-sm pg-btn-primary" href="${urls.exportGoals}" download>Export goals to Excel</a>`
+            : '';
         el.innerHTML = `
-            <h5>Commit Resources &amp; Publish</h5>
+            <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+                <h5>Commit Resources &amp; Publish</h5>
+                ${exportBtn}
+            </div>
             ${header}
             ${error ? `<div class="pg-error">${esc(error)}</div>` : ''}
             ${busy ? '<div class="pg-sub">Working…</div>' : ''}
